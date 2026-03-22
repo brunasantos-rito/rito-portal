@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <title>Rito OS</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="workspace-switcher">
+        <button class="brand-block workspace-trigger" id="workspaceTrigger" type="button">
+          <div class="brand-mark">Rito</div>
+          <div>
+            <h1 id="sidebarWorkspaceTitle">Rito Ventures</h1>
+            <p class="eyebrow">Portfolio</p>
+          </div>
+        </button>
+        <div class="workspace-dropdown hidden" id="workspaceDropdown">
+          <div class="workspace-dropdown-list" id="workspaceList"></div>
+          <button class="workspace-create" type="button">+ Novo Workspace</button>
+        </div>
+      </div>
+      <div class="nav-tabs" id="viewTabs"></div>
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-controls">
+          <button class="theme-switch" id="themeToggle" type="button" aria-label="Alternar tema">
+            <span class="theme-switch-track">
+              <span class="theme-switch-thumb"></span>
+            </span>
+          </button>
+          <button class="footer-icon-button" id="themeAccentButton" type="button" aria-label="Modo atual">
+            ☀
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main-panel">
+      <header class="topbar">
+        <div>
+          <div class="breadcrumb-line">
+            <span id="workspaceEyebrow">Workspace</span>
+            <span class="breadcrumb-sep">></span>
+            <span id="pageCrumb">Dashboard</span>
+          </div>
+          <h2 id="pageTitle">Dashboard</h2>
+        </div>
+        <div class="topbar-actions">
+          <button class="ghost-button subtle-chip" id="yearChip">2026</button>
+          <button class="ghost-button" id="exportTopButton">Export</button>
+          <button class="ghost-button" id="newItemButton">Novo item</button>
+        </div>
+      </header>
+
+      <section class="content-grid">
+        <div class="page-stack">
+          <label class="search-field top-search">
+            <span>Busca global</span>
+            <input id="globalSearch" type="search" placeholder="Projetos, tarefas, tags, documentos...">
+          </label>
+          <div id="globalResults" class="global-results hidden"></div>
+          <div id="appContent"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="drawerBackdrop" class="drawer-backdrop hidden"></div>
+  <aside id="entityDrawer" class="entity-drawer hidden"></aside>
+  <dialog id="entityDialog" class="entity-dialog hidden"></dialog>
+
+  <template id="metricCardTemplate">
+    <article class="metric-card">
+      <p class="metric-label"></p>
+      <strong class="metric-value"></strong>
+      <span class="metric-footnote"></span>
+    </article>
+  </template>
+
+  <noscript>Ative o JavaScript para usar o portal Rito OS.</noscript>
+  <script src="./app.js"></script>
+</body>
+</html>
