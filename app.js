@@ -1,9 +1,10 @@
 const STORAGE_KEY = "rito-os-v1";
 
 const SUPABASE_URL = "https://soarinrvuvnqabtyyrta.supabase.co";
-const SUPABASE_KEY = "sb_publishable_qsbL0lRuMR1eZAKp0vcscg_5PfVxGHo";
+const SUPABASE_KEY = "Csb_publishable_qsbL0lRuMR1eZAKp0vcscg_5PfVxGHo";
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const ARTHUR_BUENO_PHOTO = "Picture2.png";
 
 const workspaceConfig = {
   rito: {
@@ -198,7 +199,7 @@ const ritoPipelineCards = [
   { name: "Omni Internet", subtitle: "Telecom", status: "Portfolio", cover: defaultCover("omni", "#ffffff", "#fbfbfb"), logoText: "OI", logoBg: "#ffffff", tags: ["Private Equity", "Portfolio", "Telecom", "Investido", "Morno"], owner: "Arthur Bueno", accent: "#77d7ef" },
   { name: "Verde Brasil", subtitle: "Agro / Carbono - Rio Branco - AC - 2020", status: "Declined", cover: defaultCover("Verde", "#ffffff", "#f7fbf7"), logoText: "VB", logoBg: "#ffffff", tags: ["Private Equity", "Declined", "Agro / Carbono", "Declinado", "Morno"], owner: "Arthur Bueno", accent: "#7bc96f" },
   { name: "Formula CRM", subtitle: "Software - Caldas Novas - GO - 2024", status: "Portfolio", cover: defaultCover("Formula CRM", "#ffffff", "#f8fbff"), logoText: "FC", logoBg: "#ffffff", tags: ["Venture Capital", "Portfolio", "Software", "Investido", "Morno"], owner: "Arthur Bueno", accent: "#7b7de6" },
-  { name: "UFC Jiu Jitsu", subtitle: "Fitness - Miami - Florida - 2025", status: "Pipeline", cover: defaultCover("UFC Jiu Jitsu", "#ffffff", "#fff8f5"), logoText: "UJ", logoBg: "#ffffff", tags: ["Private Equity", "Fitness", "Pipeline", "Nao investido", "Morno"], owner: "Arthur Bueno", accent: "#ef5d4d" },
+  { name: "UFC Jiu Jitsu", subtitle: "Fitness - Miami - Florida - 2025", status: "Portfolio", cover: defaultCover("UFC Jiu Jitsu", "#ffffff", "#fff8f5"), logoText: "UJ", logoBg: "#ffffff", tags: ["Private Equity", "Fitness", "Investido", "Morno"], owner: "Arthur Bueno", accent: "#ef5d4d" },
   { name: "UFC Gym & UFC Fit", subtitle: "Fitness - Miami - Florida - 2025", status: "LOI", cover: defaultCover("UFC FIT", "#ffffff", "#fff8f5"), logoText: "UG", logoBg: "#ffffff", tags: ["Private Equity", "LOI", "Fitness", "Nao investido", "Morno"], owner: "Arthur Bueno", accent: "#ef6e4d" },
   { name: "Fast Massagem", subtitle: "Franquias / Wellness - Goiania - GO - 2023", status: "Portfolio", cover: defaultCover("FAST", "#32472f", "#2e3f2f"), logoText: "FM", logoBg: "#ffffff", tags: ["Private Equity", "Due Diligence", "Franquias / Wellness", "Investido"], owner: "Arthur Bueno", accent: "#9c8b62" }
 ];
@@ -262,6 +263,10 @@ function memberColor(name) {
   return palette[value % palette.length];
 }
 
+function defaultMemberPhoto(name) {
+  return normalizeMemberLookupName(name) === "arthur bueno" ? ARTHUR_BUENO_PHOTO : "";
+}
+
 function workspaceDisplayName(key) {
   if (key === "rito") return "Rito";
   if (key === "fast") return "Fast";
@@ -308,7 +313,7 @@ function findMemberByName(name) {
 
 function renderOwnerAvatar(name, className = "owner-badge") {
   const member = findMemberByName(name);
-  const photo = member?.photo || "";
+  const photo = defaultMemberPhoto(name) || member?.photo || "";
   const label = initials(name || "");
   return `<span class="${className}${!label ? " is-empty" : ""}">${photo ? `<img src="${photo}" alt="${escapeAttr(displayText(name || "Responsável"))}">` : label}</span>`;
 }
@@ -337,6 +342,15 @@ function memberCardData(member) {
 
 function syncWorkspaceMemberOptions() {
   workspaceConfig[state.currentWorkspace].memberOptions = workspaceData().members.map((member) => member.name);
+}
+
+function applyDefaultMemberPhotos(rootState) {
+  Object.values(rootState?.workspaces || {}).forEach((workspace) => {
+    (workspace.members || []).forEach((member) => {
+      const defaultPhoto = defaultMemberPhoto(member.name);
+      if (defaultPhoto) member.photo = defaultPhoto;
+    });
+  });
 }
 
 function uid(prefix) {
@@ -370,6 +384,10 @@ function defaultLogo(text, foreground = "#1c1c1c", background = "#ffffff", fontF
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
+function isGeneratedImageAsset(value) {
+  return String(value || "").startsWith("data:image/");
+}
+
 function ritoSubtitle(sector, location, year) {
   return [sector, location, year].filter(Boolean).join(" - ");
 }
@@ -392,26 +410,26 @@ function referenceAccent(status, investmentStatus) {
 }
 
 const ritoReferenceProjects = [
-  { name: "Geral / Braslar", sector: "Eletrodomesticos / Linha branca", location: "Ponta Grossa - PR", year: "2026", status: "Lead", investmentStatus: "Nao investido", temperature: "Morno", estimatedValue: 0, owner: "Arthur Bueno", tags: ["Private Equity", "Industria", "Fogoes", "Cooktops", "Linha branca"], cover: defaultCover("Geral Braslar", "#1f1e24", "#7c63b8"), logoText: "GB", logo: defaultLogo("GERAL", "#7f64c6", "#ffffff", "Inter, Arial, sans-serif", 54, 800), logoBg: "#ffffff", description: "Lead ligado a marca Geral, historicamente associada a fogoes e aquecedores e atualmente operada pela Braslar. A Braslar atua em fogoes e eletrodomesticos, com linha de fogoes de piso, cooktops e outros itens de refrigeração e apoio ao varejo.", framework: "Industria / Eletrodomesticos / Lead inicial", origin: "Internet / Feira", priority: "Media", website: "https://braslareletros.com.br/", businessModel: "Fabricacao e comercializacao de fogoes, cooktops e eletrodomesticos com cobertura nacional, representantes e assistencia tecnica.", advantages: "Marca centenaria Geral, rede de representantes, certificacao INMETRO, flexibilidade produtiva e distribuicao nacional.", competitors: "Atlas, Esmaltec, Itatiaia, Mueller e fabricantes regionais de fogoes e cooktops.", managementTeam: "Braslar do Brasil Ltda", notes: "Marca Geral relancada pela Braslar; empresa paranaense fundada em 2000 e localizada em Ponta Grossa - PR." },
+  { name: "Geral / Braslar", sector: "Eletrodomesticos / Linha branca", location: "Ponta Grossa - PR", year: "2026", status: "Lead", investmentStatus: "Nao investido", temperature: "Morno", estimatedValue: 0, owner: "Arthur Bueno", tags: ["Private Equity", "Industria", "Fogoes", "Cooktops", "Linha branca"], cover: "https://braslareletros.com.br/wp-content/uploads/2025/01/banner-paginas.jpg", logoText: "GB", logo: "https://braslareletros.com.br/wp-content/uploads/2025/01/logo-stick-1.png", logoBg: "transparent", description: "Lead ligado a marca Geral, historicamente associada a fogoes e aquecedores e atualmente operada pela Braslar. A Braslar atua em fogoes e eletrodomesticos, com linha de fogoes de piso, cooktops, freezers e itens de refrigeração com distribuição nacional.", framework: "Industria / Eletrodomesticos / Lead inicial", origin: "Internet / Feira", priority: "Media", website: "https://braslareletros.com.br/", contact: "(42) 3220-5650", email: "contato@braslareletros.com.br", businessModel: "Fabricacao e comercializacao de fogoes, cooktops, freezers e eletrodomesticos com cobertura nacional, representantes comerciais e rede de assistencia tecnica.", advantages: "Marca tradicional, certificacao INMETRO, estrutura de representantes em todo o territorio nacional, flexibilidade produtiva para lojistas e sistema facilitado de fretes.", competitors: "Atlas, Esmaltec, Itatiaia, Mueller e fabricantes regionais de fogoes e cooktops.", managementTeam: "Braslar do Brasil Ltda", fundraisingHistory: "Nao foi identificado historico publico recente de captacao por equity ou divida.", vcPeBacked: "Nao identificado publicamente", notes: "CNPJ 04.016.420/0001-17; sede na Av. Continental, s/n, Distrito Industrial, Ponta Grossa - PR; fundada em 2000." },
   { name: "Fox Graos", sector: "Startup / Trade de Graos", location: "Goias - GO", year: "2026", status: "Lead", investmentStatus: "Nao investido", temperature: "Quente", estimatedValue: 20000000, owner: "Arthur Bueno", tags: ["Private Equity", "Startup", "Trade", "Agro", "Base tecnologica"], cover: defaultCover("Fox Graos", "#f8f5ed", "#eef6e7"), logoText: "FG", logo: defaultLogo("FOX GRAOS", "#4f5f2a", "#ffffff", "Inter, Arial, sans-serif", 42, 800), logoBg: "#ffffff", description: "Startup de trade de graos em Goias. Compra e vende com apoio de sistema proprio que analisa frete, imposto, distancia e melhor preco. Operacao asset light, com base tecnologica e sem capex relevante.", framework: "Trade agro / Base tecnologica / Lead inicial", origin: "Relacionamento", priority: "Alta", businessModel: "Entra insumo e sai grao, com arbitragem comercial apoiada por tecnologia proprietaria.", managementTeam: "Donalvan", revenues: "2024: R$ 40MM | 2025: R$ 97MM", fundraisingHistory: "Busca R$ 20MM em equity; nao quer endividamento. Considerou FIDC como alternativa.", advantages: "Resultados instantaneos, base tecnologica, atuacao regional focada em Goias e estrutura sem capex.", competitors: "Tradings regionais de graos e plataformas de originacao com inteligencia de frete e imposto.", vcPeBacked: "Nao", notes: "EBITDA de 3%. Caixa de giro citado: R$ 2MM em 30 dias. Nao ha projeto formal estruturado neste momento." },
-  { name: "Bioativos & Liofilizacao", sector: "Industria de Bioativos e Liofilizacao", location: "Sao Paulo - SP", year: "2026", status: "Lead", investmentStatus: "Nao investido", temperature: "Morno", estimatedValue: 0, owner: "Arthur Bueno", tags: ["Private Equity", "Industria", "Bioativos", "Liofilizacao"], cover: defaultCover("Bioativos & Liofilizacao", "#f4fbef", "#e4f2ff"), logoText: "BL", logo: defaultLogo("BL", "#2f7a45", "#ffffff", "Georgia, 'Times New Roman', serif", 72, 700), logoBg: "#ffffff", description: "Projeto de sociedade na industria de bioativos e liofilizacao, com base operacional em Sao Paulo e potencial de aplicacao em ingredientes, nutraceuticos e manufatura especializada.", framework: "Bioativos / Industria especializada / Lead inicial", origin: "Relacionamento", priority: "Media" },
-  { name: "Ibi Liv", sector: "Saude & Bem-estar", location: "Aparecida de Goiania - GO", year: "2025", status: "Pipeline", investmentStatus: "Nao investido", temperature: "Morno", estimatedValue: 4800000, owner: "Arthur Bueno", tags: ["Private Equity", "Saude & Bem-estar"], cover: defaultCover("Ibi Liv", "#f7f3f0", "#f0d7cc"), logoText: "IL", logo: defaultLogo("IL", "#9f6d2b", "#fff8f0", "Georgia, 'Times New Roman', serif", 74, 700), logoBg: "#f6ebdf", description: "Industria e comercio de suplementos e bebidas funcionais com portfolio focado em produtos a base de cafe e performance.", website: "https://ibiliv.com", contact: "(62) 99174-0717", email: "natalia@ope.com.br", management: "Flavio Guimaraes Rocha; Theylor Angonese; RV7 Participacoes Ltda", businessModel: "Fabricacao e distribuicao de suplementos e bebidas funcionais.", competitors: "Growth Supplements, Max Titanium, Soldiers Nutrition", advantages: "Categoria funcional com apelo de conveniencia e portfolio combinado de cafe e suplementacao." },
-  { name: "Centro de Treinamento Marcio Goncalves", sector: "Fitness", location: "Goiania - GO", year: "2023", status: "Declined", investmentStatus: "Nao investido", temperature: "Frio", estimatedValue: 3200000, owner: "Arthur Bueno", tags: ["Private Equity", "Fitness"], cover: defaultCover("CTMG", "#231f1f", "#41312c"), logoText: "MG", logo: defaultLogo("MG", "#b16f2f", "#f6ebe0", "Georgia, 'Times New Roman', serif", 72, 700), logoBg: "#f1e2d6", description: "Centro de treinamento com marca regional forte e oportunidade de profissionalizacao operacional." },
-  { name: "Manakai Goiania", sector: "Fitness", location: "Goiania - GO", year: "2016", status: "Declined", investmentStatus: "Nao investido", temperature: "Frio", estimatedValue: 2800000, owner: "Arthur Bueno", tags: ["Private Equity", "Fitness"], cover: defaultCover("Manakai", "#173724", "#274b35"), logoText: "MK", logo: defaultLogo("MK", "#202020", "#ffffff", "Georgia, 'Times New Roman', serif", 72, 700), logoBg: "#ffffff", description: "Operacao fitness boutique com boa lembranca de marca e baixa escala atual." },
-  { name: "EPIC", sector: "Startup", location: "", year: "2026", status: "Pipeline", investmentStatus: "Nao investido", temperature: "Morno", estimatedValue: 3500000, owner: "Arthur Bueno", tags: ["Private Equity", "Startup"], cover: defaultCover("EPIC", "#ffffff", "#f7f8ff"), logoText: "EP", logo: defaultLogo("EPIC", "#3f6ef3", "#ffffff", "Inter, Arial, sans-serif", 72, 800), logoBg: "#ffffff", description: "Plataforma digital em estagio de crescimento com tese de software vertical." },
-  { name: "Verse Skincare", sector: "Cosmeticos", location: "Goiania - GO", year: "2023", status: "Pipeline", investmentStatus: "Nao investido", temperature: "Morno", estimatedValue: 3900000, owner: "Arthur Bueno", tags: ["Private Equity", "Cosmeticos"], cover: defaultCover("VERSE", "#ffffff", "#fafafa"), logoText: "VS", logo: defaultLogo("VERSE", "#101010", "#ffffff", "Inter, Arial, sans-serif", 54, 600), logoBg: "#ffffff", description: "Marca de skincare com posicionamento premium e espaco para consolidacao de linha." },
-  { name: "YellotMob", sector: "Energia / Software", location: "Goiania - GO", year: "2022", status: "Pipeline", investmentStatus: "Nao investido", temperature: "Morno", estimatedValue: 5100000, owner: "Arthur Bueno", tags: ["Private Equity", "Energia / Software"], cover: defaultCover("Yellot", "#ffffff", "#faf8ff"), logoText: "YM", logo: defaultLogo("yellotMOB", "#4e23ff", "#ffffff", "Inter, Arial, sans-serif", 54, 700), logoBg: "#ffffff", description: "Software para infraestrutura energetica com oportunidade de extensao de servicos." },
-  { name: "Omni Internet", sector: "Telecom", location: "", year: "", status: "Pipeline", investmentStatus: "Investido", investmentAmount: 3500000, temperature: "Morno", estimatedValue: 12000000, owner: "Arthur Bueno", tags: ["Private Equity", "Telecom"], cover: defaultCover("omni", "#ffffff", "#fbfbfb"), logoText: "OI", logo: defaultLogo("omni", "#6f49df", "#ffffff", "Inter, Arial, sans-serif", 68, 800), logoBg: "#ffffff", description: "Operadora regional de telecom com base recorrente e alavancas de consolidacao.", progress: 100 },
-  { name: "Verde Brasil", sector: "Agro / Carbono", location: "Rio Branco - AC", year: "2020", status: "Declined", investmentStatus: "Nao investido", temperature: "Morno", estimatedValue: 4400000, owner: "Arthur Bueno", tags: ["Private Equity", "Agro / Carbono"], cover: defaultCover("Verde Brasil", "#ffffff", "#f7fbf7"), logoText: "VB", logo: defaultLogo("VerdeBrasil", "#2c8e48", "#ffffff", "Inter, Arial, sans-serif", 44, 700), logoBg: "#ffffff", description: "Tese ligada a regeneracao e mercado de carbono, sem maturidade suficiente para investimento." },
-  { name: "Formula CRM", sector: "Software", location: "Caldas Novas - GO", year: "2024", status: "Pipeline", investmentStatus: "Investido", investmentAmount: 2000000, temperature: "Morno", estimatedValue: 8600000, owner: "Arthur Bueno", tags: ["Venture Capital", "Software"], cover: defaultCover("Formula CRM", "#ffffff", "#f8fbff"), logoText: "FC", logo: defaultLogo("FORMULA CRM", "#494949", "#ffffff", "Inter, Arial, sans-serif", 44, 700), logoBg: "#ffffff", description: "CRM vertical com tese de crescimento em software B2B regional.", progress: 100 },
-  { name: "UFC Jiu Jitsu", sector: "Fitness", location: "Miami - Florida", year: "2025", status: "Pipeline", investmentStatus: "Nao investido", temperature: "Morno", estimatedValue: 6200000, owner: "Arthur Bueno", tags: ["Private Equity", "Fitness"], cover: defaultCover("UFC Jiu Jitsu", "#ffffff", "#fff9f6"), logoText: "UJ", logo: defaultLogo("UFC JIU JITSU", "#cb1d1d", "#ffffff", "Inter, Arial, sans-serif", 36, 800), logoBg: "#ffffff", description: "Ativo internacional de fitness com marca forte e potencial de expansao de franquias." },
-  { name: "UFC Gym & UFC Fit", sector: "Fitness", location: "Miami - Florida", year: "2025", status: "LOI", investmentStatus: "Nao investido", temperature: "Morno", estimatedValue: 7400000, owner: "Arthur Bueno", tags: ["Private Equity", "Fitness"], cover: defaultCover("UFC FIT", "#ffffff", "#fff9f6"), logoText: "UG", logo: defaultLogo("UFC GYM UFC FIT", "#252525", "#ffffff", "Inter, Arial, sans-serif", 30, 800), logoBg: "#ffffff", description: "Rede fitness internacional em etapa avancada de avaliacao comercial." },
-  { name: "Fast Massagem", sector: "Franquias / Wellness", location: "Goiania - GO", year: "2023", status: "Due Diligence", investmentStatus: "Investido", investmentAmount: 1500000, temperature: "Morno", estimatedValue: 9500000, owner: "Arthur Bueno", tags: ["Private Equity", "Franquias / Wellness"], cover: defaultCover("FAST", "#32472f", "#2e3f2f"), logoText: "FM", logo: defaultLogo("FAST", "#f0e6d8", "#32472f", "Georgia, 'Times New Roman', serif", 72, 700), logoBg: "#ffffff", description: "Rede de wellness e massagem com playbook de franquias e ganho operacional.", progress: 60 },
-  { name: "Enebra Energia", sector: "Energia", location: "Anapolis - GO", year: "2019", status: "Pipeline", investmentStatus: "Nao investido", temperature: "Morno", estimatedValue: 5400000, owner: "Arthur Bueno", tags: ["Private Equity", "Energia"], cover: defaultCover("ENEBRA", "#ffffff", "#f7faf5"), logoText: "EN", logo: defaultLogo("ENEBRA", "#84b62f", "#ffffff", "Inter, Arial, sans-serif", 58, 800), logoBg: "#ffffff", description: "Distribuicao e servicos no setor de energia com base recorrente de contratos." },
-  { name: "Caseratto", sector: "Food & Beverage", location: "Goiania - GO", year: "2016", status: "Declined", investmentStatus: "Nao investido", temperature: "Morno", estimatedValue: 2600000, owner: "Arthur Bueno", tags: ["Private Equity", "Food & Beverage"], cover: defaultCover("Caseratto", "#ffffff", "#fff8f2"), logoText: "CS", logo: defaultLogo("CASERATTO", "#8a4a2d", "#ffffff", "Inter, Arial, sans-serif", 42, 700), logoBg: "#ffffff", description: "Marca de consumo local com boa reputacao, mas baixa escala para tese atual." },
-  { name: "Winsford", sector: "Educacao", location: "Goiania - GO", year: "2022", status: "Declined", investmentStatus: "Nao investido", temperature: "Morno", estimatedValue: 2300000, owner: "Arthur Bueno", tags: ["Private Equity", "Educacao"], cover: defaultCover("Winsford", "#ffffff", "#fbfaf7"), logoText: "WF", logo: defaultLogo("WINSFORD", "#7a6f37", "#ffffff", "Inter, Arial, sans-serif", 42, 700), logoBg: "#ffffff", description: "Ativo educacional com boa base de alunos, mas tese desalinhada ao portfolio." },
-  { name: "Complete Bari", sector: "Nutricao", location: "Santana de Parnaiba - SP", year: "2022", status: "Declined", investmentStatus: "Nao investido", temperature: "Morno", estimatedValue: 2100000, owner: "Arthur Bueno", tags: ["Private Equity", "Nutricao"], cover: defaultCover("Complete Bari", "#ffffff", "#f9fcf7"), logoText: "CB", logo: defaultLogo("Complete Bari", "#3c5d1b", "#ffffff", "Georgia, 'Times New Roman', serif", 38, 700), logoBg: "#ffffff", description: "Operacao de nutricao especializada analisada e descartada por baixa sinergia." },
-  { name: "Pop Move", sector: "Mobilidade", location: "Goiania - GO", year: "2024", status: "Pipeline", investmentStatus: "Nao investido", temperature: "Morno", estimatedValue: 3100000, owner: "Arthur Bueno", tags: ["Private Equity", "Mobilidade"], cover: defaultCover("Pop Move", "#eef5ff", "#dcecff"), logoText: "PM", logo: defaultLogo("POP MOVE", "#1f4db8", "#ffffff", "Inter, Arial, sans-serif", 48, 800), logoBg: "#ffffff", description: "Plataforma de mobilidade com potencial de consolidacao regional e tese de escala operacional." }
+  { name: "Bioativos & Liofilizacao", sector: "Industria de Bioativos e Liofilizacao", location: "Sao Paulo - SP", year: "2026", status: "Lead", investmentStatus: "Nao investido", temperature: "Morno", estimatedValue: 0, owner: "Arthur Bueno", tags: ["Private Equity", "Industria", "Bioativos", "Liofilizacao"], cover: defaultCover("Bioativos & Liofilizacao", "#f4fbef", "#e4f2ff"), logoText: "BL", logo: defaultLogo("BL", "#2f7a45", "#ffffff", "Georgia, 'Times New Roman', serif", 72, 700), logoBg: "#ffffff", description: "Projeto de sociedade na industria de bioativos e liofilizacao, com base operacional em Sao Paulo e potencial de aplicacao em ingredientes, nutraceuticos e manufatura especializada.", framework: "Bioativos / Industria especializada / Lead inicial", origin: "Relacionamento", priority: "Media", businessModel: "Nao identificado publicamente. A tese interna sugere manufatura especializada de bioativos, ingredientes e processos de liofilizacao.", managementTeam: "Nao identificado publicamente", competitors: "Nexira, Duas Rodas, fabricantes de ingredientes funcionais, CDMOs e operadores de liofilizacao para nutraceuticos e farma.", advantages: "Tese potencialmente ligada a alto valor agregado, barreiras tecnicas de processo e aplicacoes em nutraceuticos, ingredientes e formulacoes especializadas.", fundraisingHistory: "Nao identificado publicamente", vcPeBacked: "Nao identificado publicamente", notes: "Nao foi encontrada na internet, ate esta revisao, uma correspondencia publica inequivoca para o nome exato do projeto. Os campos foram preenchidos apenas com a tese interna e observacao de ausencia de rastro publico seguro." },
+  { name: "Ibi Liv", sector: "Saude & Bem-estar", location: "Aparecida de Goiania - GO", year: "2025", status: "Pipeline", investmentStatus: "Nao investido", temperature: "Morno", estimatedValue: 4800000, owner: "Arthur Bueno", tags: ["Private Equity", "Saude & Bem-estar"], cover: defaultCover("Ibi Liv", "#f7f3f0", "#f0d7cc"), logoText: "IL", logo: defaultLogo("IL", "#9f6d2b", "#fff8f0", "Georgia, 'Times New Roman', serif", 74, 700), logoBg: "#f6ebdf", description: "Industria e comercio de suplementos, produtos a base de cafe e bebidas funcionais, com atuacao industrial e atacadista em Aparecida de Goiania.", website: "https://ibiliv.com", contact: "(62) 99174-0717", email: "natalia@ope.com.br", management: "Flavio Guimaraes Rocha; Theylor Angonese; RV7 Participacoes Ltda", managementTeam: "Flavio Guimaraes Rocha; Theylor Angonese; RV7 Participacoes Ltda", businessModel: "Fabricacao e distribuicao de suplementos, produtos a base de cafe, alimentos dieteticos e chas prontos para consumo.", competitors: "Growth Supplements, Max Titanium, Soldiers Nutrition e marcas de nutricao funcional.", advantages: "Portfolio combinado de cafe funcional e suplementacao, base industrial propria e combinacao de fabricacao com atacado.", fundraisingHistory: "Nao foi identificado historico publico de captacao institucional; capital social registrado de R$ 100 mil.", vcPeBacked: "Nao identificado publicamente", revenues: "Nao identificado publicamente", notes: "CNPJ 63.989.797/0001-11; aberta em 09/12/2025; sede no Polo Empresarial Goias - Etapa I, Aparecida de Goiania - GO; CNAEs incluem atacado de bebidas, produtos a base de cafe e alimentos dieteticos." },
+  { name: "Centro de Treinamento Marcio Goncalves", sector: "Fitness", location: "Goiania - GO", year: "2023", status: "Declined", investmentStatus: "Nao investido", temperature: "Frio", estimatedValue: 3200000, owner: "Arthur Bueno", tags: ["Private Equity", "Fitness"], cover: defaultCover("CTMG", "#231f1f", "#41312c"), logoText: "MG", logo: defaultLogo("MG", "#b16f2f", "#f6ebe0", "Georgia, 'Times New Roman', serif", 72, 700), logoBg: "#f1e2d6", description: "Centro de treinamento fisico em Goiania com operacao voltada a condicionamento, eventos esportivos, artigos esportivos e varejo complementar.", contact: "(61) 98282-8239", email: "marciogoncalves.ct@gmail.com", businessModel: "Prestacao de servicos de condicionamento fisico com monetizacao complementar via eventos, artigos esportivos e varejo alimentar especializado.", managementTeam: "Marcio Vieira Goncalves", competitors: "Academias boutique, studios de treinamento funcional e redes fitness locais.", advantages: "Fundador-operador, nicho esportivo, operacao enxuta e receita complementar fora da mensalidade.", fundraisingHistory: "Nao foi identificado historico publico de captacao; capital social registrado de R$ 50 mil.", vcPeBacked: "Nao identificado publicamente", notes: "CNPJ 49.826.809/0001-66; aberta em 06/03/2023; sede na Rua da Redencao, Jardim Vitoria, Goiania - GO; atividade principal CNAE 93.13-1-00." },
+  { name: "Manakai Goiania", sector: "Fitness", location: "Goiania - GO", year: "2016", status: "Declined", investmentStatus: "Nao investido", temperature: "Frio", estimatedValue: 2800000, owner: "Arthur Bueno", tags: ["Private Equity", "Fitness"], cover: defaultCover("Manakai", "#173724", "#274b35"), logoText: "MK", logo: defaultLogo("MK", "#202020", "#ffffff", "Georgia, 'Times New Roman', serif", 72, 700), logoBg: "#ffffff", description: "Arena fitness e esportiva em Goiania ligada a aulas, modalidades de areia e comunidade wellness, operada pela Manakai Sport Food.", website: "https://www.instagram.com/manakaioficial/", contact: "(62) 98122-8048", email: "manakaipraia@gmail.com", businessModel: "Monetizacao por ensino de esportes, uso de estrutura esportiva, eventos, alimentacao de apoio e ativacoes de comunidade.", managementTeam: "Felipe Antonio Fernandes Barbosa; Rafaela Vilela Machado Barbosa", competitors: "Arenas esportivas de areia, studios fitness boutique, beach tennis clubs e academias com proposta de comunidade.", advantages: "Marca local com comunidade ativa, multiplas unidades/filiais registradas e combinacao de esporte, lifestyle e consumo complementar.", fundraisingHistory: "Nao foi identificado historico publico de captacao institucional; capital social registrado de R$ 20 mil.", vcPeBacked: "Nao identificado publicamente", notes: "CNPJ 26.166.895/0001-22; aberta em 14/09/2016; matriz no Park Lozandes, Goiania - GO; ha registros publicos de filiais e de atuacao em ensino de esportes e condicionamento fisico." },
+  { name: "EPIC", sector: "Imobiliario / Servicos", location: "Goiania - GO", year: "2025", status: "Pipeline", investmentStatus: "Nao investido", temperature: "Morno", estimatedValue: 3500000, owner: "Arthur Bueno", tags: ["Private Equity", "Imobiliario", "Servicos"], cover: defaultCover("EPIC", "#ffffff", "#f7f8ff"), logoText: "EP", logo: defaultLogo("EPIC", "#3f6ef3", "#ffffff", "Inter, Arial, sans-serif", 72, 800), logoBg: "#ffffff", description: "Empresa imobiliaria em Goiania com atuacao em corretagem, compra e venda, locacao e servicos complementares de real estate.", contact: "(34) 3183-6986", email: "Nao identificado publicamente", businessModel: "Corretagem na compra, venda e locacao de imoveis, com potencial de monetizacao por intermedicao, advisory e ativos proprios.", managementTeam: "ESG Solucoes Imobiliarias Ltda", competitors: "Imobiliarias e boutiques de real estate de Goiania, consultorias imobiliarias e brokers regionais.", advantages: "Capital social superior a operacoes muito iniciais, CNAEs complementares de compra, venda, aluguel e design de interiores.", fundraisingHistory: "Nao foi identificado historico publico de captacao institucional; capital social registrado de R$ 300 mil.", vcPeBacked: "Nao identificado publicamente", notes: "Correspondencia publica mais aderente encontrada: Epic Real Estate, CNPJ 59.758.555/0001-40, aberta em 06/03/2025, sediada na Rua S1, 333, Setor Bela Vista, Goiania - GO." },
+  { name: "Verse Skincare", sector: "Cosmeticos", location: "Goiania - GO", year: "2023", status: "Pipeline", investmentStatus: "Nao investido", temperature: "Morno", estimatedValue: 3900000, owner: "Arthur Bueno", tags: ["Private Equity", "Cosmeticos"], cover: "https://verseskincare.com.br/wp-content/uploads/2026/03/BANNER-HOME-FULL-SITE-CAMPANHA-DIA-DAS-MULHERES-VERSE.opti_.webp", logoText: "VS", logo: "https://verseskincare.com.br/wp-content/uploads/2025/07/logotipogrande-scaled.png", logoBg: "transparent", description: "Marca de skincare premium voltada a mulheres 40+, com proposta de combinar ciencia, tecnologia e autocuidado consciente em produtos de alta performance.", website: "https://verseskincare.com.br/", contact: "(62) 99937-0387", email: "contato@verseskincare.com.br", businessModel: "D2C digital em cosmeticos premium com venda online, comunidade proprietaria e foco em produto-hero de alto ticket e recorrencia.", managementTeam: "Bethania Simoes; Vanessa de Sa", competitors: "Adcos, Simple Organic, Sallve, Principia e marcas premium de skincare.", advantages: "Posicionamento claro para publico 40+, narrativa de marca forte, biopeptideos, nanotecnologia e prova social no produto principal.", fundraisingHistory: "Nao foi identificado historico publico de captacao institucional.", vcPeBacked: "Nao identificado publicamente", notes: "Operada por BS Comercio & Empreendimentos Ltda; endereco no Setor Oeste, Goiania - GO; produto principal exibido publicamente por R$ 359,00 na loja oficial." },
+  { name: "YellotMob", sector: "Energia / Software", location: "Goiania - GO", year: "2022", status: "Pipeline", investmentStatus: "Nao investido", temperature: "Morno", estimatedValue: 5100000, owner: "Arthur Bueno", tags: ["Private Equity", "Energia / Software"], cover: "https://yellotmob.com.br/wp-content/uploads/2023/07/banner-home.jpg", logoText: "YM", logo: "https://yellotmob.com.br/wp-content/uploads/2023/07/yellomob.png", logoBg: "transparent", description: "Aplicativo e camada digital da Yellot para mobilidade eletrica, roteirizacao, recarga e monitoramento de uso em tempo real para usuarios de veiculos eletricos.", website: "https://yellotmob.com.br/", contact: "+55 (62) 3638-1006", email: "contato@yellot.com.br", businessModel: "Plataforma de software conectada ao ecossistema de energia renovavel e infraestrutura de recarga para veiculos eletricos.", managementTeam: "Yellot / Bouhid Brasil Engenharia Ltda", competitors: "Tupi Mobilidade, EZVolt, PlugShare e outras plataformas de recarga e discovery para mobilidade eletrica.", advantages: "Conexao com ecossistema energetico existente, app proprio, foco em autonomia do usuario e integracao com rede de abastecimento eletrico.", fundraisingHistory: "Nao foi identificado historico publico especifico da vertical YellotMob.", vcPeBacked: "Nao identificado publicamente", notes: "Aplicativo publicado no Google Play com mais de 10 mil downloads; sede da Yellot em Goiania no Ed. Flamboyant Park Business." },
+  { name: "Omni Internet", sector: "Telecom", location: "Caldas Novas - GO", year: "2007", status: "Pipeline", investmentStatus: "Investido", investmentAmount: 3500000, temperature: "Morno", estimatedValue: 12000000, owner: "Arthur Bueno", tags: ["Private Equity", "Telecom"], cover: defaultCover("omni", "#ffffff", "#fbfbfb"), logoText: "OI", logo: defaultLogo("omni", "#6f49df", "#ffffff", "Inter, Arial, sans-serif", 68, 800), logoBg: "#ffffff", description: "Provedor regional de internet e telecom em Caldas Novas com base recorrente de assinantes e tese de consolidacao de fibra.", contact: "(64) 3513-9200", email: "contato@omni.net.br", businessModel: "Receita recorrente via servicos de comunicacao multimidia, acesso a internet e infraestrutura regional de conectividade.", managementTeam: "Omni Telecomunicacoes Ltda", competitors: "Provedores regionais de fibra, operadoras locais e ISPs com tese de consolidacao no Centro-Oeste.", advantages: "Base regional recorrente, pioneirismo local em fibra segundo listings publicos e tese de consolidacao de provedores menores.", fundraisingHistory: "Nao foi identificado historico publico de captacao institucional; capital social registrado de R$ 120 mil.", vcPeBacked: "Nao identificado publicamente", notes: "Correspondencia publica mais aderente: Omni Telecomunicacoes Ltda, CNPJ 09.238.990/0001-75, aberta em 06/12/2007 em Caldas Novas - GO. Situacao cadastral publica recente apareceu como suspensa em cadastro empresarial; validar status operacional em diligencia.", progress: 100 },
+  { name: "Verde Brasil", sector: "Agro / Carbono", location: "Rio Branco - AC", year: "2022", status: "Declined", investmentStatus: "Nao investido", temperature: "Morno", estimatedValue: 4400000, owner: "Arthur Bueno", tags: ["Private Equity", "Agro / Carbono"], cover: "https://verdebrasil.com/wp-content/uploads/2024/03/Projeto-REDD-Tarauaca-VERDE-BRASIL_FLORA_CLEITON-LOPES_@cleiton-3-1-1024x529.png", logoText: "VB", logo: "https://verdebrasil.com/wp-content/uploads/2024/03/Logo-VB-completo.svg", logoBg: "transparent", description: "Empresa focada em preservacao florestal e creditos de carbono no Acre, com projeto REDD+ Tarauaca e tese de ativos ambientais.", website: "https://verdebrasil.com/", contact: "(68) 2102-3606", email: "contato@verdebrasil.com", businessModel: "Gestao de ativos ambientais e imobiliarios ligados a preservacao, desenvolvimento de projetos de credito de carbono e iniciativas socioambientais na Amazonia.", managementTeam: "Verde Brasil Sustentabilidade e Negocios Imobiliarios S.A.", competitors: "Moss Earth, Systemica, Carbonext e desenvolvedores de projetos REDD+ e ativos florestais no Brasil.", advantages: "Atuacao em area relevante no Acre, narrativa ESG clara, projeto REDD+ em andamento e capital social superior ao de operacoes muito iniciais.", fundraisingHistory: "Nao foi identificado historico publico de captacao institucional; capital social registrado de R$ 3,34 milhoes.", vcPeBacked: "Nao identificado publicamente", notes: "CNPJ 47.132.346/0001-07; aberta em 13/07/2022; sede na Avenida Ceara, 3258, Rio Branco - AC; site publico informa atuacao no Acre e sul do Amazonas com o projeto REDD+ Tarauaca." },
+  { name: "Formula CRM", sector: "Software", location: "Caldas Novas - GO", year: "2024", status: "Pipeline", investmentStatus: "Investido", investmentAmount: 2000000, temperature: "Morno", estimatedValue: 8600000, owner: "Arthur Bueno", tags: ["Venture Capital", "Software"], cover: "https://formulacrm.com.br/wp-content/uploads/2024/07/PAINEL-DE-ATENDIMENTO.webp", logoText: "FC", logo: "https://formulacrm.com.br/wp-content/uploads/2024/07/LOGO-PR-scaled.webp", logoBg: "transparent", description: "Plataforma de CRM e atendimento para WhatsApp com automacao, chatbot e inteligencia artificial para centralizar operacoes de atendimento e campanhas.", website: "https://formulacrm.com.br/", contact: "(64) 99201-8458", email: "hi@formulacrm.com.br", businessModel: "SaaS de atendimento e automacao comercial com receita recorrente, onboarding remoto e foco em canais conversacionais.", managementTeam: "Thiago Hernanne da Silva e Sousa; Daniel de Mendonca Silveira", competitors: "Kommo, RD Station CRM, PipeRun, HubSpot e plataformas de atendimento no WhatsApp.", advantages: "Proposta clara de centralizacao e automacao com IA, tese de reducao de custo de atendimento e base em canal de alta adocao no Brasil.", fundraisingHistory: "Nao foi identificado historico publico de captacao; capital social registrado de R$ 50 mil.", vcPeBacked: "Nao identificado publicamente", notes: "CNPJ 53.214.179/0001-46; aberta em 15/12/2023; CNAE principal 6202-3/00; sede em Caldas Novas - GO.", progress: 100 },
+  { name: "UFC Jiu Jitsu", sector: "Fitness / Grappling", location: "Las Vegas - Nevada", year: "2025", status: "Pipeline", investmentStatus: "Investido", investmentAmount: 0, temperature: "Morno", estimatedValue: 6200000, owner: "Arthur Bueno", tags: ["Private Equity", "Fitness", "Grappling", "Investido"], cover: "https://ufc.com/images/styles/390x500_1/s3/2026-03/11505409162_BJJ7_TXT_ON_SALE_1920x1080_TEXTLESS.jpg", logoText: "UJ", logo: defaultLogo("UFC JIU JITSU", "#cb1d1d", "#ffffff", "Inter, Arial, sans-serif", 36, 800), logoBg: "transparent", description: "Vertical oficial de grappling da UFC, lancada em 2025 sob a marca UFC BJJ, com eventos, conteudo proprietario e potencial de expansao comercial da modalidade.", website: "https://www.ufc.com/ufcbjj", contact: "Nao identificado publicamente", email: "Nao identificado publicamente", businessModel: "Monetizacao por eventos, transmissao, conteudo, patrocinios e expansao de propriedade intelectual em submission grappling.", managementTeam: "UFC / TKO Group Holdings; Claudia Gadelha (estrategia e desenvolvimento de negocio do UFC BJJ)", competitors: "ADCC, IBJJF, ONE Championship grappling e promotores de submission grappling.", advantages: "Marca UFC, distribuicao global, capacidade de midia, propriedade intelectual forte e integracao com ecossistema de combate e entretenimento.", fundraisingHistory: "Nao aplicavel como vertical propria de grupo ja estabelecido; nao foi identificado processo publico de captacao separado para UFC BJJ.", vcPeBacked: "Pertence ao ecossistema UFC / TKO, nao a uma startup independente", notes: "Referencia publica usada: lancamento oficial do UFC BJJ em 2025 e pagina institucional da vertical. A localizacao foi ajustada para Las Vegas pelo polo operacional do UFC BJJ no UFC APEX, nao Miami." },
+  { name: "UFC Gym & UFC Fit", sector: "Fitness", location: "Miami - Florida", year: "2025", status: "LOI", investmentStatus: "Nao investido", temperature: "Morno", estimatedValue: 7400000, owner: "Arthur Bueno", tags: ["Private Equity", "Fitness"], cover: "https://www.ufcgym.com/images/homepage/Ufc_Gym.webp", logoText: "UG", logo: "https://www.ufcgym.com/images/ufc-gym-logo-black.svg", logoBg: "transparent", description: "Tese ligada a rede global UFC GYM / UFC FIT, plataforma de academias e fitness inspirado em artes marciais com mais de 150 unidades em dezenas de paises.", website: "https://www.ufcgym.com/", contact: "+1 (305) 680-5990", email: "nush.chalmers@ufcgym.com", businessModel: "Rede fitness com mensalidade recorrente, personal training, lutas, recuperacao, retail e servicos premium em diferentes formatos de clube.", managementTeam: "UFC GYM corporate team", competitors: "LA Fitness, Orangetheory, Equinox, Crunch, studios boutique e academias MMA-inspired.", advantages: "Marca global forte, modelo multiformato, combinacao de fitness, artes marciais, recovery e personal training, presenca internacional e capacidade de franquia.", fundraisingHistory: "Nao foi identificado historico publico de captacao recente especifico desta unidade/tese; a rede comunica expansao internacional e mais de 150 localizacoes.", vcPeBacked: "Nao identificado publicamente", notes: "Fonte publica oficial usada como referencia: unidade Kendall Miami; amenidades incluem bag room, BJJ, personal training, turf e recovery." },
+  { name: "Fast Massagem", sector: "Franquias / Wellness", location: "Goiania - GO", year: "2023", status: "Due Diligence", investmentStatus: "Investido", investmentAmount: 1500000, temperature: "Morno", estimatedValue: 9500000, owner: "Arthur Bueno", tags: ["Private Equity", "Franquias / Wellness"], cover: "https://www.fastmassagem.com.br/wp-content/uploads/2024/05/thumb.png", logoText: "FM", logo: "https://www.fastmassagem.com.br/wp-content/uploads/2024/05/logo-scaled-1-2048x742.webp", logoBg: "transparent", description: "Rede de massagem estetica e bem-estar com operacao sem hora marcada, protocolos proprios e tese de expansao via franquias.", website: "https://www.fastmassagem.com.br/", contact: "(62) 99663-1244", email: "contato@fastmassagem.com.br", businessModel: "Rede de servicos de bem-estar com monetizacao em sessoes avulsas, pacotes, home care e franquias em diferentes formatos.", managementTeam: "Maira Moraes; Eduardo Pacheco", competitors: "Sorriso, spas urbanos, redes de estetica e franquias de massagem e drenagem.", advantages: "Modelo sem hora marcada, marca propria de produtos, suporte de franqueadora, forte componente comercial e tese asset-light de expansao.", fundraisingHistory: "Franquia anuncia investimento inicial a partir de R$ 99 mil e materiais publicos citam faturamento alvo anual de ate R$ 2,4 milhoes por unidade, margem de 30% a 35% e payback entre 12 e 18 meses.", vcPeBacked: "Nao identificado publicamente", notes: "Operacao publica em Goiania; paginas de franquia citam mais de 12 unidades e expansao acelerada.", progress: 60 },
+  { name: "Enebra Energia", sector: "Energia", location: "Anapolis - GO", year: "2019", status: "Pipeline", investmentStatus: "Nao investido", temperature: "Morno", estimatedValue: 5400000, owner: "Arthur Bueno", tags: ["Private Equity", "Energia"], cover: "https://enebra.com.br/wp-content/uploads/2022/02/forest-trees-5073.png", logoText: "EN", logo: "https://enebra.com.br/wp-content/uploads/2021/12/logo-enebra-copy-4.png", logoBg: "transparent", description: "Fornecedor verticalizado de biomassa de eucalipto, lenha e cavaco, com operacao em plantio, colheita, processamento, transporte e estocagem para clientes industriais.", website: "https://enebra.com.br/", contact: "(62) 3702-7492", email: "administrativo@enebra.com.br", businessModel: "Fornecimento de biomassa e servicos florestais full service, com contratos industriais e operacao verticalizada em florestas proprias ou terceirizadas.", managementTeam: "Enebra Brasil Energia", competitors: "Fornecedores regionais de biomassa, lenha industrial, cavaco e operadores florestais integrados.", advantages: "Estrutura verticalizada, legalidade auditada, operacao ESG, capacidade propria de colheita, transporte e abastecimento continuo de clientes.", fundraisingHistory: "Nao foi identificado historico publico recente de captacao institucional.", vcPeBacked: "Nao identificado publicamente", notes: "Site institucional destaca unidades em Goias, Mato Grosso e Mato Grosso do Sul; foco em biomassa para industrias e projetos build-to-suit." },
+  { name: "Caseratto", sector: "Food & Beverage", location: "Goiania - GO", year: "2015", status: "Declined", investmentStatus: "Nao investido", temperature: "Morno", estimatedValue: 2600000, owner: "Arthur Bueno", tags: ["Private Equity", "Food & Beverage"], cover: defaultCover("Caseratto", "#ffffff", "#fff8f2"), logoText: "CS", logo: defaultLogo("CASERATTO", "#8a4a2d", "#ffffff", "Inter, Arial, sans-serif", 42, 700), logoBg: "#ffffff", description: "Operacao de gastronomia em Goiania ligada a restaurante, producao alimentar e expansao local por filiais.", contact: "(62) 3241-4070", email: "Nao identificado publicamente", businessModel: "Receita de restaurante e alimentacao com possibilidade de extensao para producao propria, eventos e desdobramentos de marca local.", managementTeam: "Rafael Damaso Mendonca; Tales Garcia Araujo", competitors: "Restaurantes premium de Goiania, operacoes autorais locais e grupos de food service regionais.", advantages: "Marca local conhecida, estrutura societaria ativa, historico com matriz e filial e operacao centrada em bairro de alta renda.", fundraisingHistory: "Nao foi identificado historico publico de captacao institucional; capital social registrado de R$ 50 mil.", vcPeBacked: "Nao identificado publicamente", notes: "CNPJ 22.068.490/0001-09; aberta em 16/03/2015 no Setor Marista, Goiania - GO; atividade principal de restaurantes e similares." },
+  { name: "Winsford", sector: "Educacao", location: "Goiania - GO", year: "2021", status: "Declined", investmentStatus: "Nao investido", temperature: "Morno", estimatedValue: 2300000, owner: "Arthur Bueno", tags: ["Private Equity", "Educacao"], cover: defaultCover("Winsford", "#ffffff", "#fbfaf7"), logoText: "WF", logo: defaultLogo("WINSFORD", "#7a6f37", "#ffffff", "Inter, Arial, sans-serif", 42, 700), logoBg: "#ffffff", description: "Escola particular em Goiania com oferta de educacao infantil, ensino fundamental, medio e idiomas, sob a marca Winsford Global Education.", contact: "(62) 4101-9388", email: "Nao identificado publicamente", businessModel: "Receita educacional recorrente com mensalidades escolares e servicos complementares de idiomas, cantina e materiais.", managementTeam: "Roberto Wagner de Abreu Santana; Queluz Holding Investimentos e Participacoes Ltda; J.B.C. Holding e Investimentos Ltda", competitors: "Escolas particulares premium de Goiania, colegios bilingues e operacoes K-12 focadas em classe media-alta.", advantages: "Capital social relevante para a fase, oferta escolar ampla, endereco premium no Setor Marista e possibilidade de captura de lifetime value de educacao basica completa.", fundraisingHistory: "Nao foi identificado historico publico de captacao institucional; capital social registrado publicamente entre R$ 110 mil e R$ 1,47 milhao conforme bases cadastrais distintas.", vcPeBacked: "Nao identificado publicamente", notes: "Correspondencia publica usada: Winsford Goiania Educacao Ltda, CNPJ 42.136.439/0001-96, aberta em 29/05/2021, com nome fantasia Winsford Global Education." },
+  { name: "Complete Bari", sector: "Nutricao", location: "Santana de Parnaiba - SP", year: "2022", status: "Declined", investmentStatus: "Nao investido", temperature: "Morno", estimatedValue: 2100000, owner: "Arthur Bueno", tags: ["Private Equity", "Nutricao"], cover: "https://completebari.com.br/cdn/shop/files/10_DESK_3X_bfd49e8b-863f-4d82-b4bd-ba69e625e2da.png", logoText: "CB", logo: "https://completebari.com.br/cdn/shop/files/logo_02_copiar_5.png", logoBg: "transparent", description: "Marca digital focada em suplementacao para pacientes bariatricos, com portfolio de multivitaminicos, creatina em gummies, fibras e assinaturas recorrentes.", website: "https://completebari.com.br/", businessModel: "E-commerce D2C de nutricao especializada com ticket recorrente, clube de assinatura e catalogo dedicado ao pos-cirurgico bariatrico.", managementTeam: "Complete Bari", competitors: "Bariatric Advantage, FitForMe e marcas locais de suplementacao pos-bariatrica.", advantages: "Nicho muito especifico, proposta clara de valor para bariatricos, recorrencia via assinatura e provas publicas de adesao de base.", fundraisingHistory: "Nao foi identificado historico publico de captacao institucional.", vcPeBacked: "Nao identificado publicamente", notes: "Site oficial comunica base superior a 50 mil bariatricos atendidos, 93% de recomendacao e oferta de planos de assinatura com recorrencia." },
+  { name: "Pop Move", sector: "Mobilidade", location: "Santo Andre - SP", year: "2022", status: "Pipeline", investmentStatus: "Nao investido", temperature: "Morno", estimatedValue: 3100000, owner: "Arthur Bueno", tags: ["Private Equity", "Mobilidade"], cover: defaultCover("Pop Move", "#eef5ff", "#dcecff"), logoText: "PM", logo: defaultLogo("POP MOVE", "#1f4db8", "#ffffff", "Inter, Arial, sans-serif", 48, 800), logoBg: "#ffffff", description: "Empresa de tecnologia e intermedicao de servicos sob a marca Pop Move, com tese ligada a mobilidade e integracao operacional.", website: "Nao identificado publicamente", contact: "Nao identificado publicamente", email: "Nao identificado publicamente", businessModel: "Intermediacao e agenciamento de servicos e negocios com camada tecnologica, incluindo software, suporte tecnico e servicos de informacao na internet.", managementTeam: "Matheus Junior dos Santos Filho; Wanderley Henrique Batista Filho; Cristiano Ayres de Jesus; Murilo da Silva Santos", competitors: "Plataformas de intermedicao e mobilidade urbana, marketplaces de servicos e operadores asset-light com tese B2B2C.", advantages: "Estrutura leve, natureza tecnologica, CNPJ ativo e tese potencial de escala sem necessidade de ativos fisicos pesados.", fundraisingHistory: "Nao foi identificado historico publico de captacao institucional; capital social registrado de R$ 100 mil.", vcPeBacked: "Nao identificado publicamente", notes: "Correspondencia publica mais aderente: Pop Move do Brasil Tecnologia Ltda, CNPJ 45.755.297/0001-33, aberta em 23/03/2022 em Santo Andre - SP. Nao foi encontrada na internet uma prova publica inequivoca de operacao em Goiania ou um site oficial inequivoco associado a esta razao social." }
 ];
 
 function referenceProjectToCRMItem(project) {
@@ -723,10 +741,12 @@ function migrateRitoReferenceProjects(rootState) {
   seededItems.forEach((seeded) => {
     const existing = existingByName.get(seeded.name.toLowerCase());
     if (existing) {
-      existing.cover = existing.cover || seeded.cover;
-      existing.logo = existing.logo || seeded.logo;
+      if (!existing.cover || isGeneratedImageAsset(existing.cover)) existing.cover = seeded.cover;
+      if (!existing.logo || isGeneratedImageAsset(existing.logo)) existing.logo = seeded.logo;
       existing.logoText = existing.logoText || seeded.logoText;
-      existing.logoBg = existing.logoBg || seeded.logoBg;
+      if (!existing.logoBg || isGeneratedImageAsset(existing.logo) || existing.logo === seeded.logo) {
+        existing.logoBg = seeded.logoBg || "transparent";
+      }
       existing.subtitle = existing.subtitle || seeded.subtitle;
       existing.description = existing.description || seeded.description;
       existing.sector = existing.sector || seeded.sector;
@@ -738,6 +758,10 @@ function migrateRitoReferenceProjects(rootState) {
       existing.temperature = existing.temperature || seeded.temperature;
       existing.investmentStatus = existing.investmentStatus || seeded.investmentStatus;
       existing.tags = [...new Set([...(existing.tags || []), ...seeded.tags])];
+      if (existing.name === "UFC Jiu Jitsu") {
+        existing.investmentStatus = "Investido";
+        syncInvestmentTag(existing);
+      }
       ensureProjectShape(existing);
       if (existing.investmentStatus === "Investido" && !rito.projectBoards[existing.name]) {
         rito.projectBoards[existing.name] = [];
@@ -749,6 +773,12 @@ function migrateRitoReferenceProjects(rootState) {
       rito.projectBoards[seeded.name] = [];
     }
   });
+  const popIndex = rito.crmItems.findIndex((item) => item.name === "Pop Move");
+  const braslarIndex = rito.crmItems.findIndex((item) => item.name === "Geral / Braslar");
+  if (popIndex > -1 && braslarIndex > -1 && popIndex > braslarIndex) {
+    const [popMove] = rito.crmItems.splice(popIndex, 1);
+    rito.crmItems.splice(braslarIndex, 0, popMove);
+  }
 }
 
 function migrateRitoKanbanTasks(rootState) {
@@ -810,7 +840,7 @@ function migrateFastWorkspace(rootState) {
   fast.members = fast.members || [];
   ["Bruna Cristina", "Arthur Bueno", "Ciro Ribeiro", "Mayra", "Eduardo", "Rodrigo", "Grace"].forEach((name) => {
     if (!fast.members.some((member) => member.name === name)) {
-      fast.members.push({ name, role: name === "Grace" ? "Marketing" : name === "Mayra" ? "Operacoes" : name === "Eduardo" ? "Operacoes" : name === "Rodrigo" ? "Operacoes" : name === "Arthur Bueno" ? "CEO" : name === "Ciro Ribeiro" ? "Socio" : "Financeiro" });
+      fast.members.push({ name, role: name === "Grace" ? "Marketing" : name === "Mayra" ? "Operacoes" : name === "Eduardo" ? "Operacoes" : name === "Rodrigo" ? "Operacoes" : name === "Arthur Bueno" ? "CEO" : name === "Ciro Ribeiro" ? "Socio" : "Financeiro", photo: defaultMemberPhoto(name) });
     }
   });
 }
@@ -870,7 +900,7 @@ function seedData() {
         ],
         members: [
           { name: "Bruna Cristina", role: "Sell Side", photo: "" },
-          { name: "Arthur Bueno", role: "CEO", photo: "" },
+          { name: "Arthur Bueno", role: "CEO", photo: ARTHUR_BUENO_PHOTO },
           { name: "Ciro Ribeiro", role: "Socio", photo: "" },
           { name: "Gabriela Reis", role: "Sell Side", photo: "" }
         ]
@@ -910,7 +940,7 @@ function seedData() {
         ],
         members: [
           { name: "Bruna Cristina", role: "Sell Side", photo: "" },
-          { name: "Arthur Bueno", role: "CEO", photo: "" },
+          { name: "Arthur Bueno", role: "CEO", photo: ARTHUR_BUENO_PHOTO },
           { name: "Ciro Ribeiro", role: "Socio", photo: "" },
           { name: "Gabriela Reis", role: "Sell Side", photo: "" }
         ]
@@ -922,7 +952,7 @@ function seedData() {
         documents: [],
         members: [
           { name: "Bruna Cristina", role: "Sell Side", photo: "" },
-          { name: "Arthur Bueno", role: "CEO", photo: "" },
+          { name: "Arthur Bueno", role: "CEO", photo: ARTHUR_BUENO_PHOTO },
           { name: "Ciro Ribeiro", role: "Socio", photo: "" },
           { name: "Gabriela Reis", role: "Sell Side", photo: "" },
           { name: "Mayra", role: "Operacao", photo: "" },
@@ -939,7 +969,11 @@ let state = loadState();
 
 function loadState() {
   const saved = localStorage.getItem(STORAGE_KEY);
-  if (!saved) return seedData();
+  if (!saved) {
+    const seeded = seedData();
+    applyDefaultMemberPhotos(seeded);
+    return seeded;
+  }
   try {
     const parsed = JSON.parse(saved);
     const merged = { ...seedData(), ...parsed };
@@ -956,10 +990,13 @@ function loadState() {
     migrateRitoReferenceProjects(merged);
     migrateRitoKanbanTasks(merged);
     migrateFastWorkspace(merged);
+    applyDefaultMemberPhotos(merged);
     return merged;
   } catch (error) {
     console.error("Falha ao carregar dados", error);
-    return seedData();
+    const seeded = seedData();
+    applyDefaultMemberPhotos(seeded);
+    return seeded;
   }
 }
 
@@ -1089,6 +1126,8 @@ function displayText(value) {
     .replaceAll("Projecao", "Projeção")
     .replaceAll("Nao", "Não")
     .replaceAll("nao", "não")
+    .replaceAll("Media", "Média")
+    .replaceAll("media", "média")
     .replaceAll("Goiania", "Goiânia")
     .replaceAll("Goias", "Goiás")
     .replaceAll("Cosmeticos", "Cosméticos")
@@ -1096,11 +1135,52 @@ function displayText(value) {
     .replaceAll("Nutricao", "Nutrição")
     .replaceAll("Graos", "Grãos")
     .replaceAll("graos", "grãos")
-    .replaceAll("Liofilizacao", "Liofilização");
+    .replaceAll("Liofilizacao", "Liofilização")
+    .replaceAll("Saude", "Saúde")
+    .replaceAll("saude", "saúde")
+    .replaceAll("serao", "serão")
+    .replaceAll("Orcar", "Orçar")
+    .replaceAll("orcar", "orçar")
+    .replaceAll("estagiario", "estagiário")
+    .replaceAll("funcionarias", "funcionárias")
+    .replaceAll("grafico", "gráfico")
+    .replaceAll("regiao", "região")
+    .replaceAll("oleos", "óleos")
+    .replaceAll("maquina", "máquina")
+    .replaceAll("automatico", "automático")
+    .replaceAll("bancarias", "bancárias")
+    .replaceAll("diario", "diário")
+    .replaceAll("posicao", "posição")
+    .replaceAll("transacao", "transação")
+    .replaceAll("logistica", "logística")
+    .replaceAll("Criticas", "Críticas")
+    .replaceAll("criticas", "críticas")
+    .replaceAll("rapido", "rápido")
+    .replaceAll("sensiveis", "sensíveis")
+    .replaceAll("concluidas", "concluídas");
 }
 
 function initials(name) {
   return name.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase();
+}
+
+function tagChipClass(tag) {
+  const value = String(tag || "").trim().toLowerCase();
+  if (!value) return "chip-neutral";
+  if (value.includes("private equity") || value.includes("venture capital") || value.includes("vc")) return "chip-blue";
+  if (value.includes("investido") || value.includes("portfolio")) return "chip-gold";
+  if (value.includes("servicos") || value.includes("saude") || value.includes("bem-estar") || value.includes("wellness")) return "chip-green";
+  if (value.includes("pipeline") || value.includes("morno")) return "chip-stone";
+  if (value.includes("lead")) return "chip-sand";
+  if (value.includes("declinado") || value.includes("declined")) return "chip-rose";
+  if (value.includes("frio")) return "chip-ice";
+  if (value.includes("loi")) return "chip-lavender";
+  if (value.includes("due diligence")) return "chip-mint";
+  if (value.includes("software") || value.includes("crm") || value.includes("ia")) return "chip-indigo";
+  if (value.includes("mobilidade") || value.includes("energia")) return "chip-sky";
+  if (value.includes("industria") || value.includes("bioativos") || value.includes("liofilizacao")) return "chip-emerald";
+  if (value.includes("fitness") || value.includes("franquias")) return "chip-peach";
+  return "chip-neutral";
 }
 
 function todayISO() {
@@ -1120,13 +1200,7 @@ function workspaceData() {
 }
 
 function prioritizedRitoPipelineItems(items = []) {
-  const priorityIndex = new Map(RITO_PRIORITY_PIPELINE_ORDER.map((name, index) => [name.toLowerCase(), index]));
-  return [...(items || [])].sort((a, b) => {
-    const aPriority = priorityIndex.get(String(a?.name || "").toLowerCase()) ?? Number.MAX_SAFE_INTEGER;
-    const bPriority = priorityIndex.get(String(b?.name || "").toLowerCase()) ?? Number.MAX_SAFE_INTEGER;
-    if (aPriority !== bPriority) return aPriority - bPriority;
-    return 0;
-  });
+  return [...(items || [])];
 }
 
 function investedProjects(items) {
@@ -1534,9 +1608,9 @@ function renderApp() {
   document.getElementById("sidebarWorkspaceTitle").textContent = config.name;
   document.querySelector(".workspace-switcher .eyebrow").textContent = state.currentWorkspace === "rito" ? "Portfolio" : "Ambiente";
   if (landing) {
-    workspaceEyebrow.textContent = "AMBIENTES";
+    workspaceEyebrow.textContent = "WORKSPACE";
     pageCrumb.textContent = "";
-    pageTitle.textContent = "Ambientes";
+    pageTitle.textContent = "Workspace";
     pageCrumb.classList.add("hidden");
     breadcrumbSep.classList.add("hidden");
     landingTopbarMark.classList.remove("hidden");
@@ -1739,15 +1813,15 @@ function renderDashboard() {
     const workstreams = workspaceTaskThemes("fast").length;
     const metrics = [
       ["Iniciativas", tasks.length, "Plano tatico total"],
-      ["Frentes ativas", workstreams, "Workstreams da operacao"],
-      ["Em andamento", inExecution, "Itens em execucao"],
+      ["Frentes ativas", workstreams, displayText("Workstreams da operacao")],
+      ["Em andamento", inExecution, displayText("Itens em execucao")],
       ["Aguardando", awaiting, "Dependencia de aporte ou terceiros"],
       ["Nao iniciadas", todo, "Backlog atual"],
-      ["Execucao", `${Math.round((done / (tasks.length || 1)) * 100)}%`, "Percentual concluido"]
+      ["Execucao", `${Math.round((done / (tasks.length || 1)) * 100)}%`, displayText("Percentual concluido")]
     ];
     panel.innerHTML = `
       <section class="page-head">
-        <div><h3>Dashboard</h3><p>Painel executivo da Fast Massagem com visao operacional, prioridades e performance</p></div>
+        <div><h3>Dashboard</h3><p>${displayText("Painel executivo da Fast Massagem com visao operacional, prioridades e performance")}</p></div>
       </section>
     `;
     panel.appendChild(renderMetrics(metrics));
@@ -2558,26 +2632,39 @@ function createReferenceProjectCard(card, invested = false, sourceView = "crm") 
   const linked = workspaceData().crmItems.find((item) => item.name === card.name);
   const isInvested = linked ? linked.investmentStatus === "Investido" || (linked.tags || []).includes("Investido") : invested;
   const allocationLabel = isInvested ? "Valor alocado" : "Projeção";
+  const displayCover = linked?.cover || card.cover;
+  const displayLogo = linked?.logo || card.logo || "";
+  const displayLogoText = linked?.logoText || card.logoText || "";
+  const displayLogoBg = displayLogo ? "transparent" : (linked?.logoBg || card.logoBg || "transparent");
+  const displayTags = linked?.tags?.length ? linked.tags : card.tags;
+  const displayStatus = linked ? (linked.investmentStatus === "Investido" ? "Investido" : linked.status) : card.status;
+  const displayOwner = linked?.owner || card.owner;
+  const displayProgress = linked?.progress ?? card.progress ?? 35;
+  const companyDescription = displayText(linked?.description || card.description || linked?.businessModel || card.framework || "-");
   if (linked) {
     article.draggable = true;
     article.dataset.crmId = linked.id;
   }
   article.innerHTML = `
-    <div class="reference-cover" style="background-image:url('${card.cover}')">
+    <div class="reference-cover" style="background-image:url('${displayCover}')">
       <button class="cover-dot">...</button>
-      <span class="status-badge">${displayText(card.status)}</span>
+      <span class="status-badge">${displayText(displayStatus)}</span>
     </div>
-    <div class="reference-logo" style="background:${card.logoBg}">${card.logo ? `<img src="${card.logo}" alt="${card.name}" style="width:100%;height:100%;object-fit:contain">` : card.logoText}</div>
+    <div class="reference-logo ${displayLogo ? "has-image" : ""}" style="background:${displayLogoBg}">${displayLogo ? `<img src="${displayLogo}" alt="${card.name}" style="width:100%;height:100%;object-fit:contain">` : displayLogoText}</div>
     <div class="reference-card-body">
       <strong>${displayText(card.name)}</strong>
       <div class="subtle">${displayText(card.subtitle)}</div>
-      <div class="chips">${card.tags.map((tag) => `<span class="chip">${displayText(tag)}</span>`).join("")}</div>
+      <div class="chips">${displayTags.map((tag) => `<span class="chip ${tagChipClass(tag)}">${displayText(tag)}</span>`).join("")}</div>
+      <div class="reference-description-block">
+        <span>Company description</span>
+        <p>${companyDescription}</p>
+      </div>
       <label class="reference-value-field">
         <span>${displayText(allocationLabel)}</span>
         <input type="text" inputmode="decimal" data-card-investment value="${linked ? formatLocaleNumber(linked.investmentAmount || 0) : "0"}">
       </label>
-      <div class="progress-bar"><span style="width:${invested ? 100 : (card.progress ?? 35)}%; background:${card.accent}"></span></div>
-      <div class="subtle">${invested ? `${card.progress ?? 100}% completo` : displayText(card.owner)}</div>
+      <div class="progress-bar"><span style="width:${invested ? 100 : displayProgress}%; background:${card.accent}"></span></div>
+      <div class="subtle">${invested ? `${displayProgress ?? 100}% completo` : displayText(displayOwner)}</div>
     </div>
   `;
   if (linked) {
@@ -2639,9 +2726,9 @@ function renderMetrics(metrics) {
   const template = document.getElementById("metricCardTemplate");
   metrics.forEach(([label, value, footnote]) => {
     const node = template.content.firstElementChild.cloneNode(true);
-    node.querySelector(".metric-label").textContent = label;
+    node.querySelector(".metric-label").textContent = displayText(label);
     node.querySelector(".metric-value").textContent = value;
-    node.querySelector(".metric-footnote").textContent = footnote;
+    node.querySelector(".metric-footnote").textContent = displayText(footnote);
     panel.appendChild(node);
   });
   return panel;
@@ -2834,7 +2921,7 @@ function renderFastDashboardDetail(tasks) {
 
   const criticalPanel = document.createElement("section");
   criticalPanel.className = "panel fast-panel";
-  criticalPanel.innerHTML = `<div class="panel-header"><div><h3>Prioridades Criticas</h3><p>Itens com maior impacto em caixa, operacao e expansao</p></div></div>`;
+  criticalPanel.innerHTML = `<div class="panel-header"><div><h3>${displayText("Prioridades Criticas")}</h3><p>${displayText("Itens com maior impacto em caixa, operacao e expansao")}</p></div></div>`;
   tasks
     .filter((task) => task.priority === "Alta" || task.status === "Revisao" || /aporte/i.test(task.description))
     .slice(0, 8)
@@ -2843,18 +2930,18 @@ function renderFastDashboardDetail(tasks) {
       item.className = "fast-critical-item";
       item.innerHTML = `
         <div class="fast-critical-top">
-          <strong>${task.title}</strong>
-          <span class="soft-pill">${task.stage}</span>
+          <strong>${displayText(task.title)}</strong>
+          <span class="soft-pill">${displayText(task.stage)}</span>
         </div>
-        <span>${task.owner}</span>
-        <p>${task.description || "-"}</p>
+        <span>${displayText(task.owner)}</span>
+        <p>${displayText(task.description || "-")}</p>
       `;
       criticalPanel.appendChild(item);
     });
 
   const watchPanel = document.createElement("section");
   watchPanel.className = "panel fast-panel";
-  watchPanel.innerHTML = `<div class="panel-header"><div><h3>Indicadores de Acompanhamento</h3><p>Monitoramento rapido de bloqueios e frentes sensiveis</p></div></div>`;
+  watchPanel.innerHTML = `<div class="panel-header"><div><h3>Indicadores de Acompanhamento</h3><p>${displayText("Monitoramento rapido de bloqueios e frentes sensiveis")}</p></div></div>`;
   [
     ["Dependem de aporte", tasks.filter((task) => /aporte/i.test(task.description)).length, "#c6932d"],
     ["Itens financeiros", tasks.filter((task) => task.stage === "Financeiro").length, "#4f7cff"],
@@ -2865,7 +2952,7 @@ function renderFastDashboardDetail(tasks) {
     const line = document.createElement("div");
     line.className = "fast-indicator-row";
     line.innerHTML = `
-      <div class="fast-indicator-head"><strong>${label}</strong><span>${count}</span></div>
+      <div class="fast-indicator-head"><strong>${displayText(label)}</strong><span>${count}</span></div>
       <div class="fast-progress-track neutral-track"><span style="width:${Math.max(width, count ? 10 : 0)}%; background:${color}"></span></div>
     `;
     watchPanel.appendChild(line);
@@ -3017,6 +3104,8 @@ function createCRMCard(item) {
   ensureProjectShape(item);
   const article = document.createElement("article");
   article.className = "crm-card";
+  article.draggable = true;
+  article.dataset.crmId = item.id;
   const accent = coverPalette[item.status] || "#2864ff";
   const companyDescription = displayText(item.description || item.businessModel || item.framework || "-");
   const managementTeam = displayText(item.managementTeam || item.management || item.founders || "-");
@@ -3028,15 +3117,15 @@ function createCRMCard(item) {
       <button class="ghost-button cover-actions" data-card-action="menu" data-card-id="${item.id}">...</button>
       <div class="status-badge">${displayText(item.tags.includes("Investido") ? "Investido" : item.status)}</div>
     </div>
-    <div class="card-logo">${item.logo ? `<img src="${item.logo}" alt="${item.name}">` : initials(item.name)}</div>
+    <div class="card-logo ${item.logo ? "has-image" : ""}" style="${item.logo ? "background:transparent" : ""}">${item.logo ? `<img src="${item.logo}" alt="${item.name}">` : initials(item.name)}</div>
     <div class="card-content">
       <div class="card-copy-block">
         <h4>${displayText(item.name)}</h4>
         <div class="subtle">${locationLine || "-"}</div>
       </div>
-      <div class="chips">${item.tags.map((tag) => `<span class="chip">${displayText(tag)}</span>`).join("")}</div>
+      <div class="chips">${item.tags.map((tag) => `<span class="chip ${tagChipClass(tag)}">${displayText(tag)}</span>`).join("")}</div>
       <div class="card-info-stack">
-        <div class="card-field">
+        <div class="card-field card-description-preview">
           <span>Company description</span>
           <p>${companyDescription}</p>
         </div>
@@ -3067,7 +3156,38 @@ function createCRMCard(item) {
   article.querySelectorAll("[data-card-action]").forEach((button) => {
     button.addEventListener("click", () => handleCRMCardAction(button.dataset.cardAction, item.id));
   });
+  article.addEventListener("dragstart", (event) => {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", item.id);
+    article.classList.add("is-dragging");
+    article.dataset.justDragged = "0";
+  });
+  article.addEventListener("dragend", () => {
+    article.classList.remove("is-dragging");
+    article.dataset.justDragged = "1";
+    document.querySelectorAll(".crm-card").forEach((cardNode) => cardNode.classList.remove("is-drop-target"));
+    setTimeout(() => {
+      article.dataset.justDragged = "0";
+    }, 60);
+  });
+  article.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    document.querySelectorAll(".crm-card").forEach((cardNode) => {
+      if (cardNode !== article) cardNode.classList.remove("is-drop-target");
+    });
+    article.classList.add("is-drop-target");
+  });
+  article.addEventListener("dragleave", () => {
+    article.classList.remove("is-drop-target");
+  });
+  article.addEventListener("drop", (event) => {
+    event.preventDefault();
+    article.classList.remove("is-drop-target");
+    reorderCRMItems(event.dataTransfer.getData("text/plain"), item.id);
+  });
   article.addEventListener("click", (event) => {
+    if (article.dataset.justDragged === "1") return;
     if (event.target.closest("[data-card-action]")) return;
     openProjectDetail(item.id, state.currentView[state.currentWorkspace]);
   });
@@ -3180,11 +3300,11 @@ function createTaskCard(task, projectScoped, projectName = "") {
   const priorityClass = task.priority === "Alta" ? "high" : task.priority === "Baixa" ? "low" : "mid";
   const ownerMarkup = task.owner ? renderOwnerAvatar(task.owner, "task-card-assignee") : '<span class="task-card-assignee is-empty"></span>';
   article.innerHTML = `
-    <strong>${task.title}</strong>
-    ${task.description ? `<p class="kanban-card-description">${task.description}</p>` : ""}
-    <div class="mini-chip-row"><span class="soft-pill kanban-status-pill">${task.status || "A Fazer"}</span></div>
+    <strong>${displayText(task.title)}</strong>
+    ${task.description ? `<p class="kanban-card-description">${displayText(task.description)}</p>` : ""}
+    <div class="mini-chip-row"><span class="soft-pill kanban-status-pill">${displayText(task.status || "A Fazer")}</span></div>
     <div class="task-card-footer">
-      <div class="task-meta"><span class="task-dot ${priorityClass}"></span>${task.priority || "Media"}</div>
+      <div class="task-meta"><span class="task-dot ${priorityClass}"></span>${displayText(task.priority || "Media")}</div>
       ${ownerMarkup}
     </div>
     ${task.dueDate ? `<div class="task-card-due${isLate ? " is-late" : ""}">${task.dueDate}</div>` : ""}
@@ -4980,16 +5100,6 @@ function bootstrapFromURL() {
   }
 }
 
-function bootstrapFromURL() {
-  const params = new URLSearchParams(location.search);
-  const workspace = params.get("workspace");
-  const view = params.get("view");
-  if (workspaceConfig[workspace]) state.currentWorkspace = workspace;
-  if (view && workspaceConfig[state.currentWorkspace].views.includes(view)) {
-    state.currentView[state.currentWorkspace] = view;
-  }
-}
-
 async function showLoginScreen() {
   document.body.innerHTML = `
     <div style="
@@ -5236,4 +5346,4 @@ async function protectApp() {
   addLogoutButton();
 }
 
-window.addEventListener("load", protectApp);
+window.addEventListener("load", protectApp)
