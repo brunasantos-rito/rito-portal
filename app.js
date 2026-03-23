@@ -5244,6 +5244,36 @@ async function showLoginScreen() {
   });
 }
 
+async function logoutUser() {
+  await supabaseClient.auth.signOut();
+  location.reload();
+}
+
+function addLogoutButton() {
+  const oldButton = document.getElementById("logoutFloatingButton");
+  if (oldButton) oldButton.remove();
+
+  const btn = document.createElement("button");
+  btn.id = "logoutFloatingButton";
+  btn.textContent = "Sair";
+  btn.style.position = "fixed";
+  btn.style.right = "20px";
+  btn.style.bottom = "20px";
+  btn.style.zIndex = "9999";
+  btn.style.padding = "12px 18px";
+  btn.style.border = "none";
+  btn.style.borderRadius = "12px";
+  btn.style.background = "#111";
+  btn.style.color = "#fff";
+  btn.style.fontFamily = "Arial, sans-serif";
+  btn.style.fontSize = "14px";
+  btn.style.cursor = "pointer";
+  btn.style.boxShadow = "0 8px 24px rgba(0,0,0,0.16)";
+  btn.onclick = logoutUser;
+
+  document.body.appendChild(btn);
+}
+
 async function protectApp() {
   const { data } = await supabaseClient.auth.getUser();
 
@@ -5256,8 +5286,11 @@ async function protectApp() {
   window.addEventListener("popstate", () => {
     bootstrapFromURL();
     renderApp();
+    addLogoutButton();
   });
+
   renderApp();
+  addLogoutButton();
 }
 
 window.addEventListener("load", protectApp);
