@@ -1,7 +1,7 @@
 const STORAGE_KEY = "rito-os-v1";
 
 const SUPABASE_URL = "https://soarinrvuvnqabtyyrta.supabase.co";
-const SUPABASE_KEY = "COLE_AQUI_SUA_PUBLISHABLE_KEY";
+const SUPABASE_KEY = "COLE_AQUI_A_PUBLISHABLE_KEY_REAL";
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -655,7 +655,7 @@ function crmItemToReferenceCard(item) {
 }
 
 function getRitoReferenceCards() {
-  return (workspaceData().crmItems || [])
+  return prioritizedRitoPipelineItems(workspaceData().crmItems || [])
     .map(crmItemToReferenceCard);
 }
 
@@ -1008,9 +1008,26 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+const RITO_PRIORITY_PIPELINE_ORDER = [
+  "Pop Move",
+  "Geral / Braslar",
+  "Fox Graos",
+  "Bioativos & Liofilizacao"
+];
+
 function workspaceData() {
   ensureWorkspaceKanbans(state.currentWorkspace);
   return state.workspaces[state.currentWorkspace];
+}
+
+function prioritizedRitoPipelineItems(items = []) {
+  const priorityIndex = new Map(RITO_PRIORITY_PIPELINE_ORDER.map((name, index) => [name.toLowerCase(), index]));
+  return [...(items || [])].sort((a, b) => {
+    const aPriority = priorityIndex.get(String(a?.name || "").toLowerCase()) ?? Number.MAX_SAFE_INTEGER;
+    const bPriority = priorityIndex.get(String(b?.name || "").toLowerCase()) ?? Number.MAX_SAFE_INTEGER;
+    if (aPriority !== bPriority) return aPriority - bPriority;
+    return 0;
+  });
 }
 
 function investedProjects(items) {
@@ -1259,7 +1276,7 @@ function normalizeReferenceDashboardStage(item) {
 }
 
 function referenceDashboardRows() {
-  return workspaceData().crmItems.map((item) => {
+  return prioritizedRitoPipelineItems(workspaceData().crmItems || []).map((item) => {
     ensureProjectShape(item);
     return {
       company: item.name,
@@ -4688,6 +4705,7 @@ function downloadBlob(filename, content, type) {
 function buildBrowserReadyHTML() {
   const stylesHref = new URL("./styles.css", location.href).href;
   const scriptHref = new URL("./app.js", location.href).href;
+  const supabaseHref = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js";
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -4765,6 +4783,7 @@ function buildBrowserReadyHTML() {
     </article>
   </template>
   <noscript>Ative o JavaScript para usar o portal Rito OS.</noscript>
+  <script src="${supabaseHref}"></script>
   <script src="${scriptHref}"></script>
 </body>
 </html>`;
