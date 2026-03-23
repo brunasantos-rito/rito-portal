@@ -9,7 +9,7 @@ const workspaceConfig = {
   rito: {
     id: "rito",
     name: "Rito Ventures",
-    subtitle: "CRM, investimento e operacao",
+    subtitle: "CRM, investimento e operação",
     mark: "Rito",
     views: ["dashboard", "crm", "invested", "tasks", "projectBoards", "documents", "members", "settings"],
     pipelineStages: ["Frio", "Morno", "Quente", "Pipeline", "Declined"],
@@ -18,8 +18,8 @@ const workspaceConfig = {
   },
   atica: {
     id: "atica",
-    name: "Atica Gestao",
-    subtitle: "CRM e gestao interna",
+    name: "Ática Gestão",
+    subtitle: "CRM e gestão interna",
     mark: "AG",
     views: ["dashboard", "crm", "tasks", "projectBoards", "documents"],
     pipelineStages: ["Frio", "Morno", "Quente", "Pipeline", "Declined"],
@@ -29,7 +29,7 @@ const workspaceConfig = {
   fast: {
     id: "fast",
     name: "Fast Massagem",
-    subtitle: "Operacao, marketing e expansao",
+    subtitle: "Operação, marketing e expansão",
     mark: "FM",
     views: ["dashboard", "tasks", "calendar"],
     kanbanStages: ["ABF", "Pessoas", "Operacoes", "Estrategico", "Financeiro", "Marketing"],
@@ -68,8 +68,8 @@ const viewLabels = {
   projectBoards: "Kanban dos Projetos",
   documents: "Documentos",
   members: "Membros",
-  calendar: "Calendario",
-  settings: "Configuracoes",
+  calendar: "Calendário",
+  settings: "Configurações",
   projectDetail: "Projeto"
 };
 
@@ -89,20 +89,20 @@ const workspaceLaunchMeta = {
   rito: {
     index: "01",
     shortLabel: "RV",
-    descriptor: "Gestao de Portfolio",
-    greeting: "Portfolio, CRM e operacao de investimentos."
+    descriptor: "Gestão de Portfólio",
+    greeting: "Portfólio, CRM e operação de investimentos."
   },
   fast: {
     index: "02",
     shortLabel: "FM",
-    descriptor: "Operacoes",
-    greeting: "Operacao, marketing e expansao da marca."
+    descriptor: "Operações",
+    greeting: "Operação, marketing e expansão da marca."
   },
   atica: {
     index: "03",
     shortLabel: "AG",
-    descriptor: "Gestao Interna",
-    greeting: "CRM e gestao interna do workspace."
+    descriptor: "Gestão Interna",
+    greeting: "CRM e gestão interna do workspace."
   }
 };
 
@@ -265,8 +265,61 @@ function memberColor(name) {
 function workspaceDisplayName(key) {
   if (key === "rito") return "Rito";
   if (key === "fast") return "Fast";
-  if (key === "atica") return "Atica";
+  if (key === "atica") return "Ática";
   return key;
+}
+
+function normalizeMemberLookupName(name) {
+  const base = String(name || "")
+    .split("/")[0]
+    .trim()
+    .toLowerCase();
+  if (base === "arthur") return "arthur bueno";
+  if (base === "ciro") return "ciro ribeiro";
+  if (base === "mayra") return "mayra morais";
+  if (base === "eduardo") return "eduardo pacheco";
+  return base;
+}
+
+function findMemberByName(name) {
+  if (!name) return null;
+  const target = normalizeMemberLookupName(name);
+  const matchesName = (memberName) => {
+    const normalized = normalizeMemberLookupName(memberName);
+    return normalized === target || normalized.startsWith(target) || target.startsWith(normalized);
+  };
+  const currentMembers = state?.workspaces?.[state.currentWorkspace]?.members || [];
+  const currentPhotoMatch = currentMembers.find((member) => matchesName(member.name) && member.photo);
+  if (currentPhotoMatch) return currentPhotoMatch;
+  for (const workspace of Object.values(state?.workspaces || {})) {
+    const members = workspace?.members || [];
+    const match = members.find((member) => matchesName(member.name) && member.photo);
+    if (match) return match;
+  }
+  const currentMatch = currentMembers.find((member) => matchesName(member.name));
+  if (currentMatch) return currentMatch;
+  for (const workspace of Object.values(state?.workspaces || {})) {
+    const members = workspace?.members || [];
+    const match = members.find((member) => matchesName(member.name));
+    if (match) return match;
+  }
+  return null;
+}
+
+function renderOwnerAvatar(name, className = "owner-badge") {
+  const member = findMemberByName(name);
+  const photo = member?.photo || "";
+  const label = initials(name || "");
+  return `<span class="${className}${!label ? " is-empty" : ""}">${photo ? `<img src="${photo}" alt="${escapeAttr(displayText(name || "Responsável"))}">` : label}</span>`;
+}
+
+function renderCompanyBadge({ name = "", logo = "", logoText = "", logoBg = "" } = {}) {
+  const safeName = escapeAttr(displayText(name || "Empresa"));
+  const fallback = logoText || initials(name || "");
+  const transparentBg = logoBg && ["#ffffff", "#fff", "white", "transparent", "rgba(255,255,255,0)", "rgba(255, 255, 255, 0)"].includes(String(logoBg).trim().toLowerCase())
+    ? "transparent"
+    : (logoBg || "transparent");
+  return `<span class="company-badge" style="background:${transparentBg}">${logo ? `<img src="${logo}" alt="${safeName}">` : fallback}</span>`;
 }
 
 function memberCardData(member) {
@@ -277,7 +330,7 @@ function memberCardData(member) {
     color: member.color || memberColor(member.name),
     photo: member.photo || "",
     name: member.name,
-    info: infoParts.join(" - ") || "-",
+    info: displayText(infoParts.join(" - ") || "-"),
     tags
   };
 }
@@ -1000,6 +1053,52 @@ function formatLocaleNumber(value) {
   }).format(parseLocaleNumber(value));
 }
 
+function displayText(value) {
+  return String(value || "")
+    .replaceAll("Atica", "Ática")
+    .replaceAll("Gestao", "Gestão")
+    .replaceAll("gestao", "gestão")
+    .replaceAll("Portfolio", "Portfólio")
+    .replaceAll("Operacao", "Operação")
+    .replaceAll("operacao", "operação")
+    .replaceAll("Operacoes", "Operações")
+    .replaceAll("operacoes", "operações")
+    .replaceAll("Expansao", "Expansão")
+    .replaceAll("expansao", "expansão")
+    .replaceAll("Calendario", "Calendário")
+    .replaceAll("Configuracoes", "Configurações")
+    .replaceAll("Descricao", "Descrição")
+    .replaceAll("descricao", "descrição")
+    .replaceAll("Subtitulo", "Subtítulo")
+    .replaceAll("Titulo", "Título")
+    .replaceAll("titulo", "título")
+    .replaceAll("Localizacao", "Localização")
+    .replaceAll("localizacao", "localização")
+    .replaceAll("Responsavel", "Responsável")
+    .replaceAll("responsavel", "responsável")
+    .replaceAll("Juridico", "Jurídico")
+    .replaceAll("Estrategico", "Estratégico")
+    .replaceAll("Governanca", "Governança")
+    .replaceAll("Revisao", "Revisão")
+    .replaceAll("Concluido", "Concluído")
+    .replaceAll("Concluidos", "Concluídos")
+    .replaceAll("Historico", "Histórico")
+    .replaceAll("Informacoes", "Informações")
+    .replaceAll("Negocio", "Negócio")
+    .replaceAll("Observacoes", "Observações")
+    .replaceAll("Projecao", "Projeção")
+    .replaceAll("Nao", "Não")
+    .replaceAll("nao", "não")
+    .replaceAll("Goiania", "Goiânia")
+    .replaceAll("Goias", "Goiás")
+    .replaceAll("Cosmeticos", "Cosméticos")
+    .replaceAll("Educacao", "Educação")
+    .replaceAll("Nutricao", "Nutrição")
+    .replaceAll("Graos", "Grãos")
+    .replaceAll("graos", "grãos")
+    .replaceAll("Liofilizacao", "Liofilização");
+}
+
 function initials(name) {
   return name.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase();
 }
@@ -1176,8 +1275,8 @@ function getRitoInvestedCards() {
 
 function referenceCardSubtle(card) {
   const matched = referenceDashboardRows().find((row) => row.company === card.name);
-  if (matched) return matched.segment;
-  return (((card.subtitle || "").split(" - ")[0]) || card.subtitle || "").trim();
+  if (matched) return displayText(matched.segment);
+  return displayText((((card.subtitle || "").split(" - ")[0]) || card.subtitle || "").trim());
 }
 
 function referenceCardContact(card) {
@@ -1193,13 +1292,13 @@ function createReferenceProjectRow(card, sourceView = "crm") {
   const temp = cardTemperature(card);
   row.innerHTML = `
     <div class="company-cell">
-      <div class="company-badge">${card.logoText}</div>
-      <div><strong>${card.name}</strong><div class="subtle">${referenceCardSubtle(card)}</div></div>
+      ${renderCompanyBadge(card)}
+      <div><strong>${displayText(card.name)}</strong><div class="subtle">${referenceCardSubtle(card)}</div></div>
     </div>
     <div>${referenceCardContact(card)}</div>
-    <div><span class="chip chip-${card.status.toLowerCase().replace(/\s+/g, "-")}">${card.status}</span></div>
-    <div><span class="chip chip-${temp.toLowerCase()}">${temp}</span></div>
-    <div class="owner-cell"><span class="owner-badge">${initials(card.owner)}</span><span>${card.owner}</span></div>
+    <div><span class="chip chip-${card.status.toLowerCase().replace(/\s+/g, "-")}">${displayText(card.status)}</span></div>
+    <div><span class="chip chip-${temp.toLowerCase()}">${displayText(temp)}</span></div>
+    <div class="owner-cell">${renderOwnerAvatar(card.owner)}<span>${displayText(card.owner)}</span></div>
     <div>-</div>
   `;
   const linked = workspaceData().crmItems.find((item) => item.name === card.name);
@@ -1215,7 +1314,7 @@ function renderReferenceList(cards, sourceView = "crm", emptyLabel = "Nenhum dea
   table.className = "panel dashboard-table rito-dashboard-table reference-list-shell";
   const head = document.createElement("div");
   head.className = "table-head";
-  head.innerHTML = "<div>Empresa</div><div>Contato</div><div>Estagio</div><div>Temp.</div><div>Responsavel</div><div>Fechamento</div>";
+  head.innerHTML = "<div>Empresa</div><div>Contato</div><div>Estágio</div><div>Temp.</div><div>Responsável</div><div>Fechamento</div>";
   table.appendChild(head);
   cards.forEach((card) => table.appendChild(createReferenceProjectRow(card, sourceView)));
   if (!cards.length) {
@@ -1286,7 +1385,10 @@ function referenceDashboardRows() {
       temp: item.temperature || "Frio",
       owner: item.owner || "-",
       close: item.deadline || item.closeDate || "-",
-      initials: item.logoText || initials(item.name)
+      initials: item.logoText || initials(item.name),
+      logo: item.logo || "",
+      logoText: item.logoText || initials(item.name),
+      logoBg: item.logoBg || "transparent"
     };
   });
 }
@@ -1494,8 +1596,8 @@ function tabTitle(view) {
   if (state.currentWorkspace === "rito" && view === "crm") return "Pipeline";
   if (state.currentWorkspace === "rito" && view === "tasks") return "Kanban Rito";
   if (state.currentWorkspace === "rito" && view === "projectBoards") return "Kanban Projetos";
-  if (state.currentWorkspace === "rito" && view === "settings") return "Configuracoes";
-  if (state.currentWorkspace === "atica" && view === "tasks") return "Kanban Atica";
+  if (state.currentWorkspace === "rito" && view === "settings") return "Configurações";
+  if (state.currentWorkspace === "atica" && view === "tasks") return "Kanban Ática";
   if (state.currentWorkspace === "fast" && view === "tasks") return "Kanban Fast";
   return viewLabels[view];
 }
@@ -1851,7 +1953,7 @@ function renderRitoDashboardTable(rows = referenceDashboardRows()) {
   table.className = "panel dashboard-table rito-dashboard-table";
   const head = document.createElement("div");
   head.className = "table-head";
-  head.innerHTML = "<div>Empresa</div><div>Contato</div><div>Estagio</div><div>Temp.</div><div>Responsavel</div><div>Fechamento</div>";
+  head.innerHTML = "<div>Empresa</div><div>Contato</div><div>Estágio</div><div>Temp.</div><div>Responsável</div><div>Fechamento</div>";
   table.appendChild(head);
 
   rows.forEach((rowData) => {
@@ -1859,13 +1961,13 @@ function renderRitoDashboardTable(rows = referenceDashboardRows()) {
     row.className = "table-row rito-table-row";
     row.innerHTML = `
       <div class="company-cell">
-        <div class="company-badge">${rowData.initials}</div>
-        <div><strong>${rowData.company}</strong><div class="subtle">${rowData.segment}</div></div>
+        ${renderCompanyBadge(rowData)}
+        <div><strong>${displayText(rowData.company)}</strong><div class="subtle">${displayText(rowData.segment)}</div></div>
       </div>
       <div>${rowData.contact}</div>
       <div><span class="chip chip-${rowData.stage.toLowerCase().replace(/\s+/g, "-")}">${rowData.stage}</span></div>
       <div><span class="chip chip-${rowData.temp.toLowerCase()}">${rowData.temp}</span></div>
-      <div class="owner-cell"><span class="owner-badge">AB</span><span>${rowData.owner}</span></div>
+      <div class="owner-cell">${renderOwnerAvatar(rowData.owner)}<span>${displayText(rowData.owner)}</span></div>
       <div>${rowData.close}</div>
     `;
     const linked = workspaceData().crmItems.find((item) => item.name === rowData.company);
@@ -2059,24 +2161,24 @@ function renderRitoProjectDetailPage() {
     <section class="project-meta-grid">
       ${renderProjectMetaCard("Nome", `<input data-drawer-field="name" value="${escapeAttr(item.name || "")}">`)}
       ${renderProjectMetaCard("Stage", `<select data-drawer-field="status">${workspaceConfig[state.currentWorkspace].pipelineStages.map((stage) => `<option ${stage === item.status ? "selected" : ""}>${stage}</option>`).join("")}</select>`)}
-      ${renderProjectMetaCard("Subtitulo", `<input data-drawer-field="subtitle" value="${escapeAttr(item.subtitle || "")}">`)}
+      ${renderProjectMetaCard("Subtítulo", `<input data-drawer-field="subtitle" value="${escapeAttr(item.subtitle || "")}">`)}
       ${renderProjectMetaCard("Setor", `<input data-drawer-field="sector" value="${escapeAttr(item.sector || "")}">`)}
-      ${renderProjectMetaCard("Localizacao", `<input data-drawer-field="location" value="${escapeAttr(item.location || "")}">`)}
+      ${renderProjectMetaCard("Localização", `<input data-drawer-field="location" value="${escapeAttr(item.location || "")}">`)}
       ${renderProjectMetaCard("Ano", `<input data-drawer-field="year" value="${escapeAttr(item.year || "")}">`)}
       ${renderProjectMetaCard("Website", `<input data-drawer-field="website" value="${escapeAttr(item.website || "")}">`)}
-      ${renderProjectMetaCard("Responsavel", `<select data-drawer-field="owner">${workspaceConfig[state.currentWorkspace].memberOptions.map((owner) => `<option ${owner === item.owner ? "selected" : ""}>${owner}</option>`).join("")}</select>`)}
+      ${renderProjectMetaCard("Responsável", `<select data-drawer-field="owner">${workspaceConfig[state.currentWorkspace].memberOptions.map((owner) => `<option ${owner === item.owner ? "selected" : ""}>${owner}</option>`).join("")}</select>`)}
       ${renderProjectMetaCard("Temperatura", `<select data-drawer-field="temperature"><option ${item.temperature === "Frio" ? "selected" : ""}>Frio</option><option ${item.temperature === "Morno" ? "selected" : ""}>Morno</option><option ${item.temperature === "Quente" ? "selected" : ""}>Quente</option></select>`)}
       ${renderProjectMetaCard("Prioridade", `<select data-drawer-field="priority"><option ${item.priority === "Alta" ? "selected" : ""}>Alta</option><option ${item.priority === "Media" ? "selected" : ""}>Media</option><option ${item.priority === "Baixa" ? "selected" : ""}>Baixa</option></select>`)}
       ${renderProjectMetaCard("VC/PE Backed", `<input data-drawer-field="vcPeBacked" value="${escapeAttr(item.vcPeBacked || "")}">`)}
       ${renderProjectMetaCard("Investimento", `<select data-drawer-field="investmentStatus"><option ${item.investmentStatus === "Nao investido" ? "selected" : ""}>Nao investido</option><option ${item.investmentStatus === "Investido" ? "selected" : ""}>Investido</option></select>`)}
-      ${renderProjectMetaCard("Valor da operacao", `<input data-drawer-field="investmentAmount" type="number" value="${escapeAttr(item.investmentAmount || 0)}">`)}
+      ${renderProjectMetaCard("Valor da operação", `<input data-drawer-field="investmentAmount" type="number" value="${escapeAttr(item.investmentAmount || 0)}">`)}
       ${renderProjectMetaCard("Criado em", `<input data-drawer-field="createdAt" value="${escapeAttr(item.createdAt || "")}">`)}
       ${renderProjectMetaCard("Atualizado em", `<input data-drawer-field="updatedAt" value="${escapeAttr(item.updatedAt || "")}">`)}
     </section>
     <section class="project-detail-sections">
-      <article class="project-detail-card"><h4>Descricao da Empresa</h4><textarea class="detail-textarea" data-drawer-field="description">${item.description || ""}</textarea></article>
-      <article class="project-detail-card"><h4>Management Team</h4><textarea class="detail-textarea" data-drawer-field="managementTeam">${item.managementTeam || ""}</textarea></article>
-      <article class="project-detail-card"><h4>Modelo de Negocio</h4><textarea class="detail-textarea" data-drawer-field="businessModel">${item.businessModel || ""}</textarea></article>
+      <article class="project-detail-card"><h4>Descrição da Empresa</h4><textarea class="detail-textarea" data-drawer-field="description">${item.description || ""}</textarea></article>
+      <article class="project-detail-card"><h4>Management team</h4><textarea class="detail-textarea" data-drawer-field="managementTeam">${item.managementTeam || ""}</textarea></article>
+      <article class="project-detail-card"><h4>Modelo de Negócio</h4><textarea class="detail-textarea" data-drawer-field="businessModel">${item.businessModel || ""}</textarea></article>
       <article class="project-detail-card"><h4>Competidores</h4><textarea class="detail-textarea" data-drawer-field="competitors">${item.competitors || ""}</textarea></article>
       <article class="project-detail-card"><h4>Vantagens Competitivas</h4><textarea class="detail-textarea" data-drawer-field="advantages">${item.advantages || ""}</textarea></article>
       <article class="project-detail-card">
@@ -2085,29 +2187,24 @@ function renderRitoProjectDetailPage() {
           <label class="field"><span>Tese</span><textarea data-framework-field="tese">${item.frameworkDetails.tese || ""}</textarea></label>
           <label class="field"><span>Oportunidade</span><textarea data-framework-field="oportunidade">${item.frameworkDetails.oportunidade || ""}</textarea></label>
           <label class="field"><span>Riscos</span><textarea data-framework-field="riscos">${item.frameworkDetails.riscos || ""}</textarea></label>
-          <label class="field"><span>Proximos passos</span><textarea data-framework-field="proximosPassos">${item.frameworkDetails.proximosPassos || ""}</textarea></label>
-          <label class="field"><span>Status da diligencia</span><input data-framework-field="statusDiligencia" value="${escapeAttr(item.frameworkDetails.statusDiligencia || "")}"></label>
-          <label class="field"><span>Observacoes estrategicas</span><input data-framework-field="observacoes" value="${escapeAttr(item.frameworkDetails.observacoes || "")}"></label>
+          <label class="field"><span>Próximos passos</span><textarea data-framework-field="proximosPassos">${item.frameworkDetails.proximosPassos || ""}</textarea></label>
+          <label class="field"><span>Status da diligência</span><input data-framework-field="statusDiligencia" value="${escapeAttr(item.frameworkDetails.statusDiligencia || "")}"></label>
+          <label class="field"><span>Observações estratégicas</span><input data-framework-field="observacoes" value="${escapeAttr(item.frameworkDetails.observacoes || "")}"></label>
         </div>
       </article>
       <article class="project-detail-card">
         <h4>Tags</h4>
         <div class="tag-editor">${item.tags.map((tag) => `<span class="tag-chip">${tag}<button data-remove-tag="${escapeAttr(tag)}" type="button">X</button></span>`).join("")}</div>
         <label class="field"><span>Adicionar tag</span><input id="projectNewTagInput" placeholder="Ex: SaaS"></label>
-        <div class="subtle">Use "Colar capa" ou "Colar logo" e depois Ctrl+V para inserir imagens direto da area de transferencia.</div>
+        <div class="subtle">Use "Colar capa" ou "Colar logo" e depois Ctrl+V para inserir imagens direto da área de transferência.</div>
       </article>
     </section>
-    <section class="project-detail-card">
+    <section class="project-detail-card project-detail-kanban-card">
       <div class="section-head-row">
         <h4>Kanban do Projeto</h4>
         <button class="action-button" data-project-action="new-task" type="button">+ Nova Tarefa</button>
       </div>
-      <div class="project-kanban-grid">
-        ${workspaceProjectThemes(state.currentWorkspace).map((stage) => {
-          const tasks = relatedTasks.filter((task) => (task.stage || task.status) === stage);
-          return `<article class="project-mini-column"><header><strong>${stage}</strong><span>${tasks.length}</span></header><div class="project-mini-list">${tasks.length ? tasks.map((task) => `<div class="project-mini-task"><strong>${task.title}</strong><span>${task.owner || "-"} - ${task.dueDate || "-"}</span></div>`).join("") : `<div class="project-mini-empty">Sem tarefas</div>`}</div></article>`;
-        }).join("")}
-      </div>
+      <div class="reference-board project-columns-board detail-project-board" id="detailProjectBoard"></div>
     </section>
     <section class="project-detail-card">
       <div class="section-head-row">
@@ -2119,12 +2216,43 @@ function renderRitoProjectDetailPage() {
       </div>
     </section>
     <section class="project-detail-card">
-      <h4>Timeline / Historico</h4>
+      <h4>Timeline / Histórico</h4>
       <div class="timeline-list">${item.history.map((entry) => `<article class="timeline-item"><strong>${entry.text}</strong><span class="subtle">${entry.at}</span></article>`).join("")}</div>
     </section>
   `;
+  populateProjectDetailBoard(page, item);
   bindRitoProjectDetailPage(page, item);
   return page;
+}
+
+function populateProjectDetailBoard(page, item) {
+  const board = page.querySelector("#detailProjectBoard");
+  if (!board) return;
+  board.innerHTML = "";
+  const relatedTasks = workspaceData().projectBoards[item.name] || [];
+  workspaceProjectThemes(state.currentWorkspace).forEach((stage, index) => {
+    const tasks = relatedTasks.filter((task) => (task.stage || task.status) === stage);
+    const column = document.createElement("article");
+    column.className = "reference-project-column project-board-column detail-project-board-column";
+    column.innerHTML = `
+      <div class="reference-column-head project-column-head detail-project-column-head">
+        <span class="reference-column-accent accent-${index % 6}"></span>
+        <strong>${displayText(stage)}</strong>
+        <span class="column-count">${tasks.length}</span>
+      </div>
+      <div class="reference-column-list project-column-list detail-project-column-list"></div>
+    `;
+    const list = column.querySelector(".detail-project-column-list");
+    if (!tasks.length) {
+      const empty = document.createElement("div");
+      empty.className = "empty-project detail-empty-project";
+      empty.textContent = "Sem tarefas";
+      list.appendChild(empty);
+    } else {
+      tasks.forEach((task) => list.appendChild(createTaskCard(task, true, item.name)));
+    }
+    board.appendChild(column);
+  });
 }
 
 function bindRitoProjectDetailPage(page, item) {
@@ -2260,10 +2388,11 @@ function renderRitoKanbanPage() {
     tasks.forEach((task, taskIndex) => {
       const card = document.createElement("article");
       card.className = "reference-task-card";
+      const previewOwner = taskIndex % 2 === 0 ? "Arthur Bueno" : "Ciro Ribeiro";
       card.innerHTML = `
         <strong>${task}</strong>
         <div class="mini-chip-row"><span class="chip">A Fazer</span></div>
-        <div class="task-meta"><span class="task-dot ${taskIndex % 3 === 0 ? "high" : "mid"}"></span>${taskIndex % 3 === 0 ? "Alta" : "Media"}<span class="owner-badge">${taskIndex % 2 === 0 ? "AB" : "CR"}</span></div>
+        <div class="task-meta"><span class="task-dot ${taskIndex % 3 === 0 ? "high" : "mid"}"></span>${taskIndex % 3 === 0 ? "Alta" : "Media"}${renderOwnerAvatar(previewOwner)}</div>
       `;
       list.appendChild(card);
     });
@@ -2382,13 +2511,13 @@ function renderRitoSettingsPage() {
       <div class="workspace-settings-list">
         <article><strong>Rito Ventures</strong><div class="subtle">17 empresas - 127 tarefas - 5 documentos - 17 oportunidades</div><div class="inline-actions"><button class="ghost-button" data-ref-action="workspace-edit" data-workspace="rito" type="button">Editar</button><button class="ghost-button" data-ref-action="workspace-duplicate" data-workspace="rito" type="button">Duplicar</button><button class="ghost-button" data-ref-action="workspace-link" data-workspace="rito" type="button">Link</button></div></article>
         <article><strong>Fast Massagem</strong><div class="subtle">2 empresas - 38 tarefas - 0 documentos - 0 oportunidades</div><div class="inline-actions"><button class="ghost-button" data-ref-action="workspace-edit" data-workspace="fast" type="button">Editar</button><button class="ghost-button" data-ref-action="workspace-duplicate" data-workspace="fast" type="button">Duplicar</button><button class="ghost-button" data-ref-action="workspace-link" data-workspace="fast" type="button">Link</button></div></article>
-        <article><strong>Atica Gestao</strong><div class="subtle">1 empresas - 0 tarefas - 0 documentos - 0 oportunidades</div><div class="inline-actions"><button class="ghost-button" data-ref-action="workspace-edit" data-workspace="atica" type="button">Editar</button><button class="ghost-button" data-ref-action="workspace-duplicate" data-workspace="atica" type="button">Duplicar</button><button class="ghost-button" data-ref-action="workspace-link" data-workspace="atica" type="button">Link</button></div></article>
+        <article><strong>Ática Gestão</strong><div class="subtle">1 empresas - 0 tarefas - 0 documentos - 0 oportunidades</div><div class="inline-actions"><button class="ghost-button" data-ref-action="workspace-edit" data-workspace="atica" type="button">Editar</button><button class="ghost-button" data-ref-action="workspace-duplicate" data-workspace="atica" type="button">Duplicar</button><button class="ghost-button" data-ref-action="workspace-link" data-workspace="atica" type="button">Link</button></div></article>
         <button class="ghost-button settings-add" data-ref-action="new-workspace" type="button">+ Novo Workspace</button>
       </div>
     </section>
     <section class="settings-section">
-      <h4>Backup & Exportacao</h4>
-      <article class="panel"><p>Exporte todos os dados da plataforma. Os dados incluem portfolio, CRM, tarefas, projetos, documentos e membros de todos os workspaces.</p><div class="inline-actions"><button class="ghost-button" data-ref-action="connect-source" type="button">Importar backup JSON</button><button class="ghost-button" data-ref-action="save-html" type="button">Baixar HTML browser-ready</button><button class="action-button" data-ref-action="export-json" type="button">Exportar JSON (backup completo)</button><button class="ghost-button" data-ref-action="export-crm" type="button">CRM como CSV</button><button class="ghost-button" data-ref-action="export-tasks" type="button">Tarefas como CSV</button><button class="ghost-button" data-ref-action="export-portfolio" type="button">Portfolio como CSV</button></div></article>
+      <h4>Backup & Exportação</h4>
+      <article class="panel"><p>Exporte todos os dados da plataforma. Os dados incluem portfólio, CRM, tarefas, projetos, documentos e membros de todos os workspaces.</p><div class="inline-actions"><button class="ghost-button" data-ref-action="connect-source" type="button">Importar backup JSON</button><button class="ghost-button" data-ref-action="save-html" type="button">Baixar HTML browser-ready</button><button class="action-button" data-ref-action="export-json" type="button">Exportar JSON (backup completo)</button><button class="ghost-button" data-ref-action="export-crm" type="button">CRM como CSV</button><button class="ghost-button" data-ref-action="export-tasks" type="button">Tarefas como CSV</button><button class="ghost-button" data-ref-action="export-portfolio" type="button">Portfólio como CSV</button></div></article>
     </section>
     <section class="settings-section">
       <h4>Dados do Sistema</h4>
@@ -2404,7 +2533,7 @@ function renderStatStrip(items, extraClass = "") {
   items.forEach(([value, label]) => {
     const card = document.createElement("article");
     card.className = "metric-card";
-    card.innerHTML = `<strong class="metric-value">${value}</strong><p class="metric-label">${label}</p>`;
+    card.innerHTML = `<strong class="metric-value">${value}</strong><p class="metric-label">${displayText(label)}</p>`;
     wrap.appendChild(card);
   });
   return wrap;
@@ -2415,10 +2544,10 @@ function createToolbarRow(label, pills, placeholder) {
   row.className = "reference-toolbar";
   row.innerHTML = `
     <div class="toolbar-left">
-      ${label ? `<span class="eyebrow">${label}</span>` : ""}
-      <div class="pill-group">${pills.map((pill, index) => `<button class="soft-pill ${index === 0 && label !== "" ? "is-active" : ""}">${pill}</button>`).join("")}</div>
+      ${label ? `<span class="eyebrow">${displayText(label)}</span>` : ""}
+      <div class="pill-group">${pills.map((pill, index) => `<button class="soft-pill ${index === 0 && label !== "" ? "is-active" : ""}">${displayText(pill)}</button>`).join("")}</div>
     </div>
-    <label class="search-field top-search"><input type="search" placeholder="${placeholder}"></label>
+    <label class="search-field top-search"><input type="search" placeholder="${displayText(placeholder)}"></label>
   `;
   return row;
 }
@@ -2428,7 +2557,7 @@ function createReferenceProjectCard(card, invested = false, sourceView = "crm") 
   article.className = "reference-project-card";
   const linked = workspaceData().crmItems.find((item) => item.name === card.name);
   const isInvested = linked ? linked.investmentStatus === "Investido" || (linked.tags || []).includes("Investido") : invested;
-  const allocationLabel = isInvested ? "Valor alocado" : "Projecao";
+  const allocationLabel = isInvested ? "Valor alocado" : "Projeção";
   if (linked) {
     article.draggable = true;
     article.dataset.crmId = linked.id;
@@ -2436,19 +2565,19 @@ function createReferenceProjectCard(card, invested = false, sourceView = "crm") 
   article.innerHTML = `
     <div class="reference-cover" style="background-image:url('${card.cover}')">
       <button class="cover-dot">...</button>
-      <span class="status-badge">${card.status}</span>
+      <span class="status-badge">${displayText(card.status)}</span>
     </div>
     <div class="reference-logo" style="background:${card.logoBg}">${card.logo ? `<img src="${card.logo}" alt="${card.name}" style="width:100%;height:100%;object-fit:contain">` : card.logoText}</div>
     <div class="reference-card-body">
-      <strong>${card.name}</strong>
-      <div class="subtle">${card.subtitle}</div>
-      <div class="chips">${card.tags.map((tag) => `<span class="chip">${tag}</span>`).join("")}</div>
+      <strong>${displayText(card.name)}</strong>
+      <div class="subtle">${displayText(card.subtitle)}</div>
+      <div class="chips">${card.tags.map((tag) => `<span class="chip">${displayText(tag)}</span>`).join("")}</div>
       <label class="reference-value-field">
-        <span>${allocationLabel}</span>
+        <span>${displayText(allocationLabel)}</span>
         <input type="text" inputmode="decimal" data-card-investment value="${linked ? formatLocaleNumber(linked.investmentAmount || 0) : "0"}">
       </label>
       <div class="progress-bar"><span style="width:${invested ? 100 : (card.progress ?? 35)}%; background:${card.accent}"></span></div>
-      <div class="subtle">${invested ? `${card.progress ?? 100}% completo` : card.owner}</div>
+      <div class="subtle">${invested ? `${card.progress ?? 100}% completo` : displayText(card.owner)}</div>
     </div>
   `;
   if (linked) {
@@ -2889,22 +3018,46 @@ function createCRMCard(item) {
   const article = document.createElement("article");
   article.className = "crm-card";
   const accent = coverPalette[item.status] || "#2864ff";
+  const companyDescription = displayText(item.description || item.businessModel || item.framework || "-");
+  const managementTeam = displayText(item.managementTeam || item.management || item.founders || "-");
+  const fundraisingHistory = displayText(item.fundraisingHistory || "-");
+  const vcBacked = displayText(item.vcPeBacked || "-");
+  const locationLine = [item.sector, item.location, item.year].filter(Boolean).map((part) => displayText(part)).join(" - ");
   article.innerHTML = `
     <div class="card-cover" style="background-image:url('${item.cover}')">
       <button class="ghost-button cover-actions" data-card-action="menu" data-card-id="${item.id}">...</button>
-      <div class="status-badge">${item.tags.includes("Investido") ? "INVESTIDO" : item.status.toUpperCase()}</div>
+      <div class="status-badge">${displayText(item.tags.includes("Investido") ? "Investido" : item.status)}</div>
     </div>
     <div class="card-logo">${item.logo ? `<img src="${item.logo}" alt="${item.name}">` : initials(item.name)}</div>
     <div class="card-content">
-      <div>
-        <h4>${item.name}</h4>
-        <div class="subtle">${item.sector} - ${item.location} - ${item.year}</div>
+      <div class="card-copy-block">
+        <h4>${displayText(item.name)}</h4>
+        <div class="subtle">${locationLine || "-"}</div>
       </div>
-      <div class="chips">${item.tags.map((tag) => `<span class="chip">${tag}</span>`).join("")}</div>
-      <div class="subtle">${item.description}</div>
-      <div><strong>Framework:</strong> ${item.framework}</div>
+      <div class="chips">${item.tags.map((tag) => `<span class="chip">${displayText(tag)}</span>`).join("")}</div>
+      <div class="card-info-stack">
+        <div class="card-field">
+          <span>Company description</span>
+          <p>${companyDescription}</p>
+        </div>
+        <div class="card-meta-grid">
+          <div class="card-field">
+            <span>Fundraising history</span>
+            <p>${fundraisingHistory}</p>
+          </div>
+          <div class="card-field">
+            <span>Management team</span>
+            <p>${managementTeam}</p>
+          </div>
+          <div class="card-field">
+            <span>VC / PE backed</span>
+            <p>${vcBacked}</p>
+          </div>
+        </div>
+      </div>
+      <div><strong>Framework:</strong> ${displayText(item.framework || "-")}</div>
       <div class="progress-bar"><span style="width:${item.progress}%; background:${accent}"></span></div>
-      <div class="card-footer"><span>${item.owner}</span><strong>${currency(item.estimatedValue)}</strong></div>
+      <div class="card-footer"><span>${displayText(item.owner)}</span><strong>${currency(item.estimatedValue)}</strong></div>
       <div class="inline-actions">
         <button class="ghost-button" data-card-action="edit" data-card-id="${item.id}">Editar</button>
         <button class="ghost-button" data-card-action="duplicate" data-card-id="${item.id}">Duplicar</button>
@@ -3025,14 +3178,14 @@ function createTaskCard(task, projectScoped, projectName = "") {
   article.draggable = true;
   const isLate = task.dueDate < todayISO();
   const priorityClass = task.priority === "Alta" ? "high" : task.priority === "Baixa" ? "low" : "mid";
-  const ownerInitials = task.owner ? initials(task.owner) : "";
+  const ownerMarkup = task.owner ? renderOwnerAvatar(task.owner, "task-card-assignee") : '<span class="task-card-assignee is-empty"></span>';
   article.innerHTML = `
     <strong>${task.title}</strong>
     ${task.description ? `<p class="kanban-card-description">${task.description}</p>` : ""}
     <div class="mini-chip-row"><span class="soft-pill kanban-status-pill">${task.status || "A Fazer"}</span></div>
     <div class="task-card-footer">
       <div class="task-meta"><span class="task-dot ${priorityClass}"></span>${task.priority || "Media"}</div>
-      <div class="task-card-assignee${!ownerInitials ? " is-empty" : ""}">${ownerInitials || ""}</div>
+      ${ownerMarkup}
     </div>
     ${task.dueDate ? `<div class="task-card-due${isLate ? " is-late" : ""}">${task.dueDate}</div>` : ""}
   `;
@@ -3540,20 +3693,20 @@ function openCRMDialog(item) {
   };
   dialog.innerHTML = `
     <form method="dialog" id="crmForm" class="crm-dialog-form">
-      <div class="panel-header dialog-header"><div><h3>${item ? "Editar deal" : "Novo deal"}</h3><p>Auto-save local no browser e card premium no CRM</p></div><button class="dialog-close-button" data-dialog-close type="button" aria-label="Fechar">X</button></div>
+      <div class="panel-header dialog-header"><div><h3>${item ? "Editar deal" : "Novo deal"}</h3><p>Salvamento local no navegador e card premium no CRM.</p></div><button class="dialog-close-button" data-dialog-close type="button" aria-label="Fechar">X</button></div>
       <div class="dialog-grid crm-dialog-grid">
         <label class="field"><span>Nome do projeto</span><input name="name" value="${current.name}"></label>
         <label class="field"><span>Status</span><select name="status">${workspaceConfig[state.currentWorkspace].pipelineStages.map((stage) => `<option ${stage === current.status ? "selected" : ""}>${stage}</option>`).join("")}</select></label>
         <label class="field"><span>Setor</span><input name="sector" value="${current.sector}"></label>
-        <label class="field"><span>Localizacao</span><input name="location" value="${current.location}"></label>
+        <label class="field"><span>Localização</span><input name="location" value="${current.location}"></label>
         <label class="field"><span>Ano</span><input name="year" value="${current.year}"></label>
-        <label class="field"><span>Responsavel</span><select name="owner">${workspaceConfig[state.currentWorkspace].memberOptions.map((owner) => `<option ${owner === current.owner ? "selected" : ""}>${owner}</option>`).join("")}</select></label>
+        <label class="field"><span>Responsável</span><select name="owner">${workspaceConfig[state.currentWorkspace].memberOptions.map((owner) => `<option ${owner === current.owner ? "selected" : ""}>${owner}</option>`).join("")}</select></label>
         <label class="field"><span>Valor estimado</span><input name="estimatedValue" type="number" value="${current.estimatedValue}"></label>
-        <label class="field"><span>Valor da operacao</span><input name="investmentAmount" type="number" value="${current.investmentAmount || 0}"></label>
+        <label class="field"><span>Valor da operação</span><input name="investmentAmount" type="number" value="${current.investmentAmount || 0}"></label>
         <label class="field"><span>Progresso</span><input name="progress" type="number" min="0" max="100" value="${current.progress}"></label>
         <label class="field full-span"><span>Framework</span><input name="framework" value="${current.framework}"></label>
-        <label class="field full-span"><span>Descricao</span><textarea name="description">${current.description}</textarea></label>
-        <label class="field full-span"><span>Tags (separadas por virgula)</span><input name="tags" value="${current.tags.join(", ")}"></label>
+        <label class="field full-span"><span>Descrição</span><textarea name="description">${current.description}</textarea></label>
+        <label class="field full-span"><span>Tags (separadas por vírgula)</span><input name="tags" value="${current.tags.join(", ")}"></label>
         <label class="field"><span>Upload de capa</span><input name="cover" type="file" accept="image/*"></label>
         <label class="field"><span>Upload de logo</span><input name="logo" type="file" accept="image/*"></label>
       </div>
@@ -3631,7 +3784,7 @@ function openOpportunityDialog() {
     <form method="dialog" id="opportunityForm" class="crm-dialog-form">
       <div class="dialog-header dialog-header-split">
         <div class="dialog-header-copy">
-          <h3>Novo Deal</h3>
+          <h3>Novo deal</h3>
         </div>
         <button class="dialog-close-button" data-dialog-close type="button" aria-label="Fechar">X</button>
       </div>
@@ -3642,7 +3795,7 @@ function openOpportunityDialog() {
         <label class="field"><span>Ano</span><input name="year" value="${current.year}"></label>
         <label class="field"><span>Website</span><input name="website"></label>
         <label class="field"><span>Valor estimado (R$)</span><input name="estimatedValue" type="number" value="0"></label>
-        <label class="field"><span>Valor da operacao (R$)</span><input name="investmentAmount" type="number" value="0"></label>
+        <label class="field"><span>Valor da operação (R$)</span><input name="investmentAmount" type="number" value="0"></label>
         <label class="field"><span>Stage</span><select name="status">${["Lead", "Pipeline", "Due Diligence", "LOI", "Investidos", "Declinados"].map((stage) => `<option ${stage === current.status ? "selected" : ""}>${stage}</option>`).join("")}</select></label>
         <label class="field"><span>Temperatura</span><select name="temperature">${["Frio", "Morno", "Quente"].map((temp) => `<option ${temp === current.temperature ? "selected" : ""}>${temp}</option>`).join("")}</select></label>
         <label class="field"><span>Responsavel Rito</span><select name="owner">${workspaceConfig[state.currentWorkspace].memberOptions.map((owner) => `<option ${owner === current.owner ? "selected" : ""}>${owner}</option>`).join("")}</select></label>
@@ -4826,256 +4979,10 @@ function bootstrapFromURL() {
     state.currentView[state.currentWorkspace] = view;
   }
 }
-async function showLoginScreen() {
-  document.body.innerHTML = `
-    <div style="
-      min-height: 100vh;
-      display: grid;
-      grid-template-columns: 1.35fr 0.85fr;
-      background: #f5f5f3;
-      font-family: Georgia, 'Times New Roman', serif;
-      color: #1d1d1b;
-    ">
-      <section style="
-        position: relative;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-right: 1px solid #d8d8d3;
-        background: #f5f5f3;
-      ">
-        <div style="text-align:center;">
-          <div style="
-            font-size: 92px;
-            line-height: 0.9;
-            font-weight: 500;
-            letter-spacing: -0.04em;
-          ">Rito<span style="font-size:40px;vertical-align:middle;">◊</span></div>
-          <div style="
-            margin-top: 4px;
-            font-size: 28px;
-            letter-spacing: 0.02em;
-            font-family: Arial, sans-serif;
-            font-weight: 400;
-          ">ventures</div>
-        </div>
 
-        <div style="
-          position: absolute;
-          left: 56px;
-          bottom: 40px;
-          font-family: Arial, sans-serif;
-          color: #7c7c74;
-          font-size: 14px;
-          line-height: 1.8;
-          letter-spacing: 0.02em;
-        ">
-          <div>www.ritoventures.com.br</div>
-          <div>Rua 72, 325, salas 1201 a 1206, Jardim Goiás | Goiânia-GO</div>
-        </div>
-      </section>
-
-      <section style="
-        display: flex;
-    align-items: center;
-        justify-content: center;
-        background: #f7f7f5;
-      ">
-        <div style="
-          width: 100%;
-          max-width: 460px;
-          padding: 56px 44px;
-        ">
-          <h2 style="
-            margin: 0 0 42px;
-            font-size: 34px;
-            font-weight: 500;
-            color: #1f1f1b;
-          ">Bem-Vindo</h2>
-
-          <form id="loginForm">
-            <label style="
-              display:block;
-              margin-bottom: 26px;
-              font-family: Arial, sans-serif;
-            ">
-              <div style="
-                margin-bottom: 10px;
-                font-size: 12px;
-                letter-spacing: 0.22em;
-                color: #7f7f77;
-                text-transform: uppercase;
-              ">E-mail</div>
-              <input
-                id="loginEmail"
-                type="email"
-                autocomplete="email"
-                required
-                style="
-                  width:100%;
-                  height: 54px;
-                  padding: 0 16px;
-                  border: 1px solid #d7dbe6;
-                  background: #e9edf5;
-                  color: #1d1d1b;
-                  font-size: 16px;
-                  outline: none;
-                  box-sizing: border-box;
-                "
-              >
-            </label>
-
-            <label style="
-              display:block;
-              margin-bottom: 18px;
-              font-family: Arial, sans-serif;
-            ">
-              <div style="
-                margin-bottom: 10px;
-                font-size: 12px;
-                letter-spacing: 0.22em;
-                color: #7f7f77;
-                text-transform: uppercase;
-              ">Senha</div>
-              <input
-                id="loginPassword"
-                type="password"
-                autocomplete="current-password"
-                required
-                style="
-                  width:100%;
-                  height: 54px;
-                  padding: 0 16px;
-                  border: 1px solid #d7dbe6;
-                  background: #e9edf5;
-                  color: #1d1d1b;
-                  font-size: 16px;
-                  outline: none;
-                  box-sizing: border-box;
-                "
-              >
-            </label>
-
-            <p id="loginMessage" style="
-              min-height: 24px;
-              margin: 0 0 18px;
-              font-family: Arial, sans-serif;
-              font-size: 14px;
-              color: #d9534f;
-            "></p>
-
-            <button
-              type="submit"
-              style="
-                width:100%;
-                height: 54px;
-                border:none;
-                background:#111;
-                color:#fff;
-                font-family: Arial, sans-serif;
-                font-size: 16px;
-                font-weight: 500;
-                cursor:pointer;
-              "
-            >
-              Entrar no Sistema
-            </button>
-
-            <button
-              type="button"
-              id="registerBtn"
-              style="
-                width:100%;
-                height: 54px;
-                margin-top: 12px;
-                border: 1px solid #d0d0cb;
-                background: transparent;
-                color: #1d1d1b;
-                font-family: Arial, sans-serif;
-                font-size: 15px;
-                cursor:pointer;
-              "
-            >
-              Criar conta
-            </button>
-          </form>
-
-          <div style="
-            margin-top: 54px;
-            padding-top: 28px;
-            border-top: 1px solid #ddddda;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 16px;
-            font-family: Arial, sans-serif;
-            font-size: 12px;
-            letter-spacing: 0.18em;
-            text-transform: uppercase;
-            color: #7f7f77;
-          ">
-            <span>© 2026 Rito Ventures</span>
-            <div style="display:flex; gap:24px;">
-              <span>Suporte</span>
-              <span>Privacidade</span>
-            </div>
-          </div>
-        </div>
-      </section>
-    </div>
-  `;
-
-  const form = document.getElementById("loginForm");
-  const registerBtn = document.getElementById("registerBtn");
-  const msg = document.getElementById("loginMessage");
-
-  function getCreds() {
-    return {
-      email: document.getElementById("loginEmail").value.trim(),
-      password: document.getElementById("loginPassword").value.trim()
-    };
-  }
-
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-
-    const { email, password } = getCreds();
-
-    if (!email || !password) {
-      msg.textContent = "Preencha e-mail e senha.";
-      return;
-    }
-
-    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-
-    if (error) {
-      msg.textContent = "Credenciais inválidas. Tente novamente.";
-      return;
-    }
-
-    msg.style.color = "#2e7d32";
-    msg.textContent = "Login realizado com sucesso.";
-    location.reload();
-  });
-
-  registerBtn.addEventListener("click", async () => {
-    const { email, password } = getCreds();
-
-    if (!email || !password) {
-      msg.style.color = "#d9534f";
-      msg.textContent = "Preencha e-mail e senha.";
-      return;
-    }
-
-    const { error } = await supabaseClient.auth.signUp({ email, password });
-
-    if (error) {
-      msg.style.color = "#d9534f";
-      msg.textContent = error.message;
-      return;
-    }
-
-    msg.style.color = "#2e7d32";
-    msg.textContent = "Conta criada com sucesso. Agora faça login.";
-  });
-}
+bootstrapFromURL();
+window.addEventListener("popstate", () => {
+  bootstrapFromURL();
+  renderApp();
+});
+renderApp();
