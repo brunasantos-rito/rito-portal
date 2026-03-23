@@ -4994,222 +4994,168 @@ async function showLoginScreen() {
   document.body.innerHTML = `
     <div style="
       min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
       background: #f5f5f3;
       font-family: Arial, sans-serif;
       color: #1d1d1b;
-      padding: 24px;
-      box-sizing: border-box;
     ">
-      <div style="
-        width: 100%;
-        max-width: 920px;
-        min-height: 520px;
-        display: grid;
-        grid-template-columns: 1fr 0.95fr;
-        background: #f7f7f5;
-        border: 1px solid #d8d8d3;
-        box-shadow: 0 12px 32px rgba(0,0,0,0.06);
-        overflow: hidden;
+
+      <!-- ESQUERDA -->
+      <section style="
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f5f5f3;
+        border-right: 1px solid #e2e2dd;
+        padding: 32px;
       ">
-        <section style="
-          position: relative;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: #f5f5f3;
-          border-right: 1px solid #d8d8d3;
-          padding: 32px;
+        <div style="text-align:center;">
+          <img 
+            src="./Picture2.png"
+            style="
+              width: 220px;
+              max-width: 75%;
+              height: auto;
+              display: block;
+              mix-blend-mode: multiply;
+              opacity: 0.95;
+            "
+          >
+        </div>
+
+        <div style="
+          position: absolute;
+          left: 32px;
+          right: 32px;
+          bottom: 24px;
+          color: #7c7c74;
+          font-size: 11px;
+          line-height: 1.6;
         ">
-          <div style="text-align:center;">
-            <div style="
-              font-family: Georgia, 'Times New Roman', serif;
-              font-size: 54px;
-              line-height: 0.95;
-              font-weight: 500;
-              letter-spacing: -0.03em;
-              color: #1d1d1b;
-            ">
-              Rito<span style="font-size:24px;vertical-align:middle;">◊</span>
-            </div>
+          <div>www.ritoventures.com.br</div>
+          <div>Rua 72, 325, Jardim Goiás | Goiânia-GO</div>
+        </div>
+      </section>
 
-            <div style="
-              margin-top: 6px;
-              font-size: 18px;
-              letter-spacing: 0.04em;
-              font-weight: 400;
-              color: #3a3a35;
-            ">
-              ventures
-            </div>
-          </div>
-
-          <div style="
-            position: absolute;
-            left: 28px;
-            right: 28px;
-            bottom: 22px;
-            color: #7c7c74;
-            font-size: 11px;
-            line-height: 1.6;
-            letter-spacing: 0.02em;
-          ">
-            <div>www.ritoventures.com.br</div>
-            <div>Rua 72, 325, salas 1201 a 1206, Jardim Goiás | Goiânia-GO</div>
-          </div>
-        </section>
-
-        <section style="
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: #f7f7f5;
-          padding: 32px 28px;
+      <!-- DIREITA -->
+      <section style="
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f7f7f5;
+      ">
+        <div style="
+          width: 100%;
+          max-width: 340px;
         ">
-          <div style="
-            width: 100%;
-            max-width: 340px;
+
+          <h2 style="
+            margin-bottom: 28px;
+            font-family: Georgia, serif;
+            font-size: 24px;
+            font-weight: 500;
           ">
-            <h2 style="
-              margin: 0 0 28px;
-              font-family: Georgia, 'Times New Roman', serif;
-              font-size: 24px;
-              font-weight: 500;
-              color: #1f1f1b;
-            ">
-              Bem-Vindo
-            </h2>
+            Bem-Vindo
+          </h2>
 
-            <form id="loginForm">
-              <label style="
-                display:block;
-                margin-bottom: 18px;
-              ">
-                <div style="
-                  margin-bottom: 8px;
-                  font-size: 11px;
-                  letter-spacing: 0.18em;
-                  color: #7f7f77;
-                  text-transform: uppercase;
-                ">
-                  E-mail
-                </div>
-                <input
-                  id="loginEmail"
-                  type="email"
-                  autocomplete="email"
-                  required
-                  style="
-                    width:100%;
-                    height: 42px;
-                    padding: 0 12px;
-                    border: 1px solid #d7dbe6;
-                    background: #ffffff;
-                    color: #1d1d1b;
-                    font-size: 14px;
-                    outline: none;
-                    box-sizing: border-box;
-                  "
-                >
-              </label>
+          <form id="loginForm">
 
-              <label style="
-                display:block;
-                margin-bottom: 14px;
-              ">
-                <div style="
-                  margin-bottom: 8px;
-                  font-size: 11px;
-                  letter-spacing: 0.18em;
-                  color: #7f7f77;
-                  text-transform: uppercase;
-                ">
-                  Senha
-                </div>
-                <input
-                  id="loginPassword"
-                  type="password"
-                  autocomplete="current-password"
-                  required
-                  style="
-                    width:100%;
-                    height: 42px;
-                    padding: 0 12px;
-                    border: 1px solid #d7dbe6;
-                    background: #ffffff;
-                    color: #1d1d1b;
-                    font-size: 14px;
-                    outline: none;
-                    box-sizing: border-box;
-                  "
-                >
-              </label>
+            <!-- EMAIL -->
+            <label style="display:block;margin-bottom:18px;">
+              <div style="
+                margin-bottom:8px;
+                font-size:11px;
+                letter-spacing:0.18em;
+                color:#7f7f77;
+              ">E-MAIL</div>
 
-              <p id="loginMessage" style="
-                min-height: 20px;
-                margin: 0 0 14px;
-                font-size: 13px;
-                color: #d9534f;
-              "></p>
-
-              <button
-                type="submit"
+              <input id="loginEmail" type="email" required
                 style="
                   width:100%;
-                  height: 42px;
-                  border:none;
-                  background:#111;
-                  color:#fff;
-                  font-size: 14px;
-                  font-weight: 500;
-                  cursor:pointer;
-                "
-              >
-                Entrar no Sistema
-              </button>
+                  height:42px;
+                  padding:0 12px;
+                  border:1px solid #d7dbe6;
+                  background:#ffffff;
+                  font-size:14px;
+                  outline:none;
+                ">
+            </label>
 
-              <button
-                type="button"
-                id="registerBtn"
+            <!-- SENHA -->
+            <label style="display:block;margin-bottom:14px;">
+              <div style="
+                margin-bottom:8px;
+                font-size:11px;
+                letter-spacing:0.18em;
+                color:#7f7f77;
+              ">SENHA</div>
+
+              <input id="loginPassword" type="password" required
                 style="
                   width:100%;
-                  height: 42px;
-                  margin-top: 10px;
-                  border: 1px solid #d0d0cb;
-                  background: transparent;
-                  color: #1d1d1b;
-                  font-size: 14px;
-                  cursor:pointer;
-                "
-              >
-                Criar conta
-              </button>
-            </form>
+                  height:42px;
+                  padding:0 12px;
+                  border:1px solid #d7dbe6;
+                  background:#ffffff;
+                  font-size:14px;
+                  outline:none;
+                ">
+            </label>
 
-            <div style="
-              margin-top: 30px;
-              padding-top: 18px;
-              border-top: 1px solid #ddddda;
-              display: flex;
-              align-items: center;
-              justify-content: space-between;
-              gap: 12px;
-              font-size: 10px;
-              letter-spacing: 0.14em;
-              text-transform: uppercase;
-              color: #7f7f77;
-            ">
-              <span>© 2026 Rito Ventures</span>
-              <div style="display:flex; gap:14px;">
-                <span>Suporte</span>
-                <span>Privacidade</span>
-              </div>
-            </div>
+            <p id="loginMessage" style="
+              font-size:13px;
+              color:#d9534f;
+              margin-bottom:14px;
+            "></p>
+
+            <!-- LOGIN -->
+            <button type="submit"
+              style="
+                width:100%;
+                height:42px;
+                background:#111;
+                color:#fff;
+                border:none;
+                font-size:14px;
+                cursor:pointer;
+              ">
+              Entrar
+            </button>
+
+            <!-- CRIAR CONTA -->
+            <button type="button" id="registerBtn"
+              style="
+                width:100%;
+                height:42px;
+                margin-top:10px;
+                border:1px solid #ccc;
+                background:#fff;
+                font-size:14px;
+                cursor:pointer;
+              ">
+              Criar conta
+            </button>
+
+          </form>
+
+          <!-- FOOTER -->
+          <div style="
+            margin-top:30px;
+            padding-top:18px;
+            border-top:1px solid #ddddda;
+            display:flex;
+            justify-content:space-between;
+            font-size:10px;
+            color:#7f7f77;
+          ">
+            <span>© 2026 Rito Ventures</span>
+            <span>Privacidade</span>
           </div>
-        </section>
-      </div>
+
+        </div>
+      </section>
     </div>
   `;
 
@@ -5230,7 +5176,6 @@ async function showLoginScreen() {
     const { email, password } = getCreds();
 
     if (!email || !password) {
-      msg.style.color = "#d9534f";
       msg.textContent = "Preencha e-mail e senha.";
       return;
     }
@@ -5238,8 +5183,7 @@ async function showLoginScreen() {
     const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
 
     if (error) {
-      msg.style.color = "#d9534f";
-      msg.textContent = "Credenciais inválidas. Tente novamente.";
+      msg.textContent = "Credenciais inválidas.";
       return;
     }
 
@@ -5250,7 +5194,6 @@ async function showLoginScreen() {
     const { email, password } = getCreds();
 
     if (!email || !password) {
-      msg.style.color = "#d9534f";
       msg.textContent = "Preencha e-mail e senha.";
       return;
     }
@@ -5258,13 +5201,12 @@ async function showLoginScreen() {
     const { error } = await supabaseClient.auth.signUp({ email, password });
 
     if (error) {
-      msg.style.color = "#d9534f";
       msg.textContent = error.message;
       return;
     }
 
     msg.style.color = "#2e7d32";
-    msg.textContent = "Conta criada com sucesso. Agora faça login.";
+    msg.textContent = "Conta criada. Agora faça login.";
   });
 }
 
@@ -5274,27 +5216,17 @@ async function logoutUser() {
 }
 
 function addLogoutButton() {
-  const oldButton = document.getElementById("logoutFloatingButton");
-  if (oldButton) oldButton.remove();
-
   const btn = document.createElement("button");
-  btn.id = "logoutFloatingButton";
   btn.textContent = "Sair";
   btn.style.position = "fixed";
   btn.style.right = "20px";
   btn.style.bottom = "20px";
-  btn.style.zIndex = "9999";
-  btn.style.padding = "12px 18px";
-  btn.style.border = "none";
-  btn.style.borderRadius = "12px";
+  btn.style.padding = "10px 16px";
   btn.style.background = "#111";
   btn.style.color = "#fff";
-  btn.style.fontFamily = "Arial, sans-serif";
-  btn.style.fontSize = "14px";
+  btn.style.border = "none";
   btn.style.cursor = "pointer";
-  btn.style.boxShadow = "0 8px 24px rgba(0,0,0,0.16)";
   btn.onclick = logoutUser;
-
   document.body.appendChild(btn);
 }
 
@@ -5307,12 +5239,6 @@ async function protectApp() {
   }
 
   bootstrapFromURL();
-  window.addEventListener("popstate", () => {
-    bootstrapFromURL();
-    renderApp();
-    addLogoutButton();
-  });
-
   renderApp();
   addLogoutButton();
 }
