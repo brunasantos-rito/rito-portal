@@ -1135,6 +1135,17 @@ body[data-theme="dark"] .card-cover::after {
   background: var(--surface-strong);
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
+  cursor: grab;
+}
+
+.crm-card.is-dragging {
+  opacity: 0.56;
+  cursor: grabbing;
+}
+
+.crm-card.is-drop-target {
+  border-color: rgba(95, 99, 148, 0.42);
+  box-shadow: inset 0 0 0 1px rgba(95, 99, 148, 0.18), var(--shadow);
 }
 
 .card-cover {
@@ -1181,16 +1192,33 @@ body[data-theme="dark"] .card-cover::after {
   overflow: hidden;
 }
 
+.card-logo.has-image {
+  background: transparent !important;
+  box-shadow: none;
+}
+
 .card-logo img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  display: block;
+  background: transparent;
+  mix-blend-mode: multiply;
 }
 
 .card-content {
   padding: 42px 18px 18px;
   display: grid;
   gap: 12px;
+}
+
+.card-copy-block {
+  display: grid;
+  gap: 4px;
+}
+
+.card-copy-block h4 {
+  margin: 0;
 }
 
 .chips {
@@ -1205,6 +1233,62 @@ body[data-theme="dark"] .card-cover::after {
   background: var(--surface-muted);
   color: var(--text-soft);
   font-size: 0.68rem;
+  border: 1px solid transparent;
+}
+
+.chip-blue { background: #edf3ff; color: #3d63d8; border-color: rgba(61, 99, 216, 0.08); }
+.chip-gold { background: #fff1c8; color: #b57507; border-color: rgba(181, 117, 7, 0.08); }
+.chip-green { background: #e7f7ef; color: #287d60; border-color: rgba(40, 125, 96, 0.08); }
+.chip-stone { background: #f3f4f6; color: #8892a0; border-color: rgba(136, 146, 160, 0.08); }
+.chip-sand { background: #f7f1e6; color: #a07d46; border-color: rgba(160, 125, 70, 0.08); }
+.chip-rose { background: #fbe8e8; color: #c76f6f; border-color: rgba(199, 111, 111, 0.08); }
+.chip-ice { background: #eaf1fb; color: #7f9fc9; border-color: rgba(127, 159, 201, 0.08); }
+.chip-lavender { background: #efe9ff; color: #7b6ad8; border-color: rgba(123, 106, 216, 0.08); }
+.chip-mint { background: #e7f7f1; color: #26886d; border-color: rgba(38, 136, 109, 0.08); }
+.chip-indigo { background: #edf0ff; color: #566fd6; border-color: rgba(86, 111, 214, 0.08); }
+.chip-sky { background: #e9f5ff; color: #4c88c8; border-color: rgba(76, 136, 200, 0.08); }
+.chip-emerald { background: #e8f6ef; color: #2e7f57; border-color: rgba(46, 127, 87, 0.08); }
+.chip-peach { background: #fff0e5; color: #c27a4d; border-color: rgba(194, 122, 77, 0.08); }
+.chip-neutral { background: #f6f3ee; color: #8d96a2; border-color: rgba(141, 150, 162, 0.08); }
+
+.card-info-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.card-meta-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.card-field {
+  display: grid;
+  gap: 4px;
+}
+
+.card-description-preview p {
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.card-field span {
+  color: var(--text-soft);
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.card-field p {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.76rem;
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .progress-bar {
@@ -1216,6 +1300,13 @@ body[data-theme="dark"] .card-cover::after {
 
 .progress-bar span {
   height: 100%;
+}
+
+.card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .card-footer,
@@ -1560,6 +1651,15 @@ body[data-theme="dark"] .card-cover::after {
   color: #ffffff;
   font-size: 0.62rem;
   font-weight: 500;
+  overflow: hidden;
+}
+
+.owner-badge img,
+.task-card-assignee img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .chip-pipeline,
@@ -1654,22 +1754,33 @@ body[data-theme="dark"] .card-cover::after {
 .company-cell {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   min-width: 0;
 }
 
 .company-badge {
-  width: 28px;
-  height: 28px;
-  border-radius: 10px;
-  background: #eef1f4;
+  width: 42px;
+  height: 42px;
+  border-radius: 0;
+  background: transparent;
   display: grid;
   place-items: center;
   color: #808995;
   font-weight: 500;
   font-family: Georgia, "Times New Roman", serif;
-  font-size: 0.58rem;
+  font-size: 0.56rem;
   flex-shrink: 0;
+  overflow: hidden;
+  box-shadow: none;
+}
+
+.company-badge img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  background: transparent;
+  mix-blend-mode: multiply;
 }
 
 .rito-dashboard-table .company-cell strong {
@@ -3165,11 +3276,45 @@ body[data-theme="dark"] .workspace-soft-page .kanban-card {
   font-size: 0.82rem;
 }
 
+.reference-logo.has-image {
+  background: transparent !important;
+  box-shadow: none;
+}
+
+.reference-logo img {
+  display: block;
+  background: transparent;
+  mix-blend-mode: multiply;
+}
+
 .reference-card-body {
   display: grid;
   gap: 8px;
   padding: 22px 12px 12px;
   font-size: 0.74rem;
+}
+
+.reference-description-block {
+  display: grid;
+  gap: 4px;
+}
+
+.reference-description-block span {
+  color: var(--text-soft);
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+.reference-description-block p {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.74rem;
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .reference-value-field {
@@ -3691,20 +3836,34 @@ label {
 
 .project-hero-actions {
   display: flex;
-  gap: 8px;
+  gap: 7px;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: center;
+  align-items: center;
+  max-width: 740px;
 }
 
 .project-hero-actions .ghost-button,
 .project-hero-actions .action-button {
-  min-height: 40px;
-  padding-inline: 16px;
+  min-height: 34px;
+  padding-inline: 12px;
+  border-radius: 12px;
+  font-size: 0.72rem;
+  letter-spacing: 0.01em;
+  box-shadow: none;
+  text-align: center;
+  justify-content: center;
+}
+
+.project-hero-actions label.ghost-button {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
 }
 
 .project-delete-button {
-  min-width: 42px;
-  padding-inline: 0 !important;
+  min-width: 72px;
+  padding-inline: 12px !important;
 }
 
 .project-progress-card,
@@ -3796,11 +3955,42 @@ label {
 .project-detail-card h4 {
   margin: 0;
   font-family: "Inter", "Segoe UI", Arial, sans-serif;
-  font-size: 0.68rem;
+  font-size: 0.6rem;
   color: #808894;
   font-weight: 500;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+
+.project-detail-kanban-card {
+  overflow: hidden;
+}
+
+.detail-project-board {
+  grid-auto-columns: minmax(240px, 1fr);
+  gap: 10px;
+  overflow-x: auto;
+  padding: 4px 2px 6px;
+}
+
+.detail-project-board-column {
+  min-height: 330px;
+  padding: 12px;
+  border-radius: 18px;
+}
+
+.detail-project-column-head {
+  margin-bottom: 0;
+}
+
+.detail-project-column-list {
+  min-height: 260px;
+  padding-top: 12px;
+}
+
+.detail-empty-project {
+  min-height: 230px;
+  padding-top: 62px;
 }
 
 .detail-textarea,
@@ -3877,6 +4067,7 @@ label {
   display: grid;
   place-items: center;
   font-size: 0.64rem;
+  overflow: hidden;
 }
 
 .project-mini-list {
