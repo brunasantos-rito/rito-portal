@@ -5001,48 +5001,44 @@ async function showLoginScreen() {
       color: #1d1d1b;
     ">
 
-      <!-- LADO ESQUERDO -->
+      <!-- ESQUERDA -->
       <section style="
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        position: relative;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        position:relative;
       ">
-        <div style="text-align:center;">
-          <img src="./Picture2.png" style="
-            max-width: 260px;
-            width: 100%;
-          ">
-        </div>
+        <img src="./Picture2.png" style="
+          max-width:260px;
+          width:100%;
+        ">
 
         <div style="
-          position: absolute;
-          bottom: 40px;
-          left: 40px;
-          font-size: 12px;
-          color: #7c7c74;
-          line-height: 1.6;
+          position:absolute;
+          bottom:40px;
+          left:40px;
+          font-size:12px;
+          color:#7c7c74;
         ">
           <div>www.ritoventures.com.br</div>
           <div>Rua 72, 325, salas 1201 a 1206, Jardim Goiás | Goiânia-GO</div>
         </div>
       </section>
 
-      <!-- LADO DIREITO -->
+      <!-- DIREITA -->
       <section style="
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        display:flex;
+        align-items:center;
+        justify-content:center;
       ">
-        <div style="
-          width: 100%;
-          max-width: 360px;
-        ">
+        <div style="max-width:360px;width:100%;">
 
+          <!-- SEM NEGRITO -->
           <h2 style="
-            font-size: 26px;
-            margin-bottom: 30px;
+            font-size:26px;
+            margin-bottom:30px;
             font-family: Georgia, serif;
+            font-weight: 400;
           ">
             Bem-Vindo
           </h2>
@@ -5052,10 +5048,10 @@ async function showLoginScreen() {
             <!-- EMAIL -->
             <label style="display:block;margin-bottom:20px;">
               <div style="
-                font-size: 11px;
-                letter-spacing: 0.2em;
-                color: #7f7f77;
-                margin-bottom: 8px;
+                font-size:11px;
+                letter-spacing:0.2em;
+                color:#7f7f77;
+                margin-bottom:8px;
               ">E-MAIL</div>
 
               <input
@@ -5065,12 +5061,11 @@ async function showLoginScreen() {
                 style="
                   width:100%;
                   height:44px;
-                  background:#fff;
-                  color:#000;
+                  background:#ffffff;
+                  color:#000000;
                   border:1px solid #ccc;
                   padding:0 12px;
                   font-size:14px;
-                  outline:none;
                 "
               >
             </label>
@@ -5078,10 +5073,10 @@ async function showLoginScreen() {
             <!-- SENHA -->
             <label style="display:block;margin-bottom:20px;">
               <div style="
-                font-size: 11px;
-                letter-spacing: 0.2em;
-                color: #7f7f77;
-                margin-bottom: 8px;
+                font-size:11px;
+                letter-spacing:0.2em;
+                color:#7f7f77;
+                margin-bottom:8px;
               ">SENHA</div>
 
               <input
@@ -5091,20 +5086,19 @@ async function showLoginScreen() {
                 style="
                   width:100%;
                   height:44px;
-                  background:#fff;
-                  color:#000;
+                  background:#ffffff;
+                  color:#000000;
                   border:1px solid #ccc;
                   padding:0 12px;
                   font-size:14px;
-                  outline:none;
                 "
               >
             </label>
 
             <p id="loginMessage" style="
-              font-size: 13px;
-              color: #d9534f;
-              margin-bottom: 16px;
+              font-size:13px;
+              color:#d9534f;
+              margin-bottom:16px;
             "></p>
 
             <!-- BOTÃO LOGIN -->
@@ -5120,13 +5114,14 @@ async function showLoginScreen() {
               Entrar no Sistema
             </button>
 
-            <!-- BOTÃO CADASTRO -->
+            <!-- BOTÃO CRIAR CONTA (CORRIGIDO) -->
             <button type="button" id="registerBtn" style="
               width:100%;
               height:44px;
               margin-top:10px;
               background:transparent;
               border:1px solid #ccc;
+              color:#000;
               font-size:14px;
               cursor:pointer;
             ">
