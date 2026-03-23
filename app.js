@@ -4138,6 +4138,92 @@ function bootstrapFromURL() {
   if (view && workspaceConfig[state.currentWorkspace].views.includes(view)) {
     state.currentView[state.currentWorkspace] = view;
   }
+  async function showLoginScreen() {
+  document.body.innerHTML = `
+    <div style="min-height:100vh;display:grid;place-items:center;font-family:Arial,sans-serif;background:#f3f4f6;padding:24px;">
+      <form id="loginForm" style="background:#fff;padding:24px;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.08);width:100%;max-width:360px;">
+        <h2 style="margin-top:0;margin-bottom:16px;">Entrar no portal</h2>
+
+        <label style="display:block;margin-bottom:12px;">
+          <div style="margin-bottom:6px;">E-mail</div>
+          <input id="loginEmail" type="email" required style="width:100%;padding:10px;border:1px solid #ccc;border-radius:8px;">
+        </label>
+
+        <label style="display:block;margin-bottom:12px;">
+          <div style="margin-bottom:6px;">Senha</div>
+          <input id="loginPassword" type="password" required style="width:100%;padding:10px;border:1px solid #ccc;border-radius:8px;">
+        </label>
+
+        <button type="submit" style="width:100%;padding:10px;border:none;border-radius:8px;background:#111;color:#fff;">
+          Entrar
+        </button>
+
+        <button type="button" id="registerBtn" style="width:100%;padding:10px;border:none;border-radius:8px;background:#e5e7eb;color:#111;margin-top:8px;">
+          Criar conta
+        </button>
+
+        <p id="loginMessage" style="margin:12px 0 0;color:#666;"></p>
+      </form>
+    </div>
+  `;
+
+  const form = document.getElementById("loginForm");
+  const registerBtn = document.getElementById("registerBtn");
+  const msg = document.getElementById("loginMessage");
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const email = document.getElementById("loginEmail").value;
+    const password = document.getElementById("loginPassword").value;
+
+    const { error } = await supabaseClient.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if (error) {
+      msg.textContent = error.message;
+      return;
+    }
+
+    msg.textContent = "Login realizado. Recarregando...";
+    window.location.reload();
+  });
+
+  registerBtn.addEventListener("click", async () => {
+    const email = document.getElementById("loginEmail").value;
+    const password = document.getElementById("loginPassword").value;
+
+    const { error } = await supabaseClient.auth.signUp({
+      email,
+      password
+    });
+
+    if (error) {
+      msg.textContent = error.message;
+      return;
+    }
+
+    msg.textContent = "Conta criada. Agora faça login.";
+  });
+}
+
+async function protectApp() {
+  const { data, error } = await supabaseClient.auth.getSession();
+
+  if (error || !data.session) {
+    await showLoginScreen();
+    return false;
+  }
+
+  return true;
+}
+
+window.addEventListener("load", async () => {
+  const allowed = await protectApp();
+  if (!allowed) return;
+});
 }
 
 bootstrapFromURL();
