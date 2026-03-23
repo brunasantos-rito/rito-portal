@@ -4994,198 +4994,222 @@ async function showLoginScreen() {
   document.body.innerHTML = `
     <div style="
       min-height: 100vh;
-      display: grid;
-      grid-template-columns: 1.35fr 0.85fr;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       background: #f5f5f3;
-      font-family: Georgia, 'Times New Roman', serif;
+      font-family: Arial, sans-serif;
       color: #1d1d1b;
+      padding: 24px;
+      box-sizing: border-box;
     ">
-      <section style="
-        position: relative;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-right: 1px solid #d8d8d3;
-        background: #f5f5f3;
-      ">
-        <div style="text-align:center;">
-          <div style="
-            font-size: 92px;
-            line-height: 0.9;
-            font-weight: 500;
-            letter-spacing: -0.04em;
-          ">Rito<span style="font-size:40px;vertical-align:middle;">◊</span></div>
-          <div style="
-            margin-top: 4px;
-            font-size: 28px;
-            letter-spacing: 0.02em;
-            font-family: Arial, sans-serif;
-            font-weight: 400;
-          ">ventures</div>
-        </div>
-
-        <div style="
-          position: absolute;
-          left: 56px;
-          bottom: 40px;
-          font-family: Arial, sans-serif;
-          color: #7c7c74;
-          font-size: 14px;
-          line-height: 1.8;
-          letter-spacing: 0.02em;
-        ">
-          <div>www.ritoventures.com.br</div>
-          <div>Rua 72, 325, salas 1201 a 1206, Jardim Goiás | Goiânia-GO</div>
-        </div>
-      </section>
-
-      <section style="
-        display: flex;
-        align-items: center;
-        justify-content: center;
+      <div style="
+        width: 100%;
+        max-width: 920px;
+        min-height: 520px;
+        display: grid;
+        grid-template-columns: 1fr 0.95fr;
         background: #f7f7f5;
+        border: 1px solid #d8d8d3;
+        box-shadow: 0 12px 32px rgba(0,0,0,0.06);
+        overflow: hidden;
       ">
-        <div style="
-          width: 100%;
-          max-width: 460px;
-          padding: 56px 44px;
+        <section style="
+          position: relative;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: #f5f5f3;
+          border-right: 1px solid #d8d8d3;
+          padding: 32px;
         ">
-          <h2 style="
-            margin: 0 0 42px;
-            font-size: 34px;
-            font-weight: 500;
-            color: #1f1f1b;
-          ">Bem-Vindo</h2>
-
-          <form id="loginForm">
-            <label style="
-              display:block;
-              margin-bottom: 26px;
-              font-family: Arial, sans-serif;
+          <div style="text-align:center;">
+            <div style="
+              font-family: Georgia, 'Times New Roman', serif;
+              font-size: 54px;
+              line-height: 0.95;
+              font-weight: 500;
+              letter-spacing: -0.03em;
+              color: #1d1d1b;
             ">
-              <div style="
-                margin-bottom: 10px;
-                font-size: 12px;
-                letter-spacing: 0.22em;
-                color: #7f7f77;
-                text-transform: uppercase;
-              ">E-mail</div>
-              <input
-                id="loginEmail"
-                type="email"
-                autocomplete="email"
-                required
-                style="
-                  width:100%;
-                  height: 54px;
-                  padding: 0 16px;
-                  border: 1px solid #d7dbe6;
-                  background: #e9edf5;
-                  color: #1d1d1b;
-                  font-size: 16px;
-                  outline: none;
-                  box-sizing: border-box;
-                "
-              >
-            </label>
+              Rito<span style="font-size:24px;vertical-align:middle;">◊</span>
+            </div>
 
-            <label style="
-              display:block;
-              margin-bottom: 18px;
-              font-family: Arial, sans-serif;
+            <div style="
+              margin-top: 6px;
+              font-size: 18px;
+              letter-spacing: 0.04em;
+              font-weight: 400;
+              color: #3a3a35;
             ">
-              <div style="
-                margin-bottom: 10px;
-                font-size: 12px;
-                letter-spacing: 0.22em;
-                color: #7f7f77;
-                text-transform: uppercase;
-              ">Senha</div>
-              <input
-                id="loginPassword"
-                type="password"
-                autocomplete="current-password"
-                required
-                style="
-                  width:100%;
-                  height: 54px;
-                  padding: 0 16px;
-                  border: 1px solid #d7dbe6;
-                  background: #e9edf5;
-                  color: #1d1d1b;
-                  font-size: 16px;
-                  outline: none;
-                  box-sizing: border-box;
-                "
-              >
-            </label>
-
-            <p id="loginMessage" style="
-              min-height: 24px;
-              margin: 0 0 18px;
-              font-family: Arial, sans-serif;
-              font-size: 14px;
-              color: #d9534f;
-            "></p>
-
-            <button
-              type="submit"
-              style="
-                width:100%;
-                height: 54px;
-                border:none;
-                background:#111;
-                color:#fff;
-                font-family: Arial, sans-serif;
-                font-size: 16px;
-                font-weight: 500;
-                cursor:pointer;
-              "
-            >
-              Entrar no Sistema
-            </button>
-
-            <button
-              type="button"
-              id="registerBtn"
-              style="
-                width:100%;
-                height: 54px;
-                margin-top: 12px;
-                border: 1px solid #d0d0cb;
-                background: transparent;
-                color: #1d1d1b;
-                font-family: Arial, sans-serif;
-                font-size: 15px;
-                cursor:pointer;
-              "
-            >
-              Criar conta
-            </button>
-          </form>
-
-          <div style="
-            margin-top: 54px;
-            padding-top: 28px;
-            border-top: 1px solid #ddddda;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 16px;
-            font-family: Arial, sans-serif;
-            font-size: 12px;
-            letter-spacing: 0.18em;
-            text-transform: uppercase;
-            color: #7f7f77;
-          ">
-            <span>© 2026 Rito Ventures</span>
-            <div style="display:flex; gap:24px;">
-              <span>Suporte</span>
-              <span>Privacidade</span>
+              ventures
             </div>
           </div>
-        </div>
-      </section>
+
+          <div style="
+            position: absolute;
+            left: 28px;
+            right: 28px;
+            bottom: 22px;
+            color: #7c7c74;
+            font-size: 11px;
+            line-height: 1.6;
+            letter-spacing: 0.02em;
+          ">
+            <div>www.ritoventures.com.br</div>
+            <div>Rua 72, 325, salas 1201 a 1206, Jardim Goiás | Goiânia-GO</div>
+          </div>
+        </section>
+
+        <section style="
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: #f7f7f5;
+          padding: 32px 28px;
+        ">
+          <div style="
+            width: 100%;
+            max-width: 340px;
+          ">
+            <h2 style="
+              margin: 0 0 28px;
+              font-family: Georgia, 'Times New Roman', serif;
+              font-size: 24px;
+              font-weight: 500;
+              color: #1f1f1b;
+            ">
+              Bem-Vindo
+            </h2>
+
+            <form id="loginForm">
+              <label style="
+                display:block;
+                margin-bottom: 18px;
+              ">
+                <div style="
+                  margin-bottom: 8px;
+                  font-size: 11px;
+                  letter-spacing: 0.18em;
+                  color: #7f7f77;
+                  text-transform: uppercase;
+                ">
+                  E-mail
+                </div>
+                <input
+                  id="loginEmail"
+                  type="email"
+                  autocomplete="email"
+                  required
+                  style="
+                    width:100%;
+                    height: 42px;
+                    padding: 0 12px;
+                    border: 1px solid #d7dbe6;
+                    background: #ffffff;
+                    color: #1d1d1b;
+                    font-size: 14px;
+                    outline: none;
+                    box-sizing: border-box;
+                  "
+                >
+              </label>
+
+              <label style="
+                display:block;
+                margin-bottom: 14px;
+              ">
+                <div style="
+                  margin-bottom: 8px;
+                  font-size: 11px;
+                  letter-spacing: 0.18em;
+                  color: #7f7f77;
+                  text-transform: uppercase;
+                ">
+                  Senha
+                </div>
+                <input
+                  id="loginPassword"
+                  type="password"
+                  autocomplete="current-password"
+                  required
+                  style="
+                    width:100%;
+                    height: 42px;
+                    padding: 0 12px;
+                    border: 1px solid #d7dbe6;
+                    background: #ffffff;
+                    color: #1d1d1b;
+                    font-size: 14px;
+                    outline: none;
+                    box-sizing: border-box;
+                  "
+                >
+              </label>
+
+              <p id="loginMessage" style="
+                min-height: 20px;
+                margin: 0 0 14px;
+                font-size: 13px;
+                color: #d9534f;
+              "></p>
+
+              <button
+                type="submit"
+                style="
+                  width:100%;
+                  height: 42px;
+                  border:none;
+                  background:#111;
+                  color:#fff;
+                  font-size: 14px;
+                  font-weight: 500;
+                  cursor:pointer;
+                "
+              >
+                Entrar no Sistema
+              </button>
+
+              <button
+                type="button"
+                id="registerBtn"
+                style="
+                  width:100%;
+                  height: 42px;
+                  margin-top: 10px;
+                  border: 1px solid #d0d0cb;
+                  background: transparent;
+                  color: #1d1d1b;
+                  font-size: 14px;
+                  cursor:pointer;
+                "
+              >
+                Criar conta
+              </button>
+            </form>
+
+            <div style="
+              margin-top: 30px;
+              padding-top: 18px;
+              border-top: 1px solid #ddddda;
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              gap: 12px;
+              font-size: 10px;
+              letter-spacing: 0.14em;
+              text-transform: uppercase;
+              color: #7f7f77;
+            ">
+              <span>© 2026 Rito Ventures</span>
+              <div style="display:flex; gap:14px;">
+                <span>Suporte</span>
+                <span>Privacidade</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
     </div>
   `;
 
