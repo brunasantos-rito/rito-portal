@@ -4980,9 +4980,284 @@ function bootstrapFromURL() {
   }
 }
 
-bootstrapFromURL();
-window.addEventListener("popstate", () => {
+function bootstrapFromURL() {
+  const params = new URLSearchParams(location.search);
+  const workspace = params.get("workspace");
+  const view = params.get("view");
+  if (workspaceConfig[workspace]) state.currentWorkspace = workspace;
+  if (view && workspaceConfig[state.currentWorkspace].views.includes(view)) {
+    state.currentView[state.currentWorkspace] = view;
+  }
+}
+
+async function showLoginScreen() {
+  document.body.innerHTML = `
+    <div style="
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 1.35fr 0.85fr;
+      background: #f5f5f3;
+      font-family: Georgia, 'Times New Roman', serif;
+      color: #1d1d1b;
+    ">
+      <section style="
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-right: 1px solid #d8d8d3;
+        background: #f5f5f3;
+      ">
+        <div style="text-align:center;">
+          <div style="
+            font-size: 92px;
+            line-height: 0.9;
+            font-weight: 500;
+            letter-spacing: -0.04em;
+          ">Rito<span style="font-size:40px;vertical-align:middle;">◊</span></div>
+          <div style="
+            margin-top: 4px;
+            font-size: 28px;
+            letter-spacing: 0.02em;
+            font-family: Arial, sans-serif;
+            font-weight: 400;
+          ">ventures</div>
+        </div>
+
+        <div style="
+          position: absolute;
+          left: 56px;
+          bottom: 40px;
+          font-family: Arial, sans-serif;
+          color: #7c7c74;
+          font-size: 14px;
+          line-height: 1.8;
+          letter-spacing: 0.02em;
+        ">
+          <div>www.ritoventures.com.br</div>
+          <div>Rua 72, 325, salas 1201 a 1206, Jardim Goiás | Goiânia-GO</div>
+        </div>
+      </section>
+
+      <section style="
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f7f7f5;
+      ">
+        <div style="
+          width: 100%;
+          max-width: 460px;
+          padding: 56px 44px;
+        ">
+          <h2 style="
+            margin: 0 0 42px;
+            font-size: 34px;
+            font-weight: 500;
+            color: #1f1f1b;
+          ">Bem-Vindo</h2>
+
+          <form id="loginForm">
+            <label style="
+              display:block;
+              margin-bottom: 26px;
+              font-family: Arial, sans-serif;
+            ">
+              <div style="
+                margin-bottom: 10px;
+                font-size: 12px;
+                letter-spacing: 0.22em;
+                color: #7f7f77;
+                text-transform: uppercase;
+              ">E-mail</div>
+              <input
+                id="loginEmail"
+                type="email"
+                autocomplete="email"
+                required
+                style="
+                  width:100%;
+                  height: 54px;
+                  padding: 0 16px;
+                  border: 1px solid #d7dbe6;
+                  background: #e9edf5;
+                  color: #1d1d1b;
+                  font-size: 16px;
+                  outline: none;
+                  box-sizing: border-box;
+                "
+              >
+            </label>
+
+            <label style="
+              display:block;
+              margin-bottom: 18px;
+              font-family: Arial, sans-serif;
+            ">
+              <div style="
+                margin-bottom: 10px;
+                font-size: 12px;
+                letter-spacing: 0.22em;
+                color: #7f7f77;
+                text-transform: uppercase;
+              ">Senha</div>
+              <input
+                id="loginPassword"
+                type="password"
+                autocomplete="current-password"
+                required
+                style="
+                  width:100%;
+                  height: 54px;
+                  padding: 0 16px;
+                  border: 1px solid #d7dbe6;
+                  background: #e9edf5;
+                  color: #1d1d1b;
+                  font-size: 16px;
+                  outline: none;
+                  box-sizing: border-box;
+                "
+              >
+            </label>
+
+            <p id="loginMessage" style="
+              min-height: 24px;
+              margin: 0 0 18px;
+              font-family: Arial, sans-serif;
+              font-size: 14px;
+              color: #d9534f;
+            "></p>
+
+            <button
+              type="submit"
+              style="
+                width:100%;
+                height: 54px;
+                border:none;
+                background:#111;
+                color:#fff;
+                font-family: Arial, sans-serif;
+                font-size: 16px;
+                font-weight: 500;
+                cursor:pointer;
+              "
+            >
+              Entrar no Sistema
+            </button>
+
+            <button
+              type="button"
+              id="registerBtn"
+              style="
+                width:100%;
+                height: 54px;
+                margin-top: 12px;
+                border: 1px solid #d0d0cb;
+                background: transparent;
+                color: #1d1d1b;
+                font-family: Arial, sans-serif;
+                font-size: 15px;
+                cursor:pointer;
+              "
+            >
+              Criar conta
+            </button>
+          </form>
+
+          <div style="
+            margin-top: 54px;
+            padding-top: 28px;
+            border-top: 1px solid #ddddda;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: #7f7f77;
+          ">
+            <span>© 2026 Rito Ventures</span>
+            <div style="display:flex; gap:24px;">
+              <span>Suporte</span>
+              <span>Privacidade</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  `;
+
+  const form = document.getElementById("loginForm");
+  const registerBtn = document.getElementById("registerBtn");
+  const msg = document.getElementById("loginMessage");
+
+  function getCreds() {
+    return {
+      email: document.getElementById("loginEmail").value.trim(),
+      password: document.getElementById("loginPassword").value.trim()
+    };
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const { email, password } = getCreds();
+
+    if (!email || !password) {
+      msg.style.color = "#d9534f";
+      msg.textContent = "Preencha e-mail e senha.";
+      return;
+    }
+
+    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+    if (error) {
+      msg.style.color = "#d9534f";
+      msg.textContent = "Credenciais inválidas. Tente novamente.";
+      return;
+    }
+
+    location.reload();
+  });
+
+  registerBtn.addEventListener("click", async () => {
+    const { email, password } = getCreds();
+
+    if (!email || !password) {
+      msg.style.color = "#d9534f";
+      msg.textContent = "Preencha e-mail e senha.";
+      return;
+    }
+
+    const { error } = await supabaseClient.auth.signUp({ email, password });
+
+    if (error) {
+      msg.style.color = "#d9534f";
+      msg.textContent = error.message;
+      return;
+    }
+
+    msg.style.color = "#2e7d32";
+    msg.textContent = "Conta criada com sucesso. Agora faça login.";
+  });
+}
+
+async function protectApp() {
+  const { data } = await supabaseClient.auth.getUser();
+
+  if (!data.user) {
+    await showLoginScreen();
+    return;
+  }
+
   bootstrapFromURL();
+  window.addEventListener("popstate", () => {
+    bootstrapFromURL();
+    renderApp();
+  });
   renderApp();
-});
-renderApp();
+}
+
+window.addEventListener("load", protectApp);
