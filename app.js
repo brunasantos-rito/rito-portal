@@ -4827,9 +4827,105 @@ function bootstrapFromURL() {
   }
 }
 
-bootstrapFromURL();
-window.addEventListener("popstate", () => {
+async function showLoginScreen() {
+  document.body.innerHTML = `
+    <div style="min-height:100vh;display:grid;place-items:center;font-family:Arial,sans-serif;background:#f3f4f6;padding:24px;">
+      <form id="loginForm" style="background:#fff;padding:24px;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.08);width:100%;max-width:420px;">
+        <h2 style="margin-top:0;margin-bottom:16px;color:#111;">Entrar no portal</h2>
+
+        <label style="display:block;margin-bottom:12px;">
+          <div style="margin-bottom:6px;color:#111;">E-mail</div>
+          <input id="loginEmail" type="email" required
+            style="width:100%;padding:12px;border:1px solid #ccc;border-radius:8px;">
+        </label>
+
+        <label style="display:block;margin-bottom:12px;">
+          <div style="margin-bottom:6px;color:#111;">Senha</div>
+          <input id="loginPassword" type="password" required
+            style="width:100%;padding:12px;border:1px solid #ccc;border-radius:8px;">
+        </label>
+
+        <button type="submit"
+          style="width:100%;padding:12px;border:none;border-radius:8px;background:#111;color:#fff;">
+          Entrar
+        </button>
+
+        <button type="button" id="registerBtn"
+          style="width:100%;padding:12px;border:1px solid #ccc;border-radius:8px;background:#eee;color:#111;margin-top:8px;">
+          Criar conta
+        </button>
+
+        <p id="loginMessage" style="margin-top:10px;"></p>
+      </form>
+    </div>
+  `;
+
+  const form = document.getElementById("loginForm");
+  const registerBtn = document.getElementById("registerBtn");
+  const msg = document.getElementById("loginMessage");
+
+  function getCreds() {
+    return {
+      email: document.getElementById("loginEmail").value.trim(),
+      password: document.getElementById("loginPassword").value.trim()
+    };
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const { email, password } = getCreds();
+
+    if (!email || !password) {
+      msg.textContent = "Preencha e-mail e senha.";
+      return;
+    }
+
+    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+    if (error) {
+      msg.textContent = error.message;
+      return;
+    }
+
+    location.reload();
+  });
+
+  registerBtn.addEventListener("click", async () => {
+    const { email, password } = getCreds();
+
+    if (!email || !password) {
+      msg.textContent = "Preencha e-mail e senha.";
+      return;
+    }
+
+    const { error } = await supabaseClient.auth.signUp({ email, password });
+
+    if (error) {
+      msg.textContent = error.message;
+      return;
+    }
+
+    msg.textContent = "Conta criada. Agora entre.";
+  });
+}
+
+async function protectApp() {
+  const { data } = await supabaseClient.auth.getUser();
+
+  if (!data.user) {
+    await showLoginScreen();
+    return;
+  }
+
   bootstrapFromURL();
+
+  window.addEventListener("popstate", () => {
+    bootstrapFromURL();
+    renderApp();
+  });
+
   renderApp();
-});
-renderApp();
+}
+
+window.addEventListener("load", protectApp);
