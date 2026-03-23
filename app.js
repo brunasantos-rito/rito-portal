@@ -4,7 +4,7 @@ const SUPABASE_URL = "https://soarinrvuvnqabtyyrta.supabase.co";
 const SUPABASE_KEY = "sb_publishable_qsbL0lRuMR1eZAKp0vcscg_5PfVxGHo";
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-const ARTHUR_BUENO_PHOTO = "Picture2.png";
+const ARTHUR_BUENO_PHOTO = "foto-arthur.jpg";
 
 const workspaceConfig = {
   rito: {
