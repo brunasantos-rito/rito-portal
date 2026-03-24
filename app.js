@@ -11,6 +11,59 @@ const supabaseClient = window.supabase.createClient(
   SUPABASE_URL,
   SUPABASE_PUBLISHABLE_KEY
 );
+
+// =======================
+// BANCO DE DADOS GLOBAL
+// =======================
+
+async function loadSharedPortalState() {
+  const { data, error } = await supabaseClient
+    .from("shared_portal_state")
+    .select("id, data, updated_at")
+    .eq("id", 1)
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+async function saveSharedPortalState(state) {
+  const payload = {
+    id: 1,
+    data: state,
+    updated_at: new Date().toISOString()
+  };
+
+  const { data, error } = await supabaseClient
+    .from("shared_portal_state")
+    .upsert(payload, { onConflict: "id" })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+
+// =======================
+// AUTO SAVE
+// =======================
+
+let saveTimer = null;
+
+function scheduleSave() {
+  clearTimeout(saveTimer);
+
+  saveTimer = setTimeout(async () => {
+    try {
+      await saveSharedPortalState(appState);
+      console.log("Portal salvo no banco.");
+    } catch (error) {
+      console.error("Erro ao salvar:", error);
+    }
+  }, 800);
+}
+
 const ARTHUR_BUENO_PHOTO = "foto-arthur.jpg";
 
 const workspaceConfig = {
