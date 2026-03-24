@@ -1025,35 +1025,49 @@ function seedData() {
   };
 }
 
-let state = loadState();
+let state = seedData();
+applyDefaultMemberPhotos(state);
 
-function loadState() {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (!saved) {
-    const seeded = seedData();
-    applyDefaultMemberPhotos(seeded);
-    return seeded;
-  }
+async function loadState() {
   try {
-    const parsed = JSON.parse(saved);
-    const merged = { ...seedData(), ...parsed };
+    const { data, error } = await supabaseClient
+      .from("shared_portal_state")
+      .select("id, data, updated_at")
+      .eq("id", 1)
+      .single();
+
+    if (error) throw error;
+
+    if (!data || !data.data || Object.keys(data.data).length === 0) {
+      const seeded = seedData();
+      applyDefaultMemberPhotos(seeded);
+      return seeded;
+    }
+
+    const parsed = data.data;
+    const base = seedData();
+    const merged = { ...base, ...parsed };
+
     merged.referenceViewModes = {
-      ...seedData().referenceViewModes,
+      ...base.referenceViewModes,
       ...(parsed.referenceViewModes || {})
     };
-    Object.keys(seedData().referenceViewModes).forEach((workspace) => {
+
+    Object.keys(base.referenceViewModes).forEach((workspace) => {
       merged.referenceViewModes[workspace] = {
-        ...seedData().referenceViewModes[workspace],
+        ...base.referenceViewModes[workspace],
         ...((parsed.referenceViewModes || {})[workspace] || {})
       };
     });
+
     migrateRitoReferenceProjects(merged);
     migrateRitoKanbanTasks(merged);
     migrateFastWorkspace(merged);
     applyDefaultMemberPhotos(merged);
+
     return merged;
   } catch (error) {
-    console.error("Falha ao carregar dados", error);
+    console.error("Falha ao carregar dados do banco", error);
     const seeded = seedData();
     applyDefaultMemberPhotos(seeded);
     return seeded;
@@ -1061,16 +1075,28 @@ function loadState() {
 }
 
 function saveState() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch (error) {
-    if (error && (error.name === "QuotaExceededError" || error.name === "NS_ERROR_DOM_QUOTA_REACHED")) {
-      throw new Error("Armazenamento cheio ao salvar imagens. Use uma imagem menor.");
-    }
-    throw error;
-  }
-}
+  clearTimeout(saveTimer);
 
+  saveTimer = setTimeout(async () => {
+    try {
+      const payload = {
+        id: 1,
+        data: state,
+        updated_at: new Date().toISOString()
+      };
+
+      const { error } = await supabaseClient
+        .from("shared_portal_state")
+        .upsert(payload, { onConflict: "id" });
+
+      if (error) throw error;
+
+      console.log("Portal salvo no banco.");
+    } catch (error) {
+      console.error("Erro ao salvar:", error);
+    }
+  }, 800);
+}
 function workspaceTaskThemes(workspaceId = state.currentWorkspace) {
   const data = state.workspaces[workspaceId];
   if (!data.taskThemes || !data.taskThemes.length) data.taskThemes = [...(DEFAULT_TASK_THEMES[workspaceId] || ["Geral"])];
