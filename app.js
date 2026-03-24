@@ -269,6 +269,7 @@ const ritoDocumentCards = [
     icon: "PDF",
     title: "Brand Book",
     tags: ["Marketing", "branding", "brand book"],
+    
     description: "Brand Book oficial da Rito Ventures.",
     meta: "437 KB - 10/03/2026",
     filePath: "C:/Users/BrunaCristinadaSilva/OneDrive - ATICA GESTAO EMPRESARIAL LTDA/Desktop/Rito Ventures/4. BRANDING/Brand Book.pdf"
@@ -1074,28 +1075,24 @@ async function loadState() {
   }
 }
 
-function saveState() {
-  clearTimeout(saveTimer);
+async function saveState() {
+  try {
+    const payload = {
+      id: 1,
+      data: state,
+      updated_at: new Date().toISOString()
+    };
 
-  saveTimer = setTimeout(async () => {
-    try {
-      const payload = {
-        id: 1,
-        data: state,
-        updated_at: new Date().toISOString()
-      };
+    const { error } = await supabaseClient
+      .from("shared_portal_state")
+      .upsert(payload, { onConflict: "id" });
 
-      const { error } = await supabaseClient
-        .from("shared_portal_state")
-        .upsert(payload, { onConflict: "id" });
+    if (error) throw error;
 
-      if (error) throw error;
-
-      console.log("Portal salvo no banco.");
-    } catch (error) {
-      console.error("Erro ao salvar:", error);
-    }
-  }, 800);
+    console.log("SALVO NO BANCO");
+  } catch (error) {
+    console.error("Erro ao salvar:", error);
+  }
 }
 function workspaceTaskThemes(workspaceId = state.currentWorkspace) {
   const data = state.workspaces[workspaceId];
