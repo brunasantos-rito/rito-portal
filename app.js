@@ -44,6 +44,42 @@ async function saveSharedPortalState(state) {
   return data;
 }
 
+function loadStateFromLocalCache() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch (error) {
+    console.warn("Nao foi possivel ler o cache local do portal.", error);
+    return null;
+  }
+}
+
+function getStateTimestamp(candidate, fallback = "") {
+  return String(candidate?.lastSavedAt || candidate?.updated_at || fallback || "");
+}
+
+function chooseMoreRecentState(localState, remoteState, remoteUpdatedAt = "") {
+  if (!localState && !remoteState) return null;
+  if (localState && !remoteState) return localState;
+  if (!localState && remoteState) return remoteState;
+  const localStamp = Date.parse(getStateTimestamp(localState));
+  const remoteStamp = Date.parse(getStateTimestamp(remoteState, remoteUpdatedAt));
+  if (Number.isFinite(localStamp) && Number.isFinite(remoteStamp)) {
+    return localStamp >= remoteStamp ? localState : remoteState;
+  }
+  return localState || remoteState;
+}
+
+function cacheStateLocally(nextState = state) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
+  } catch (error) {
+    console.warn("Nao foi possivel atualizar o cache local do portal.", error);
+  }
+}
+
 
 // =======================
 // AUTO SAVE
@@ -272,7 +308,7 @@ const ritoDocumentCards = [
     
     description: "Brand Book oficial da Rito Ventures.",
     meta: "437 KB - 10/03/2026",
-    filePath: "C:/Users/BrunaCristinadaSilva/OneDrive - ATICA GESTAO EMPRESARIAL LTDA/Desktop/Rito Ventures/4. BRANDING/Brand Book.pdf"
+    filePath: ""
   },
   {
     icon: "PPT",
@@ -280,7 +316,7 @@ const ritoDocumentCards = [
     tags: ["Marketing", "branding", "apresentacao", "ppt"],
     description: "Template institucional de apresentacao da Rito Ventures.",
     meta: "487 KB - 10/03/2026",
-    filePath: "C:/Users/BrunaCristinadaSilva/OneDrive - ATICA GESTAO EMPRESARIAL LTDA/Desktop/Rito Ventures/4. BRANDING/Modelo de Apresentacao_1.pptx"
+    filePath: ""
   },
   {
     icon: "PPT",
@@ -288,7 +324,7 @@ const ritoDocumentCards = [
     tags: ["Marketing", "branding", "apresentacao", "ppt"],
     description: "Segundo template institucional de apresentacao da Rito Ventures.",
     meta: "110 KB - 10/03/2026",
-    filePath: "C:/Users/BrunaCristinadaSilva/OneDrive - ATICA GESTAO EMPRESARIAL LTDA/Desktop/Rito Ventures/4. BRANDING/Modelo de Apresentacao_2.pptx"
+    filePath: ""
   },
   {
     icon: "HTML",
@@ -296,7 +332,7 @@ const ritoDocumentCards = [
     tags: ["Marketing", "branding", "email", "assinatura"],
     description: "HTML oficial da assinatura de email da Rito Ventures.",
     meta: "36 KB - 09/03/2026",
-    filePath: "C:/Users/BrunaCristinadaSilva/OneDrive - ATICA GESTAO EMPRESARIAL LTDA/Desktop/Rito Ventures/4. BRANDING/Rito_Assinatura_Email.html"
+    filePath: ""
   },
   {
     icon: "DOC",
@@ -304,7 +340,7 @@ const ritoDocumentCards = [
     tags: ["Marketing", "branding", "papel timbrado", "doc"],
     description: "Modelo oficial de papel timbrado da Rito Ventures.",
     meta: "73 KB - 10/03/2026",
-    filePath: "C:/Users/BrunaCristinadaSilva/OneDrive - ATICA GESTAO EMPRESARIAL LTDA/Desktop/Rito Ventures/4. BRANDING/Rito_Papel_Timbrado.docx"
+    filePath: ""
   }
 ];
 
@@ -446,7 +482,7 @@ function defaultLogo(text, foreground = "#1c1c1c", background = "#ffffff", fontF
 }
 
 function isGeneratedImageAsset(value) {
-  return String(value || "").startsWith("data:image/");
+  return String(value || "").trim().toLowerCase().startsWith("data:image/svg+xml");
 }
 
 function ritoSubtitle(sector, location, year) {
@@ -1030,6 +1066,7 @@ let state = seedData();
 applyDefaultMemberPhotos(state);
 
 async function loadState() {
+  const localState = loadStateFromLocalCache();
   try {
     const { data, error } = await supabaseClient
       .from("shared_portal_state")
@@ -1039,13 +1076,16 @@ async function loadState() {
 
     if (error) throw error;
 
-    if (!data || !data.data || Object.keys(data.data).length === 0) {
+    const remoteState = data?.data && Object.keys(data.data).length ? data.data : null;
+    const parsed = chooseMoreRecentState(localState, remoteState, data?.updated_at);
+    if (!parsed) {
       const seeded = seedData();
+      seeded.lastSavedAt = new Date().toISOString();
       applyDefaultMemberPhotos(seeded);
+      cacheStateLocally(seeded);
       return seeded;
     }
 
-    const parsed = data.data;
     const base = seedData();
     const merged = { ...base, ...parsed };
 
@@ -1065,34 +1105,43 @@ async function loadState() {
     migrateRitoKanbanTasks(merged);
     migrateFastWorkspace(merged);
     applyDefaultMemberPhotos(merged);
+    cacheStateLocally(merged);
 
     return merged;
   } catch (error) {
     console.error("Falha ao carregar dados do banco", error);
+    if (localState) {
+      const base = seedData();
+      const merged = { ...base, ...localState };
+      merged.referenceViewModes = {
+        ...base.referenceViewModes,
+        ...(localState.referenceViewModes || {})
+      };
+      Object.keys(base.referenceViewModes).forEach((workspace) => {
+        merged.referenceViewModes[workspace] = {
+          ...base.referenceViewModes[workspace],
+          ...((localState.referenceViewModes || {})[workspace] || {})
+        };
+      });
+      migrateRitoReferenceProjects(merged);
+      migrateRitoKanbanTasks(merged);
+      migrateFastWorkspace(merged);
+      applyDefaultMemberPhotos(merged);
+      cacheStateLocally(merged);
+      return merged;
+    }
     const seeded = seedData();
+    seeded.lastSavedAt = new Date().toISOString();
     applyDefaultMemberPhotos(seeded);
+    cacheStateLocally(seeded);
     return seeded;
   }
 }
 
-async function saveState() {
-  try {
-    const payload = {
-      id: 1,
-      data: state,
-      updated_at: new Date().toISOString()
-    };
-
-    const { error } = await supabaseClient
-      .from("shared_portal_state")
-      .upsert(payload, { onConflict: "id" });
-
-    if (error) throw error;
-
-    console.log("SALVO NO BANCO");
-  } catch (error) {
-    console.error("Erro ao salvar:", error);
-  }
+function saveState() {
+  state.lastSavedAt = new Date().toISOString();
+  cacheStateLocally(state);
+  scheduleSave();
 }
 function workspaceTaskThemes(workspaceId = state.currentWorkspace) {
   const data = state.workspaces[workspaceId];
@@ -2612,8 +2661,11 @@ function renderRitoDocumentsPage() {
       <p class="subtle">${doc.description}</p>
       <div class="subtle">${doc.meta}</div>
       <div class="inline-actions">
-        <a class="action-button" href="${escapeAttr(fileUrl)}" download="${escapeAttr(doc.title)}" target="_blank" rel="noreferrer">Download</a>
-        <a class="ghost-button" href="${escapeAttr(fileUrl)}" target="_blank" rel="noreferrer">Editar</a>
+        ${fileUrl
+          ? `<a class="action-button" href="${escapeAttr(fileUrl)}" download="${escapeAttr(doc.title)}" target="_blank" rel="noreferrer">Download</a>
+             <a class="ghost-button" href="${escapeAttr(fileUrl)}" target="_blank" rel="noreferrer">Editar</a>`
+          : `<button class="action-button" disabled>Download</button>
+             <button class="ghost-button" disabled>Editar</button>`}
         <button class="ghost-button" data-ref-action="delete-doc" data-doc-title="${escapeAttr(doc.title)}" type="button">Excluir</button>
       </div>
     `;
@@ -4579,7 +4631,11 @@ function escapeAttr(value) {
 }
 
 function toFileHref(path) {
-  return encodeURI(`file:///${String(path || "").replace(/\\/g, "/")}`);
+  const value = String(path || "").trim();
+  if (!value) return "";
+  if (/^[a-z]:[\\/]/i.test(value)) return "";
+  if (/^(https?:|data:|blob:)/i.test(value)) return value;
+  return encodeURI(value.replace(/\\/g, "/"));
 }
 
 function openTaskDialog(projectName, presetStage = "") {
