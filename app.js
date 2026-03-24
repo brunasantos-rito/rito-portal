@@ -5427,9 +5427,10 @@ async function protectApp() {
     return;
   }
 
+  state = await loadState();
   bootstrapFromURL();
   renderApp();
   addLogoutButton();
 }
 
-window.addEventListener("load", protectApp)
+window.addEventListener("load", protectApp);
