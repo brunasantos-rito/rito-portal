@@ -56,7 +56,7 @@ function scheduleSave() {
 
   saveTimer = setTimeout(async () => {
     try {
-      await saveSharedPortalState(appState);
+      await saveSharedPortalState(state);
       console.log("Portal salvo no banco.");
     } catch (error) {
       console.error("Erro ao salvar:", error);
