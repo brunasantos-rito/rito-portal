@@ -1975,6 +1975,12 @@ body[data-theme="dark"] .card-cover::after {
   margin-top: -2px;
 }
 
+.task-card-completion {
+  font-size: 0.6rem;
+  color: #5f7d66;
+  margin-top: -4px;
+}
+
 .task-card-due.is-late {
   color: #c77c7c;
 }
