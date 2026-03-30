@@ -1273,6 +1273,15 @@ body[data-theme="dark"] .card-cover::after {
   overflow: hidden;
 }
 
+.card-status-summary {
+  border-top: 1px solid rgba(17, 17, 17, 0.06);
+  padding-top: 8px;
+}
+
+.card-status-summary p {
+  -webkit-line-clamp: 3;
+}
+
 .card-field span {
   color: var(--text-soft);
   font-size: 0.6rem;
@@ -1641,6 +1650,16 @@ body[data-theme="dark"] .card-cover::after {
   gap: 8px;
 }
 
+.table-summary-cell {
+  color: var(--text-soft);
+  font-size: 0.78rem;
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 .owner-badge {
   width: 24px;
   height: 24px;
@@ -1720,6 +1739,53 @@ body[data-theme="dark"] .card-cover::after {
 
 .dashboard-table {
   overflow: hidden;
+}
+
+.declined-reasons-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.declined-reasons-list {
+  display: grid;
+  gap: 12px;
+}
+
+.declined-reason-row {
+  display: grid;
+  gap: 8px;
+}
+
+.declined-reason-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.declined-reason-head strong {
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.declined-reason-head span {
+  font-size: 0.76rem;
+  color: var(--text-soft);
+}
+
+.declined-reason-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(17, 17, 17, 0.06);
+  overflow: hidden;
+}
+
+.declined-reason-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #d7a198 0%, #cf7f73 100%);
 }
 
 .table-head,
