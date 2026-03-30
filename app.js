@@ -1037,20 +1037,15 @@ function migrateRitoKanbanTasks(rootState) {
     currentTasks.length > 0 &&
     currentTasks.length <= 3 &&
     currentTasks.every((task) => legacyTitles.has(String(task.title || "")));
-  const hasSeededRitoKanban =
-    currentTasks.some((task) => String(task.title || "") === "Configurar CRM Attio (conta, campos e pipeline)") &&
-    currentTasks.some((task) => String(task.title || "") === "Criar LP Deck");
 
-  if (!currentTasks.length || hasLegacyOnly || !hasSeededRitoKanban) {
+  if (!currentTasks.length || hasLegacyOnly) {
     rito.taskItems = seededTasks;
   } else {
-    const existingTitles = new Set(currentTasks.map((task) => String(task.title || "").trim().toLowerCase()));
-    seededTasks.forEach((task) => {
-      if (!existingTitles.has(String(task.title || "").trim().toLowerCase())) rito.taskItems.push(task);
-    });
+    rito.taskItems = currentTasks;
   }
 
-  rito.taskThemes = [...DEFAULT_TASK_THEMES.rito];
+  const currentThemes = Array.isArray(rito.taskThemes) ? rito.taskThemes.map((theme) => String(theme || "").trim()).filter(Boolean) : [];
+  rito.taskThemes = currentThemes.length ? [...new Set(currentThemes)] : [...DEFAULT_TASK_THEMES.rito];
 }
 
 function migrateFastWorkspace(rootState) {
@@ -1059,23 +1054,16 @@ function migrateFastWorkspace(rootState) {
 
   const seededTasks = buildFastTaskItems();
   const currentTasks = Array.isArray(fast.taskItems) ? fast.taskItems : [];
-  const mergedTasks = currentTasks.length ? currentTasks : [];
-  mergedTasks.forEach((task) => {
+  const nextTasks = currentTasks.length ? currentTasks : seededTasks;
+  nextTasks.forEach((task) => {
     task.stage = normalizeFastTaskThemeName(task.stage);
   });
-  const existingTitles = new Set(mergedTasks.map((task) => String(task.title || "").trim().toLowerCase()));
-  seededTasks.forEach((task) => {
-    if (!existingTitles.has(String(task.title || "").trim().toLowerCase())) {
-      mergedTasks.push(task);
-    }
-  });
-  fast.taskItems = mergedTasks.length ? mergedTasks : seededTasks;
+  fast.taskItems = nextTasks;
 
   const currentThemes = Array.isArray(fast.taskThemes) && fast.taskThemes.length
     ? fast.taskThemes.map((theme) => normalizeFastTaskThemeName(theme))
     : [];
-  const nextThemes = [...new Set([...currentThemes, ...DEFAULT_TASK_THEMES.fast])].filter(Boolean);
-  fast.taskThemes = nextThemes.length ? nextThemes : [...DEFAULT_TASK_THEMES.fast];
+  fast.taskThemes = currentThemes.length ? [...new Set(currentThemes)] : [...DEFAULT_TASK_THEMES.fast];
   fast.members = fast.members || [];
   ["Bruna Cristina", "Arthur Bueno", "Ciro Ribeiro", "Mayra", "Eduardo", "Rodrigo", "Grace"].forEach((name) => {
     if (!fast.members.some((member) => member.name === name)) {
@@ -1312,6 +1300,15 @@ function workspaceProjectThemes(workspaceId = state.currentWorkspace) {
   return data.projectThemes;
 }
 
+function normalizeColumnKey(value = "") {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
 function inferThemeFromTask(task, themes) {
   const haystack = [task.title, task.owner, ...(task.tags || [])].join(" ").toLowerCase();
   const matched = themes.find((theme) => {
@@ -1322,7 +1319,11 @@ function inferThemeFromTask(task, themes) {
 }
 
 function normalizeKanbanTask(task, themes) {
-  if (!task.stage || !themes.includes(task.stage)) {
+  const directMatch = themes.find((theme) => theme === task.stage);
+  const normalizedMatch = themes.find((theme) => normalizeColumnKey(theme) === normalizeColumnKey(task.stage));
+  if (normalizedMatch && !directMatch) {
+    task.stage = normalizedMatch;
+  } else if (!task.stage || !directMatch) {
     task.stage = inferThemeFromTask(task, themes);
   }
   if (!task.status) task.status = "A Fazer";
@@ -1651,17 +1652,47 @@ function getRitoInvestedCards() {
   return getRitoReferenceCards().filter((card) => (card.tags || []).includes("Investido"));
 }
 
+function dealStatusSummary(item) {
+  return displayText(item?.dealHistory || item?.statusSummary || "").trim();
+}
+
+function dealStatusSummaryPreview(item, maxLength = 150) {
+  const summary = dealStatusSummary(item);
+  if (!summary) return "Resumo pendente.";
+  if (summary.length <= maxLength) return summary;
+  return `${summary.slice(0, maxLength).trim()}...`;
+}
+
+function declinedDealReasonStats(items) {
+  const buckets = new Map();
+  (items || [])
+    .filter((item) => normalizeReferenceDashboardStage(item) === "Declined")
+    .forEach((item) => {
+      const summary = dealStatusSummary(item);
+      const reasons = summary
+        ? summary.split(/\n|;/).map((entry) => entry.trim()).filter(Boolean)
+        : ["Sem motivo preenchido"];
+      reasons.forEach((reason) => {
+        const normalized = reason.toLowerCase();
+        const current = buckets.get(normalized) || { label: reason, count: 0 };
+        current.count += 1;
+        buckets.set(normalized, current);
+      });
+    });
+  return [...buckets.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "pt-BR"));
+}
+
 function referenceCardSubtle(card) {
   const matched = referenceDashboardRows().find((row) => row.company === card.name);
   if (matched) return displayText(matched.segment);
   return displayText((((card.subtitle || "").split(" - ")[0]) || card.subtitle || "").trim());
 }
 
-function referenceCardContact(card) {
+function referenceCardStatusSummary(card) {
   const matched = referenceDashboardRows().find((row) => row.company === card.name);
-  if (matched) return matched.contact;
+  if (matched) return matched.statusSummary;
   const linked = workspaceData().crmItems.find((item) => item.name === card.name);
-  return linked?.mainContact || linked?.email || "-";
+  return dealStatusSummaryPreview(linked);
 }
 
 function createReferenceProjectRow(card, sourceView = "crm") {
@@ -1673,7 +1704,7 @@ function createReferenceProjectRow(card, sourceView = "crm") {
       ${renderCompanyBadge(card)}
       <div><strong>${displayText(card.name)}</strong><div class="subtle">${referenceCardSubtle(card)}</div></div>
     </div>
-    <div>${referenceCardContact(card)}</div>
+    <div class="table-summary-cell">${referenceCardStatusSummary(card)}</div>
     <div><span class="chip chip-${card.status.toLowerCase().replace(/\s+/g, "-")}">${displayText(card.status)}</span></div>
     <div><span class="chip chip-${temp.toLowerCase()}">${displayText(temp)}</span></div>
     <div class="owner-cell">${renderOwnerAvatar(card.owner)}<span>${displayText(card.owner)}</span></div>
@@ -1692,7 +1723,7 @@ function renderReferenceList(cards, sourceView = "crm", emptyLabel = "Nenhum dea
   table.className = "panel dashboard-table rito-dashboard-table reference-list-shell";
   const head = document.createElement("div");
   head.className = "table-head";
-  head.innerHTML = "<div>Empresa</div><div>Contato</div><div>Estágio</div><div>Temp.</div><div>Responsável</div><div>Fechamento</div>";
+  head.innerHTML = "<div>Empresa</div><div>Resumo do status</div><div>Estágio</div><div>Temp.</div><div>Responsável</div><div>Fechamento</div>";
   table.appendChild(head);
   cards.forEach((card) => table.appendChild(createReferenceProjectRow(card, sourceView)));
   if (!cards.length) {
@@ -1759,6 +1790,7 @@ function referenceDashboardRows() {
       company: item.name,
       segment: item.email || item.sector || item.subtitle || "-",
       contact: item.contact || item.mainContact || item.email || "-",
+      statusSummary: dealStatusSummaryPreview(item, 180),
       stage: normalizeReferenceDashboardStage(item),
       temp: item.temperature || "Frio",
       owner: item.owner || "-",
@@ -1831,6 +1863,7 @@ function ensureProjectShape(item) {
   if (item.progress === undefined) item.progress = item.tags.includes("Investido") ? 100 : item.status === "Pipeline" ? 30 : item.status === "Quente" ? 54 : 16;
   if (!item.website) item.website = "";
   if (!item.vcPeBacked) item.vcPeBacked = "";
+  if (!item.dealHistory) item.dealHistory = item.statusSummary || "";
   if (!item.createdAt) item.createdAt = todayISO();
   if (!item.updatedAt) item.updatedAt = todayISO();
   if (!item.managementTeam) item.managementTeam = "";
@@ -2323,6 +2356,7 @@ function renderRitoDashboardSide() {
   side.appendChild(controls);
 
   side.appendChild(renderRitoDashboardTable(filteredRows));
+  side.appendChild(renderDeclinedReasonsPanel(crmItems));
   return side;
 }
 
@@ -2331,7 +2365,7 @@ function renderRitoDashboardTable(rows = referenceDashboardRows()) {
   table.className = "panel dashboard-table rito-dashboard-table";
   const head = document.createElement("div");
   head.className = "table-head";
-  head.innerHTML = "<div>Empresa</div><div>Contato</div><div>Estágio</div><div>Temp.</div><div>Responsável</div><div>Fechamento</div>";
+  head.innerHTML = "<div>Empresa</div><div>Resumo do status</div><div>Estágio</div><div>Temp.</div><div>Responsável</div><div>Fechamento</div>";
   table.appendChild(head);
 
   rows.forEach((rowData) => {
@@ -2342,7 +2376,7 @@ function renderRitoDashboardTable(rows = referenceDashboardRows()) {
         ${renderCompanyBadge(rowData)}
         <div><strong>${displayText(rowData.company)}</strong><div class="subtle">${displayText(rowData.segment)}</div></div>
       </div>
-      <div>${rowData.contact}</div>
+      <div class="table-summary-cell">${rowData.statusSummary || "-"}</div>
       <div><span class="chip chip-${rowData.stage.toLowerCase().replace(/\s+/g, "-")}">${rowData.stage}</span></div>
       <div><span class="chip chip-${rowData.temp.toLowerCase()}">${rowData.temp}</span></div>
       <div class="owner-cell">${renderOwnerAvatar(rowData.owner)}<span>${displayText(rowData.owner)}</span></div>
@@ -2399,6 +2433,41 @@ function renderRitoDashboardTable(rows = referenceDashboardRows()) {
   }
 
   return table;
+}
+
+function renderDeclinedReasonsPanel(items) {
+  const panel = document.createElement("section");
+  panel.className = "panel declined-reasons-panel";
+  const reasons = declinedDealReasonStats(items);
+  panel.innerHTML = `
+    <div class="panel-header">
+      <div>
+        <h3>Motivos dos deals declinados</h3>
+        <p>Leitura consolidada dos resumos preenchidos nos cards declinados</p>
+      </div>
+    </div>
+  `;
+  const list = document.createElement("div");
+  list.className = "declined-reasons-list";
+  if (!reasons.length) {
+    list.innerHTML = `<div class="subtle">Nenhum motivo preenchido nos deals declinados.</div>`;
+  } else {
+    const maxCount = Math.max(...reasons.map((entry) => entry.count), 1);
+    reasons.forEach((entry) => {
+      const row = document.createElement("article");
+      row.className = "declined-reason-row";
+      row.innerHTML = `
+        <div class="declined-reason-head">
+          <strong>${displayText(entry.label)}</strong>
+          <span>${entry.count}</span>
+        </div>
+        <div class="declined-reason-bar"><span style="width:${Math.max((entry.count / maxCount) * 100, 12)}%"></span></div>
+      `;
+      list.appendChild(row);
+    });
+  }
+  panel.appendChild(list);
+  return panel;
 }
 
 function renderRitoDashboardCards(cards = []) {
@@ -2555,6 +2624,7 @@ function renderRitoProjectDetailPage() {
     </section>
     <section class="project-detail-sections">
       <article class="project-detail-card"><h4>Descrição da Empresa</h4><textarea class="detail-textarea" data-drawer-field="description">${item.description || ""}</textarea></article>
+      <article class="project-detail-card"><h4>Histórico do deal / Resumo do status</h4><textarea class="detail-textarea" data-drawer-field="dealHistory">${item.dealHistory || ""}</textarea></article>
       <article class="project-detail-card"><h4>Time de gestão</h4><textarea class="detail-textarea" data-drawer-field="managementTeam">${displayText(item.managementTeam || "")}</textarea></article>
       <article class="project-detail-card"><h4>Modelo de Negócio</h4><textarea class="detail-textarea" data-drawer-field="businessModel">${item.businessModel || ""}</textarea></article>
       <article class="project-detail-card"><h4>Competidores</h4><textarea class="detail-textarea" data-drawer-field="competitors">${item.competitors || ""}</textarea></article>
@@ -2948,6 +3018,7 @@ function createReferenceProjectCard(card, invested = false, sourceView = "crm") 
   const displayOwner = linked?.owner || card.owner;
   const displayProgress = linked?.progress ?? card.progress ?? 35;
   const companyDescription = displayText(linked?.description || card.description || linked?.businessModel || card.framework || "-");
+  const statusSummary = dealStatusSummaryPreview(linked || card, 160);
   if (linked) {
     article.draggable = true;
     article.dataset.crmId = linked.id;
@@ -2965,6 +3036,10 @@ function createReferenceProjectCard(card, invested = false, sourceView = "crm") 
       <div class="reference-description-block">
         <span>Descrição da empresa</span>
         <p>${companyDescription}</p>
+      </div>
+      <div class="reference-description-block reference-status-block">
+        <span>Resumo do status</span>
+        <p>${statusSummary}</p>
       </div>
       <label class="reference-value-field">
         <span>${displayText(allocationLabel)}</span>
@@ -3415,6 +3490,7 @@ function createCRMCard(item) {
   article.dataset.crmId = item.id;
   const accent = coverPalette[item.status] || "#2864ff";
   const companyDescription = displayText(item.description || item.businessModel || item.framework || "-");
+  const statusSummary = dealStatusSummaryPreview(item, 150);
   const managementTeam = displayText(item.managementTeam || item.management || item.founders || "-");
   const fundraisingHistory = displayText(item.fundraisingHistory || "-");
   const vcBacked = displayText(item.vcPeBacked || "-");
@@ -3435,6 +3511,10 @@ function createCRMCard(item) {
         <div class="card-field card-description-preview">
           <span>Descrição da empresa</span>
           <p>${companyDescription}</p>
+        </div>
+        <div class="card-field card-description-preview card-status-summary">
+          <span>Resumo do status</span>
+          <p>${statusSummary}</p>
         </div>
         <div class="card-meta-grid">
           <div class="card-field">
@@ -4134,6 +4214,7 @@ function openCRMDialog(item) {
         <label class="field"><span>Valor da operação</span><input name="investmentAmount" type="number" value="${current.investmentAmount || 0}"></label>
         <label class="field"><span>Progresso</span><input name="progress" type="number" min="0" max="100" value="${current.progress}"></label>
         <label class="field full-span"><span>Framework</span><input name="framework" value="${current.framework}"></label>
+        <label class="field full-span"><span>Histórico do deal / Resumo do status</span><textarea name="dealHistory">${current.dealHistory || ""}</textarea></label>
         <label class="field full-span"><span>Descrição</span><textarea name="description">${current.description}</textarea></label>
         <label class="field full-span"><span>Tags (separadas por vírgula)</span><input name="tags" value="${current.tags.join(", ")}"></label>
         <label class="field"><span>Upload de capa</span><input name="cover" type="file" accept="image/*"></label>
@@ -4167,6 +4248,7 @@ function openCRMDialog(item) {
     current.investmentAmount = Number(formData.get("investmentAmount") || 0);
     current.progress = Number(formData.get("progress"));
     current.framework = formData.get("framework");
+    current.dealHistory = formData.get("dealHistory");
     current.description = formData.get("description");
     current.tags = String(formData.get("tags")).split(",").map((tag) => tag.trim()).filter(Boolean);
     current.cover = await imageFileToProjectDataURL(form.querySelector("input[name='cover']").files[0], "cover", current.cover);
@@ -4206,7 +4288,8 @@ function openOpportunityDialog() {
     managementTeam: "",
     businessModel: "",
     competitors: "",
-    advantages: ""
+    advantages: "",
+    dealHistory: ""
   };
 
   dialog.innerHTML = `
@@ -4235,6 +4318,7 @@ function openOpportunityDialog() {
         <label class="field full-span"><span>Tags (separadas por vírgula)</span><input name="tags"></label>
         <label class="field full-span"><span>Fundadores / Time de gestão</span><textarea name="managementTeam"></textarea></label>
         <label class="field full-span"><span>Descrição da empresa</span><textarea name="description"></textarea></label>
+        <label class="field full-span"><span>Histórico do deal / Resumo do status</span><textarea name="dealHistory"></textarea></label>
         <label class="field full-span"><span>Modelo de negócio</span><textarea name="businessModel"></textarea></label>
         <label class="field full-span"><span>Competidores</span><textarea name="competitors"></textarea></label>
         <label class="field full-span"><span>Vantagens competitivas</span><textarea name="advantages"></textarea></label>
@@ -4278,6 +4362,7 @@ function openOpportunityDialog() {
       investmentAmount: Number(formData.get("investmentAmount") || 0),
       managementTeam: formData.get("managementTeam"),
       description: formData.get("description"),
+      dealHistory: formData.get("dealHistory"),
       businessModel: formData.get("businessModel"),
       competitors: formData.get("competitors"),
       advantages: formData.get("advantages"),
@@ -4350,6 +4435,7 @@ function openProjectDrawer(projectId) {
           <label class="field"><span>Responsável</span><select data-drawer-field="owner">${workspaceConfig[state.currentWorkspace].memberOptions.map((owner) => `<option ${owner === item.owner ? "selected" : ""}>${displayText(owner)}</option>`).join("")}</select></label>
           <label class="field"><span>Prioridade</span><select data-drawer-field="priority"><option ${item.priority === "Alta" ? "selected" : ""}>Alta</option><option ${item.priority === "Media" ? "selected" : ""}>Média</option><option ${item.priority === "Baixa" ? "selected" : ""}>Baixa</option></select></label>
           <label class="field"><span>Origem do deal</span><input data-drawer-field="origin" value="${escapeAttr(item.origin || "")}"></label>
+          <label class="field full-span"><span>Histórico do deal / Resumo do status</span><textarea data-drawer-field="dealHistory">${displayText(item.dealHistory || "")}</textarea></label>
         </div>
       </section>
 
@@ -4697,6 +4783,7 @@ function openProjectEditDialog(item, sourceView) {
         <label class="field"><span>Valor (R$)</span><input name="estimatedValue" type="number" value="${escapeAttr(item.estimatedValue || 0)}"></label>
         <label class="field"><span>Valor da operação (R$)</span><input name="investmentAmount" type="number" value="${escapeAttr(item.investmentAmount || 0)}"></label>
         <label class="field full-span"><span>Progresso (0-100)</span><input name="progress" type="number" min="0" max="100" value="${escapeAttr(item.progress || 0)}"></label>
+        <label class="field full-span"><span>Histórico do deal / Resumo do status</span><textarea name="dealHistory">${displayText(item.dealHistory || "")}</textarea></label>
         <label class="field"><span>Company</span><input name="company" value="${escapeAttr(item.name || "")}"></label>
         <label class="field"><span>Ano</span><input name="year" value="${escapeAttr(item.year || "")}"></label>
         <label class="field"><span>Localização</span><input name="location" value="${escapeAttr(displayText(item.location || ""))}"></label>
@@ -5128,14 +5215,19 @@ function renameKanbanColumn(kind, index, nextName) {
   if (!cleanName) return;
   const list = kind === "project" ? workspaceProjectThemes(state.currentWorkspace) : workspaceTaskThemes(state.currentWorkspace);
   const previous = list[index];
-  if (!previous || previous === cleanName) return;
-  const duplicateIndex = list.findIndex((entry, entryIndex) => entryIndex !== index && String(entry || "").trim().toLowerCase() === cleanName.toLowerCase());
+  if (!previous || normalizeColumnKey(previous) === normalizeColumnKey(cleanName)) {
+    list[index] = cleanName;
+    saveState();
+    renderApp();
+    return;
+  }
+  const duplicateIndex = list.findIndex((entry, entryIndex) => entryIndex !== index && normalizeColumnKey(entry) === normalizeColumnKey(cleanName));
   const collections = kind === "project"
     ? Object.values(workspaceData().projectBoards || {})
     : [workspaceData().taskItems || []];
   collections.forEach((cards) => {
     cards.forEach((task) => {
-      if (task.stage === previous) task.stage = cleanName;
+      if (normalizeColumnKey(task.stage) === normalizeColumnKey(previous)) task.stage = cleanName;
     });
   });
   if (duplicateIndex >= 0) {
@@ -5146,6 +5238,7 @@ function renameKanbanColumn(kind, index, nextName) {
   } else {
     list[index] = cleanName;
   }
+  ensureWorkspaceKanbans(state.currentWorkspace);
   saveState();
   renderApp();
 }
