@@ -51,7 +51,7 @@ function loadStateFromLocalCache() {
     const parsed = JSON.parse(raw);
     return parsed && typeof parsed === "object" ? parsed : null;
   } catch (error) {
-    console.warn("Nao foi possivel ler o cache local do portal.", error);
+    console.warn("Não foi possível ler o cache local do portal.", error);
     return null;
   }
 }
@@ -76,7 +76,7 @@ function cacheStateLocally(nextState = state) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
   } catch (error) {
-    console.warn("Nao foi possivel atualizar o cache local do portal.", error);
+    console.warn("Não foi possível atualizar o cache local do portal.", error);
   }
 }
 
@@ -510,6 +510,7 @@ const ritoReferenceProjects = [
   { name: "Geral / Braslar", sector: "Eletrodomesticos / Linha branca", location: "Ponta Grossa - PR", year: "2026", status: "Lead", investmentStatus: "Nao investido", temperature: "Morno", estimatedValue: 0, owner: "Arthur Bueno", tags: ["Private Equity", "Industria", "Fogoes", "Cooktops", "Linha branca"], cover: "https://braslareletros.com.br/wp-content/uploads/2025/01/banner-paginas.jpg", logoText: "GB", logo: "https://braslareletros.com.br/wp-content/uploads/2025/01/logo-stick-1.png", logoBg: "transparent", description: "Lead ligado a marca Geral, historicamente associada a fogoes e aquecedores e atualmente operada pela Braslar. A Braslar atua em fogoes e eletrodomesticos, com linha de fogoes de piso, cooktops, freezers e itens de refrigeração com distribuição nacional.", framework: "Industria / Eletrodomesticos / Lead inicial", origin: "Internet / Feira", priority: "Media", website: "https://braslareletros.com.br/", contact: "(42) 3220-5650", email: "contato@braslareletros.com.br", businessModel: "Fabricacao e comercializacao de fogoes, cooktops, freezers e eletrodomesticos com cobertura nacional, representantes comerciais e rede de assistencia tecnica.", advantages: "Marca tradicional, certificacao INMETRO, estrutura de representantes em todo o territorio nacional, flexibilidade produtiva para lojistas e sistema facilitado de fretes.", competitors: "Atlas, Esmaltec, Itatiaia, Mueller e fabricantes regionais de fogoes e cooktops.", managementTeam: "Braslar do Brasil Ltda", fundraisingHistory: "Nao foi identificado historico publico recente de captacao por equity ou divida.", vcPeBacked: "Nao identificado publicamente", notes: "CNPJ 04.016.420/0001-17; sede na Av. Continental, s/n, Distrito Industrial, Ponta Grossa - PR; fundada em 2000." },
   { name: "Fox Graos", sector: "Startup / Trade de Graos", location: "Goias - GO", year: "2026", status: "Lead", investmentStatus: "Nao investido", temperature: "Quente", estimatedValue: 20000000, owner: "Arthur Bueno", tags: ["Private Equity", "Startup", "Trade", "Agro", "Base tecnologica"], cover: defaultCover("Fox Graos", "#f8f5ed", "#eef6e7"), logoText: "FG", logo: defaultLogo("FOX GRAOS", "#4f5f2a", "#ffffff", "Inter, Arial, sans-serif", 42, 800), logoBg: "#ffffff", description: "Startup de trade de graos em Goias. Compra e vende com apoio de sistema proprio que analisa frete, imposto, distancia e melhor preco. Operacao asset light, com base tecnologica e sem capex relevante.", framework: "Trade agro / Base tecnologica / Lead inicial", origin: "Relacionamento", priority: "Alta", businessModel: "Entra insumo e sai grao, com arbitragem comercial apoiada por tecnologia proprietaria.", managementTeam: "Donalvan", revenues: "2024: R$ 40MM | 2025: R$ 97MM", fundraisingHistory: "Busca R$ 20MM em equity; nao quer endividamento. Considerou FIDC como alternativa.", advantages: "Resultados instantaneos, base tecnologica, atuacao regional focada em Goias e estrutura sem capex.", competitors: "Tradings regionais de graos e plataformas de originacao com inteligencia de frete e imposto.", vcPeBacked: "Nao", notes: "EBITDA de 3%. Caixa de giro citado: R$ 2MM em 30 dias. Nao ha projeto formal estruturado neste momento." },
   { name: "Bioativos & Liofilizacao", sector: "Industria de Bioativos e Liofilizacao", location: "Sao Paulo - SP", year: "2026", status: "Lead", investmentStatus: "Nao investido", temperature: "Morno", estimatedValue: 0, owner: "Arthur Bueno", tags: ["Private Equity", "Industria", "Bioativos", "Liofilizacao"], cover: defaultCover("Bioativos & Liofilizacao", "#f4fbef", "#e4f2ff"), logoText: "BL", logo: defaultLogo("BL", "#2f7a45", "#ffffff", "Georgia, 'Times New Roman', serif", 72, 700), logoBg: "#ffffff", description: "Projeto de sociedade na industria de bioativos e liofilizacao, com base operacional em Sao Paulo e potencial de aplicacao em ingredientes, nutraceuticos e manufatura especializada.", framework: "Bioativos / Industria especializada / Lead inicial", origin: "Relacionamento", priority: "Media", businessModel: "Nao identificado publicamente. A tese interna sugere manufatura especializada de bioativos, ingredientes e processos de liofilizacao.", managementTeam: "Nao identificado publicamente", competitors: "Nexira, Duas Rodas, fabricantes de ingredientes funcionais, CDMOs e operadores de liofilizacao para nutraceuticos e farma.", advantages: "Tese potencialmente ligada a alto valor agregado, barreiras tecnicas de processo e aplicacoes em nutraceuticos, ingredientes e formulacoes especializadas.", fundraisingHistory: "Nao identificado publicamente", vcPeBacked: "Nao identificado publicamente", notes: "Nao foi encontrada na internet, ate esta revisao, uma correspondencia publica inequivoca para o nome exato do projeto. Os campos foram preenchidos apenas com a tese interna e observacao de ausencia de rastro publico seguro." },
+  { name: "Adorei", sector: "Consumo / Marca", location: "", year: "2026", status: "Declined", investmentStatus: "Nao investido", temperature: "Frio", estimatedValue: 0, owner: "Arthur Bueno", tags: ["Private Equity", "Consumo", "Marca"], cover: defaultCover("Adorei", "#fff7f1", "#f8ede6"), logoText: "AD", logo: defaultLogo("ADOREI", "#8f5b46", "#ffffff", "Inter, Arial, sans-serif", 54, 700), logoBg: "#ffffff", description: "Projeto Adorei adicionado ao pipeline da Rito Ventures com status declinado, a partir do material enviado em PDF.", framework: "Origem em material recebido / Revisao inicial / Projeto declinado", origin: "PDF recebido", priority: "Media", businessModel: "A preencher a partir do material original.", managementTeam: "A preencher", competitors: "A preencher", advantages: "A preencher", fundraisingHistory: "Nao avancou para investimento.", vcPeBacked: "Nao identificado", notes: "Projeto criado a partir do arquivo ADOREI.pdf enviado para analise. O status foi definido como declinado conforme orientacao." },
   { name: "Ibi Liv", sector: "Saude & Bem-estar", location: "Aparecida de Goiania - GO", year: "2025", status: "Pipeline", investmentStatus: "Nao investido", temperature: "Morno", estimatedValue: 4800000, owner: "Arthur Bueno", tags: ["Private Equity", "Saude & Bem-estar"], cover: defaultCover("Ibi Liv", "#f7f3f0", "#f0d7cc"), logoText: "IL", logo: defaultLogo("IL", "#9f6d2b", "#fff8f0", "Georgia, 'Times New Roman', serif", 74, 700), logoBg: "#f6ebdf", description: "Industria e comercio de suplementos, produtos a base de cafe e bebidas funcionais, com atuacao industrial e atacadista em Aparecida de Goiania.", website: "https://ibiliv.com", contact: "(62) 99174-0717", email: "natalia@ope.com.br", management: "Flavio Guimaraes Rocha; Theylor Angonese; RV7 Participacoes Ltda", managementTeam: "Flavio Guimaraes Rocha; Theylor Angonese; RV7 Participacoes Ltda", businessModel: "Fabricacao e distribuicao de suplementos, produtos a base de cafe, alimentos dieteticos e chas prontos para consumo.", competitors: "Growth Supplements, Max Titanium, Soldiers Nutrition e marcas de nutricao funcional.", advantages: "Portfolio combinado de cafe funcional e suplementacao, base industrial propria e combinacao de fabricacao com atacado.", fundraisingHistory: "Nao foi identificado historico publico de captacao institucional; capital social registrado de R$ 100 mil.", vcPeBacked: "Nao identificado publicamente", revenues: "Nao identificado publicamente", notes: "CNPJ 63.989.797/0001-11; aberta em 09/12/2025; sede no Polo Empresarial Goias - Etapa I, Aparecida de Goiania - GO; CNAEs incluem atacado de bebidas, produtos a base de cafe e alimentos dieteticos." },
   { name: "Centro de Treinamento Marcio Goncalves", sector: "Fitness", location: "Goiania - GO", year: "2023", status: "Declined", investmentStatus: "Nao investido", temperature: "Frio", estimatedValue: 3200000, owner: "Arthur Bueno", tags: ["Private Equity", "Fitness"], cover: defaultCover("CTMG", "#231f1f", "#41312c"), logoText: "MG", logo: defaultLogo("MG", "#b16f2f", "#f6ebe0", "Georgia, 'Times New Roman', serif", 72, 700), logoBg: "#f1e2d6", description: "Centro de treinamento fisico em Goiania com operacao voltada a condicionamento, eventos esportivos, artigos esportivos e varejo complementar.", contact: "(61) 98282-8239", email: "marciogoncalves.ct@gmail.com", businessModel: "Prestacao de servicos de condicionamento fisico com monetizacao complementar via eventos, artigos esportivos e varejo alimentar especializado.", managementTeam: "Marcio Vieira Goncalves", competitors: "Academias boutique, studios de treinamento funcional e redes fitness locais.", advantages: "Fundador-operador, nicho esportivo, operacao enxuta e receita complementar fora da mensalidade.", fundraisingHistory: "Nao foi identificado historico publico de captacao; capital social registrado de R$ 50 mil.", vcPeBacked: "Nao identificado publicamente", notes: "CNPJ 49.826.809/0001-66; aberta em 06/03/2023; sede na Rua da Redencao, Jardim Vitoria, Goiania - GO; atividade principal CNAE 93.13-1-00." },
   { name: "Manakai Goiania", sector: "Fitness", location: "Goiania - GO", year: "2016", status: "Declined", investmentStatus: "Nao investido", temperature: "Frio", estimatedValue: 2800000, owner: "Arthur Bueno", tags: ["Private Equity", "Fitness"], cover: defaultCover("Manakai", "#173724", "#274b35"), logoText: "MK", logo: defaultLogo("MK", "#202020", "#ffffff", "Georgia, 'Times New Roman', serif", 72, 700), logoBg: "#ffffff", description: "Arena fitness e esportiva em Goiania ligada a aulas, modalidades de areia e comunidade wellness, operada pela Manakai Sport Food.", website: "https://www.instagram.com/manakaioficial/", contact: "(62) 98122-8048", email: "manakaipraia@gmail.com", businessModel: "Monetizacao por ensino de esportes, uso de estrutura esportiva, eventos, alimentacao de apoio e ativacoes de comunidade.", managementTeam: "Felipe Antonio Fernandes Barbosa; Rafaela Vilela Machado Barbosa", competitors: "Arenas esportivas de areia, studios fitness boutique, beach tennis clubs e academias com proposta de comunidade.", advantages: "Marca local com comunidade ativa, multiplas unidades/filiais registradas e combinacao de esporte, lifestyle e consumo complementar.", fundraisingHistory: "Nao foi identificado historico publico de captacao institucional; capital social registrado de R$ 20 mil.", vcPeBacked: "Nao identificado publicamente", notes: "CNPJ 26.166.895/0001-22; aberta em 14/09/2016; matriz no Park Lozandes, Goiania - GO; ha registros publicos de filiais e de atuacao em ensino de esportes e condicionamento fisico." },
@@ -529,6 +530,110 @@ const ritoReferenceProjects = [
   { name: "Pop Move", sector: "Mobilidade", location: "Santo Andre - SP", year: "2022", status: "Pipeline", investmentStatus: "Nao investido", temperature: "Morno", estimatedValue: 3100000, owner: "Arthur Bueno", tags: ["Private Equity", "Mobilidade"], cover: defaultCover("Pop Move", "#eef5ff", "#dcecff"), logoText: "PM", logo: defaultLogo("POP MOVE", "#1f4db8", "#ffffff", "Inter, Arial, sans-serif", 48, 800), logoBg: "#ffffff", description: "Empresa de tecnologia e intermedicao de servicos sob a marca Pop Move, com tese ligada a mobilidade e integracao operacional.", website: "Nao identificado publicamente", contact: "Nao identificado publicamente", email: "Nao identificado publicamente", businessModel: "Intermediacao e agenciamento de servicos e negocios com camada tecnologica, incluindo software, suporte tecnico e servicos de informacao na internet.", managementTeam: "Matheus Junior dos Santos Filho; Wanderley Henrique Batista Filho; Cristiano Ayres de Jesus; Murilo da Silva Santos", competitors: "Plataformas de intermedicao e mobilidade urbana, marketplaces de servicos e operadores asset-light com tese B2B2C.", advantages: "Estrutura leve, natureza tecnologica, CNPJ ativo e tese potencial de escala sem necessidade de ativos fisicos pesados.", fundraisingHistory: "Nao foi identificado historico publico de captacao institucional; capital social registrado de R$ 100 mil.", vcPeBacked: "Nao identificado publicamente", notes: "Correspondencia publica mais aderente: Pop Move do Brasil Tecnologia Ltda, CNPJ 45.755.297/0001-33, aberta em 23/03/2022 em Santo Andre - SP. Nao foi encontrada na internet uma prova publica inequivoca de operacao em Goiania ou um site oficial inequivoco associado a esta razao social." }
 ];
 
+function normalizeReferenceIdentity(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function referenceProjectKey(project) {
+  return normalizeReferenceIdentity(project?.referenceKey || project?.name || "");
+}
+
+function referenceProjectAliases(project) {
+  const aliases = new Set();
+  const primary = referenceProjectKey(project);
+  if (primary) aliases.add(primary);
+  String(project?.name || "")
+    .split("/")
+    .map((part) => normalizeReferenceIdentity(part))
+    .filter(Boolean)
+    .forEach((part) => aliases.add(part));
+  return aliases;
+}
+
+function hasMeaningfulProjectValue(value) {
+  const normalized = normalizeReferenceIdentity(value);
+  return Boolean(normalized) && !["nao identificado publicamente", "a preencher", "-", "none"].includes(normalized);
+}
+
+function isLikelyReferenceProjectMatch(item, seededProject) {
+  const itemKey = normalizeReferenceIdentity(item?.referenceKey || item?.name);
+  const aliases = referenceProjectAliases(seededProject);
+  if (itemKey && aliases.has(itemKey)) return true;
+  const seededWebsite = normalizeReferenceIdentity(seededProject?.website);
+  const itemWebsite = normalizeReferenceIdentity(item?.website);
+  if (seededWebsite && itemWebsite && seededWebsite === itemWebsite) return true;
+  const seededEmail = normalizeReferenceIdentity(seededProject?.email);
+  const itemEmail = normalizeReferenceIdentity(item?.email);
+  if (seededEmail && itemEmail && seededEmail === itemEmail) return true;
+  const seededLogo = normalizeReferenceIdentity(seededProject?.logo);
+  const itemLogo = normalizeReferenceIdentity(item?.logo);
+  if (seededLogo && itemLogo && seededLogo === itemLogo) return true;
+  return false;
+}
+
+function projectRecordScore(item, seededProject) {
+  let score = 0;
+  if (normalizeReferenceIdentity(item?.referenceKey) === referenceProjectKey(seededProject)) score += 200;
+  if (normalizeReferenceIdentity(item?.name) !== referenceProjectKey(seededProject)) score += 50;
+  if (hasMeaningfulProjectValue(item?.website)) score += 10;
+  if (hasMeaningfulProjectValue(item?.email)) score += 10;
+  if (hasMeaningfulProjectValue(item?.contact)) score += 10;
+  if (hasMeaningfulProjectValue(item?.description)) score += 10;
+  const updatedAt = Date.parse(item?.updatedAt || item?.createdAt || "");
+  if (!Number.isNaN(updatedAt)) score += updatedAt / 1e13;
+  return score;
+}
+
+function mergeProjectRecords(target, source, seededProject = null) {
+  if (!target || !source || target === source) return target;
+  [
+    "name",
+    "subtitle",
+    "description",
+    "sector",
+    "location",
+    "year",
+    "owner",
+    "contact",
+    "email",
+    "website",
+    "businessModel",
+    "managementTeam",
+    "revenues",
+    "fundraisingHistory",
+    "competitors",
+    "advantages",
+    "founders",
+    "framework",
+    "origin",
+    "priority",
+    "temperature",
+    "investmentStatus",
+    "cover",
+    "logo",
+    "logoText",
+    "logoBg"
+  ].forEach((key) => {
+    if (!hasMeaningfulProjectValue(target[key]) && hasMeaningfulProjectValue(source[key])) {
+      target[key] = source[key];
+    }
+  });
+  target.estimatedValue = Math.max(Number(target.estimatedValue || 0), Number(source.estimatedValue || 0));
+  target.investmentAmount = Math.max(Number(target.investmentAmount || 0), Number(source.investmentAmount || 0));
+  target.progress = Math.max(Number(target.progress || 0), Number(source.progress || 0));
+  target.tags = [...new Set([...(target.tags || []), ...(source.tags || [])])];
+  target.history = [...(target.history || []), ...(source.history || [])]
+    .filter((entry, index, list) => list.findIndex((candidate) => candidate?.at === entry?.at && candidate?.text === entry?.text) === index)
+    .sort((a, b) => String(b?.at || "").localeCompare(String(a?.at || "")));
+  if (seededProject) target.referenceKey = referenceProjectKey(seededProject);
+  return target;
+}
+
 function referenceProjectToCRMItem(project) {
   const subtitle = ritoSubtitle(project.sector, project.location, project.year);
   const investmentStatus = project.investmentStatus || "Nao investido";
@@ -536,6 +641,7 @@ function referenceProjectToCRMItem(project) {
   const statusLabel = referenceStatusLabel(project.status, investmentStatus);
   return {
     id: uid("deal"),
+    referenceKey: referenceProjectKey(project),
     name: project.name,
     logo: project.logo || "",
     logoText: project.logoText || "",
@@ -803,6 +909,17 @@ function buildFastTaskItems() {
   ];
 }
 
+function normalizeFastTaskThemeName(stage = "") {
+  const value = String(stage || "").trim();
+  const map = {
+    "Operacao": "Operacoes",
+    "Operação": "Operacoes",
+    "Marketing & Marca": "Marketing",
+    "Estratégico": "Estrategico"
+  };
+  return map[value] || value;
+}
+
 function crmItemToReferenceCard(item) {
   ensureProjectShape(item);
   return {
@@ -834,10 +951,28 @@ function migrateRitoReferenceProjects(rootState) {
   const legacySeedNames = new Set(["pulse fitness club", "dermavita clinics", "amazoo pets"]);
   rito.crmItems = (rito.crmItems || []).filter((item) => !legacySeedNames.has(String(item.name || "").toLowerCase()));
   const seededItems = buildRitoReferenceCRMItems();
-  const existingByName = new Map((rito.crmItems || []).map((item) => [item.name.toLowerCase(), item]));
   seededItems.forEach((seeded) => {
-    const existing = existingByName.get(seeded.name.toLowerCase());
+    const matches = (rito.crmItems || []).filter((item) => isLikelyReferenceProjectMatch(item, seeded));
+    if (!matches.length) return;
+    matches.forEach((item) => {
+      item.referenceKey = referenceProjectKey(seeded);
+      ensureProjectShape(item);
+    });
+    if (matches.length < 2) return;
+    const keep = [...matches].sort((a, b) => projectRecordScore(b, seeded) - projectRecordScore(a, seeded))[0];
+    matches
+      .filter((item) => item !== keep)
+      .forEach((duplicate) => {
+        mergeProjectRecords(keep, duplicate, seeded);
+        rito.crmItems = rito.crmItems.filter((item) => item !== duplicate);
+      });
+  });
+  const existingByReference = new Map((rito.crmItems || []).map((item) => [String(item.referenceKey || ""), item]).filter(([key]) => key));
+  seededItems.forEach((seeded) => {
+    const key = referenceProjectKey(seeded);
+    const existing = existingByReference.get(key) || (rito.crmItems || []).find((item) => isLikelyReferenceProjectMatch(item, seeded));
     if (existing) {
+      existing.referenceKey = key;
       if (!existing.cover || isGeneratedImageAsset(existing.cover)) existing.cover = seeded.cover;
       if (!existing.logo || isGeneratedImageAsset(existing.logo)) existing.logo = seeded.logo;
       existing.logoText = existing.logoText || seeded.logoText;
@@ -863,18 +998,27 @@ function migrateRitoReferenceProjects(rootState) {
       if (existing.investmentStatus === "Investido" && !rito.projectBoards[existing.name]) {
         rito.projectBoards[existing.name] = [];
       }
+      existingByReference.set(key, existing);
       return;
     }
-    rito.crmItems.unshift(seeded);
-    if (seeded.investmentStatus === "Investido" && !rito.projectBoards[seeded.name]) {
-      rito.projectBoards[seeded.name] = [];
+    const seededItem = JSON.parse(JSON.stringify(seeded));
+    seededItem.referenceKey = key;
+    rito.crmItems.unshift(seededItem);
+    if (seededItem.investmentStatus === "Investido" && !rito.projectBoards[seededItem.name]) {
+      rito.projectBoards[seededItem.name] = [];
     }
+    existingByReference.set(key, seededItem);
   });
   const popIndex = rito.crmItems.findIndex((item) => item.name === "Pop Move");
   const braslarIndex = rito.crmItems.findIndex((item) => item.name === "Geral / Braslar");
   if (popIndex > -1 && braslarIndex > -1 && popIndex > braslarIndex) {
     const [popMove] = rito.crmItems.splice(popIndex, 1);
     rito.crmItems.splice(braslarIndex, 0, popMove);
+  }
+  const adoreiIndex = rito.crmItems.findIndex((item) => item.name === "Adorei");
+  if (adoreiIndex > 0) {
+    const [adorei] = rito.crmItems.splice(adoreiIndex, 1);
+    rito.crmItems.unshift(adorei);
   }
 }
 
@@ -915,25 +1059,23 @@ function migrateFastWorkspace(rootState) {
 
   const seededTasks = buildFastTaskItems();
   const currentTasks = Array.isArray(fast.taskItems) ? fast.taskItems : [];
-  const hasLegacyFastSeed =
-    currentTasks.some((task) => String(task.stage || "") === "Marketing & Marca") ||
-    currentTasks.some((task) => String(task.stage || "") === "Operacao") ||
-    currentTasks.some((task) => String(task.title || "") === "Definir ponto focal para liderar projetos, eventos e ativacoes da marca");
+  const mergedTasks = currentTasks.length ? currentTasks : [];
+  mergedTasks.forEach((task) => {
+    task.stage = normalizeFastTaskThemeName(task.stage);
+  });
+  const existingTitles = new Set(mergedTasks.map((task) => String(task.title || "").trim().toLowerCase()));
+  seededTasks.forEach((task) => {
+    if (!existingTitles.has(String(task.title || "").trim().toLowerCase())) {
+      mergedTasks.push(task);
+    }
+  });
+  fast.taskItems = mergedTasks.length ? mergedTasks : seededTasks;
 
-  const hasNewFastSeed =
-    currentTasks.some((task) => String(task.title || "") === "Buscar parceria com a LoungeKey") &&
-    currentTasks.some((task) => String(task.title || "") === "Buscar renegociacao dos debitos com a Guirre e pedido a vista");
-
-  if (!currentTasks.length || hasLegacyFastSeed || !hasNewFastSeed) {
-    fast.taskItems = seededTasks;
-  } else {
-    const existingTitles = new Set(currentTasks.map((task) => String(task.title || "").toLowerCase()));
-    seededTasks.forEach((task) => {
-      if (!existingTitles.has(task.title.toLowerCase())) fast.taskItems.push(task);
-    });
-  }
-
-  fast.taskThemes = [...DEFAULT_TASK_THEMES.fast];
+  const currentThemes = Array.isArray(fast.taskThemes) && fast.taskThemes.length
+    ? fast.taskThemes.map((theme) => normalizeFastTaskThemeName(theme))
+    : [];
+  const nextThemes = [...new Set([...currentThemes, ...DEFAULT_TASK_THEMES.fast])].filter(Boolean);
+  fast.taskThemes = nextThemes.length ? nextThemes : [...DEFAULT_TASK_THEMES.fast];
   fast.members = fast.members || [];
   ["Bruna Cristina", "Arthur Bueno", "Ciro Ribeiro", "Mayra", "Eduardo", "Rodrigo", "Grace"].forEach((name) => {
     if (!fast.members.some((member) => member.name === name)) {
@@ -1186,6 +1328,7 @@ function normalizeKanbanTask(task, themes) {
   if (!task.status) task.status = "A Fazer";
   if (!task.priority) task.priority = "Media";
   if (!task.tags) task.tags = [];
+  if (!("completionDate" in task)) task.completionDate = "";
 }
 
 function ensureWorkspaceKanbans(workspaceId = state.currentWorkspace) {
@@ -1241,10 +1384,14 @@ function displayText(value) {
     .replaceAll("Subtitulo", "Subtítulo")
     .replaceAll("Titulo", "Título")
     .replaceAll("titulo", "título")
+    .replaceAll("Estagio", "Estágio")
+    .replaceAll("estagio", "estágio")
     .replaceAll("Localizacao", "Localização")
     .replaceAll("localizacao", "localização")
     .replaceAll("Responsavel", "Responsável")
     .replaceAll("responsavel", "responsável")
+    .replaceAll("Conclusao", "Conclusão")
+    .replaceAll("conclusao", "conclusão")
     .replaceAll("Juridico", "Jurídico")
     .replaceAll("Estrategico", "Estratégico")
     .replaceAll("Governanca", "Governança")
@@ -1252,22 +1399,34 @@ function displayText(value) {
     .replaceAll("Concluido", "Concluído")
     .replaceAll("Concluidos", "Concluídos")
     .replaceAll("Historico", "Histórico")
+    .replaceAll("captacao", "captação")
+    .replaceAll("Captacao", "Captação")
     .replaceAll("Informacoes", "Informações")
     .replaceAll("Negocio", "Negócio")
+    .replaceAll("negocio", "negócio")
     .replaceAll("Observacoes", "Observações")
     .replaceAll("Projecao", "Projeção")
+    .replaceAll("Midia", "Mídia")
+    .replaceAll("midia", "mídia")
     .replaceAll("Nao", "Não")
     .replaceAll("nao", "não")
     .replaceAll("Media", "Média")
     .replaceAll("media", "média")
     .replaceAll("Goiania", "Goiânia")
     .replaceAll("Goias", "Goiás")
+    .replaceAll("Marcio", "Márcio")
+    .replaceAll("Andre", "André")
+    .replaceAll("Sao", "São")
     .replaceAll("Cosmeticos", "Cosméticos")
     .replaceAll("Educacao", "Educação")
     .replaceAll("Nutricao", "Nutrição")
+    .replaceAll("Servicos", "Serviços")
+    .replaceAll("servicos", "serviços")
+    .replaceAll("Imobiliario", "Imobiliário")
     .replaceAll("Graos", "Grãos")
     .replaceAll("graos", "grãos")
     .replaceAll("Liofilizacao", "Liofilização")
+    .replaceAll("tecnologica", "tecnológica")
     .replaceAll("Saude", "Saúde")
     .replaceAll("saude", "saúde")
     .replaceAll("serao", "serão")
@@ -1285,6 +1444,19 @@ function displayText(value) {
     .replaceAll("posicao", "posição")
     .replaceAll("transacao", "transação")
     .replaceAll("logistica", "logística")
+    .replaceAll("concentracao", "concentração")
+    .replaceAll("dinamicos", "dinâmicos")
+    .replaceAll("acoes", "ações")
+    .replaceAll("rapidas", "rápidas")
+    .replaceAll("proximos", "próximos")
+    .replaceAll("reuniao", "reunião")
+    .replaceAll("deliberacao", "deliberação")
+    .replaceAll("tecnica", "técnica")
+    .replaceAll("tecnico", "técnico")
+    .replaceAll("tributario", "tributário")
+    .replaceAll("conversao", "conversão")
+    .replaceAll("distribuicao", "distribuição")
+    .replaceAll("visao", "visão")
     .replaceAll("Criticas", "Críticas")
     .replaceAll("criticas", "críticas")
     .replaceAll("rapido", "rápido")
@@ -1944,16 +2116,16 @@ function renderDashboard() {
     const todo = tasks.filter((task) => task.status === "A fazer").length;
     const workstreams = workspaceTaskThemes("fast").length;
     const metrics = [
-      ["Iniciativas", tasks.length, "Plano tatico total"],
-      ["Frentes ativas", workstreams, displayText("Workstreams da operacao")],
-      ["Em andamento", inExecution, displayText("Itens em execucao")],
-      ["Aguardando", awaiting, "Dependencia de aporte ou terceiros"],
-      ["Nao iniciadas", todo, "Backlog atual"],
-      ["Execucao", `${Math.round((done / (tasks.length || 1)) * 100)}%`, displayText("Percentual concluido")]
+      ["Iniciativas", tasks.length, "Plano tático total"],
+      ["Frentes ativas", workstreams, displayText("Workstreams da operação")],
+      ["Em andamento", inExecution, displayText("Itens em execução")],
+      ["Aguardando", awaiting, "Dependência de aporte ou terceiros"],
+      ["Não iniciadas", todo, "Backlog atual"],
+      ["Execução", `${Math.round((done / (tasks.length || 1)) * 100)}%`, displayText("Percentual concluído")]
     ];
     panel.innerHTML = `
       <section class="page-head">
-        <div><h3>Dashboard</h3><p>${displayText("Painel executivo da Fast Massagem com visao operacional, prioridades e performance")}</p></div>
+        <div><h3>Dashboard</h3><p>${displayText("Painel executivo da Fast Massagem com visão operacional, prioridades e performance")}</p></div>
       </section>
     `;
     panel.appendChild(renderMetrics(metrics));
@@ -1967,10 +2139,10 @@ function renderDashboard() {
   const invested = investedProjects(deals).length;
   const conversion = Math.round((invested / (deals.length || 1)) * 100);
   const metrics = [
-    ["Deals no pipeline", deals.length, "Todos os estagios do CRM"],
+    ["Deals no pipeline", deals.length, "Todos os estágios do CRM"],
     ["Valor total", currency(totalValue), "Portfolio analisado"],
     ["Deals quentes", hotDeals, "Quente + Pipeline"],
-    ["Taxa de conversao", `${conversion}%`, "Deals com tag Investido"]
+    ["Taxa de conversão", `${conversion}%`, "Deals com tag Investido"]
   ];
 
   const titleRow = document.createElement("section");
@@ -2383,7 +2555,7 @@ function renderRitoProjectDetailPage() {
     </section>
     <section class="project-detail-sections">
       <article class="project-detail-card"><h4>Descrição da Empresa</h4><textarea class="detail-textarea" data-drawer-field="description">${item.description || ""}</textarea></article>
-      <article class="project-detail-card"><h4>Management team</h4><textarea class="detail-textarea" data-drawer-field="managementTeam">${item.managementTeam || ""}</textarea></article>
+      <article class="project-detail-card"><h4>Time de gestão</h4><textarea class="detail-textarea" data-drawer-field="managementTeam">${displayText(item.managementTeam || "")}</textarea></article>
       <article class="project-detail-card"><h4>Modelo de Negócio</h4><textarea class="detail-textarea" data-drawer-field="businessModel">${item.businessModel || ""}</textarea></article>
       <article class="project-detail-card"><h4>Competidores</h4><textarea class="detail-textarea" data-drawer-field="competitors">${item.competitors || ""}</textarea></article>
       <article class="project-detail-card"><h4>Vantagens Competitivas</h4><textarea class="detail-textarea" data-drawer-field="advantages">${item.advantages || ""}</textarea></article>
@@ -2570,7 +2742,7 @@ function renderRitoKanbanPage() {
   page.className = "content-grid ref-page";
   page.innerHTML = `
     <section class="page-head">
-      <div><h3>Kanban Rito</h3><p>Gestao da empresa organizada por tema</p></div>
+      <div><h3>Kanban Rito</h3><p>Gestão da empresa organizada por tema</p></div>
       <div class="page-head-actions"><button class="ghost-button" data-ref-action="edit-columns" type="button">Editar colunas</button><button class="action-button" data-ref-action="new-task" type="button">+ Nova Tarefa</button></div>
     </section>
   `;
@@ -2709,10 +2881,10 @@ function renderRitoSettingsPage() {
   page.className = "content-grid ref-page";
   page.innerHTML = `
     <section class="page-head">
-      <div><h3>Configuracoes</h3><p>Gestao de workspaces, tema e sistema</p></div>
+      <div><h3>Configurações</h3><p>Gestão de workspaces, tema e sistema</p></div>
     </section>
     <section class="settings-section">
-      <h4>Aparencia</h4>
+      <h4>Aparência</h4>
       <article class="panel settings-card-row"><div><strong>Tema da Interface</strong><div class="subtle">Alterne entre dark e light mode</div></div><div class="segmented"><button data-ref-action="set-dark" type="button">Dark</button><button class="is-active" data-ref-action="set-light" type="button">Light</button></div></article>
     </section>
     <section class="settings-section">
@@ -2791,7 +2963,7 @@ function createReferenceProjectCard(card, invested = false, sourceView = "crm") 
       <div class="subtle">${displayText(card.subtitle)}</div>
       <div class="chips">${displayTags.map((tag) => `<span class="chip ${tagChipClass(tag)}">${displayText(tag)}</span>`).join("")}</div>
       <div class="reference-description-block">
-        <span>Company description</span>
+        <span>Descrição da empresa</span>
         <p>${companyDescription}</p>
       </div>
       <label class="reference-value-field">
@@ -2799,7 +2971,7 @@ function createReferenceProjectCard(card, invested = false, sourceView = "crm") 
         <input type="text" inputmode="decimal" data-card-investment value="${linked ? formatLocaleNumber(linked.investmentAmount || 0) : "0"}">
       </label>
       <div class="progress-bar"><span style="width:${invested ? 100 : displayProgress}%; background:${card.accent}"></span></div>
-      <div class="subtle">${invested ? `${displayProgress ?? 100}% completo` : displayText(displayOwner)}</div>
+      <div class="subtle">${invested ? `${displayProgress ?? 100}% concluído` : displayText(displayOwner)}</div>
     </div>
   `;
   if (linked) {
@@ -2872,7 +3044,7 @@ function renderMetrics(metrics) {
 function renderFunnel(items, stages) {
   const panel = document.createElement("section");
   panel.className = "panel";
-  panel.innerHTML = `<div class="panel-header"><div><h3>Funil de conversao</h3><p>Deals por estagio e distribuicao visual do pipeline</p></div></div>`;
+  panel.innerHTML = `<div class="panel-header"><div><h3>Funil de conversão</h3><p>Deals por estágio e distribuição visual do pipeline</p></div></div>`;
   stages.forEach((stage) => {
     const count = items.filter((item) => item.status === stage).length;
     const percentage = Math.round((count / (items.length || 1)) * 100);
@@ -2887,7 +3059,7 @@ function renderFunnel(items, stages) {
 function renderStageValuePanel(items, stages) {
   const panel = document.createElement("section");
   panel.className = "panel";
-  panel.innerHTML = `<div class="panel-header"><div><h3>Valor por estagio</h3><p>Visibilidade financeira por etapa do funil</p></div></div>`;
+  panel.innerHTML = `<div class="panel-header"><div><h3>Valor por estágio</h3><p>Visibilidade financeira por etapa do funil</p></div></div>`;
   stages.forEach((stage) => {
     const total = items.filter((item) => item.status === stage).reduce((sum, item) => sum + item.estimatedValue, 0);
     const line = document.createElement("div");
@@ -2905,10 +3077,10 @@ function renderFastDashboardDetail(tasks) {
   const workstreams = workspaceTaskThemes("fast");
   const total = tasks.length || 1;
   const statusGroups = [
-    { label: "Nao iniciadas", key: "A fazer", count: tasks.filter((task) => task.status === "A fazer").length, color: "#9aa4b8" },
+    { label: "Não iniciadas", key: "A fazer", count: tasks.filter((task) => task.status === "A fazer").length, color: "#9aa4b8" },
     { label: "Em andamento", key: "Em andamento", count: tasks.filter((task) => task.status === "Em andamento").length, color: "#4f7cff" },
     { label: "Aguardando", key: "Revisao", count: tasks.filter((task) => task.status === "Revisao").length, color: "#c6932d" },
-    { label: "Concluidas", key: "Concluido", count: tasks.filter((task) => task.status === "Concluido").length, color: "#32a36a" }
+    { label: "Concluídas", key: "Concluido", count: tasks.filter((task) => task.status === "Concluido").length, color: "#32a36a" }
   ];
   const statusSegments = [];
   let cumulative = 0;
@@ -2945,7 +3117,7 @@ function renderFastDashboardDetail(tasks) {
 
   const workstreamPanel = document.createElement("section");
   workstreamPanel.className = "panel fast-panel";
-  workstreamPanel.innerHTML = `<div class="panel-header"><div><h3>Performance por Tema</h3><p>Distribuicao das entregas e progresso por frente de trabalho</p></div></div>`;
+  workstreamPanel.innerHTML = `<div class="panel-header"><div><h3>Performance por tema</h3><p>Distribuição das entregas e progresso por frente de trabalho</p></div></div>`;
   workstreams.forEach((stage) => {
     const stageTasks = tasks.filter((task) => task.stage === stage);
     const done = stageTasks.filter((task) => task.status === "Concluido").length;
@@ -2960,12 +3132,12 @@ function renderFastDashboardDetail(tasks) {
           <strong>${stage}</strong>
           <span>${stageTasks.length} tarefas</span>
         </div>
-        <div class="fast-workstream-stats">${inProgress} em andamento • ${waiting} aguardando • ${done} concluidas</div>
+        <div class="fast-workstream-stats">${inProgress} em andamento • ${waiting} aguardando • ${done} concluídas</div>
         <div class="fast-progress-track"><span style="width:${Math.max(progress, stageTasks.length ? 10 : 0)}%"></span></div>
       </div>
       <div class="fast-workstream-meta">
         <strong>${progress}%</strong>
-        <span>execucao</span>
+        <span>execução</span>
       </div>
     `;
     workstreamPanel.appendChild(row);
@@ -2973,7 +3145,7 @@ function renderFastDashboardDetail(tasks) {
 
   const mixPanel = document.createElement("section");
   mixPanel.className = "panel fast-panel";
-  mixPanel.innerHTML = `<div class="panel-header"><div><h3>Mix de Execucao</h3><p>Leitura visual de volume por tema e intensidade operacional</p></div></div>`;
+  mixPanel.innerHTML = `<div class="panel-header"><div><h3>Mix de execução</h3><p>Leitura visual de volume por tema e intensidade operacional</p></div></div>`;
   const maxStageTasks = Math.max(...workstreams.map((stage) => tasks.filter((task) => task.stage === stage).length), 1);
   workstreams.forEach((stage) => {
     const stageTasks = tasks.filter((task) => task.stage === stage);
@@ -2998,7 +3170,7 @@ function renderFastDashboardDetail(tasks) {
       </div>
       <div class="fast-mix-footer">
         <span>intensidade ${intensity}%</span>
-        <span>${done} concluidas</span>
+        <span>${done} concluídas</span>
       </div>
     `;
     mixPanel.appendChild(row);
@@ -3006,7 +3178,7 @@ function renderFastDashboardDetail(tasks) {
 
   const volumePanel = document.createElement("section");
   volumePanel.className = "panel fast-panel";
-  volumePanel.innerHTML = `<div class="panel-header"><div><h3>Volume por Frente</h3><p>Comparativo visual entre as frentes da operacao</p></div></div>`;
+  volumePanel.innerHTML = `<div class="panel-header"><div><h3>Volume por frente</h3><p>Comparativo visual entre as frentes da operação</p></div></div>`;
   const bars = document.createElement("div");
   bars.className = "fast-volume-chart";
   workstreams.forEach((stage) => {
@@ -3030,7 +3202,7 @@ function renderFastDashboardDetail(tasks) {
 
   const ownerPanel = document.createElement("section");
   ownerPanel.className = "panel fast-panel";
-  ownerPanel.innerHTML = `<div class="panel-header"><div><h3>Carga por Responsavel</h3><p>Concentracao de tarefas e prioridades por pessoa</p></div></div>`;
+  ownerPanel.innerHTML = `<div class="panel-header"><div><h3>Carga por Responsável</h3><p>Concentração de tarefas e prioridades por pessoa</p></div></div>`;
   const owners = [...new Set(tasks.map((task) => task.owner))];
   owners
     .map((owner) => ({
@@ -3056,7 +3228,7 @@ function renderFastDashboardDetail(tasks) {
 
   const criticalPanel = document.createElement("section");
   criticalPanel.className = "panel fast-panel";
-  criticalPanel.innerHTML = `<div class="panel-header"><div><h3>${displayText("Prioridades Criticas")}</h3><p>${displayText("Itens com maior impacto em caixa, operacao e expansao")}</p></div></div>`;
+  criticalPanel.innerHTML = `<div class="panel-header"><div><h3>${displayText("Prioridades Críticas")}</h3><p>${displayText("Itens com maior impacto em caixa, operação e expansão")}</p></div></div>`;
   tasks
     .filter((task) => task.priority === "Alta" || task.status === "Revisao" || /aporte/i.test(task.description))
     .slice(0, 8)
@@ -3081,7 +3253,7 @@ function renderFastDashboardDetail(tasks) {
     ["Dependem de aporte", tasks.filter((task) => /aporte/i.test(task.description)).length, "#c6932d"],
     ["Itens financeiros", tasks.filter((task) => task.stage === "Financeiro").length, "#4f7cff"],
     ["Itens de marketing", tasks.filter((task) => task.stage === "Marketing").length, "#9d6bff"],
-    ["Entregas concluidas", tasks.filter((task) => task.status === "Concluido").length, "#32a36a"]
+    ["Entregas concluídas", tasks.filter((task) => task.status === "Concluido").length, "#32a36a"]
   ].forEach(([label, count, color]) => {
     const width = Math.round((count / total) * 100);
     const line = document.createElement("div");
@@ -3152,7 +3324,7 @@ function renderDashboardTable(deals) {
   table.className = "panel dashboard-table";
   const head = document.createElement("div");
   head.className = "table-head";
-  head.innerHTML = "<div>Empresa</div><div>Contato</div><div>Estagio</div><div>Temp.</div><div>Responsavel</div>";
+  head.innerHTML = "<div>Empresa</div><div>Contato</div><div>Estágio</div><div>Temp.</div><div>Responsável</div>";
   table.appendChild(head);
 
   deals.slice(0, 4).forEach((deal) => {
@@ -3161,12 +3333,12 @@ function renderDashboardTable(deals) {
     row.innerHTML = `
       <div class="company-cell">
         <div class="company-badge">${initials(deal.name)}</div>
-        <div><strong>${deal.name}</strong><div class="subtle">${deal.description.slice(0, 44)}...</div></div>
+        <div><strong>${displayText(deal.name)}</strong><div class="subtle">${displayText(deal.description).slice(0, 44)}...</div></div>
       </div>
-      <div><div>-${deal.year}</div><div class="subtle">${deal.location}</div></div>
-      <div><span class="chip">${deal.status}</span></div>
-      <div><span class="chip">${deal.tags.find((tag) => ["Frio", "Morno", "Quente"].includes(tag)) || deal.status}</span></div>
-      <div>${deal.owner}</div>
+      <div><div>-${deal.year}</div><div class="subtle">${displayText(deal.location)}</div></div>
+      <div><span class="chip">${displayText(deal.status)}</span></div>
+      <div><span class="chip">${displayText(deal.tags.find((tag) => ["Frio", "Morno", "Quente"].includes(tag)) || deal.status)}</span></div>
+      <div>${displayText(deal.owner)}</div>
     `;
     table.appendChild(row);
   });
@@ -3182,7 +3354,7 @@ function renderCRM() {
     <section class="page-head">
       <div>
         <h3>Pipeline</h3>
-        <p>Deals com visual premium, filtros dinamicos e leitura mais limpa</p>
+        <p>Deals com visual premium, filtros dinâmicos e leitura mais limpa</p>
       </div>
       <div class="page-head-actions">
         <button class="action-button" data-ref-action="new-opportunity" type="button">+ Oportunidade</button>
@@ -3196,7 +3368,7 @@ function renderCRM() {
     <div class="panel-header">
       <div>
         <h3>CRM premium</h3>
-        <p>Deals com visual editorial, filtros dinamicos e acoes rapidas</p>
+        <p>Deals com visual editorial, filtros dinâmicos e ações rápidas</p>
       </div>
       <div class="inline-actions">
         <button class="ghost-button" data-action="export-crm">Exportar CSV</button>
@@ -3204,7 +3376,7 @@ function renderCRM() {
     </div>
     <div class="filters-row">
       <label class="field"><span>Status</span><select id="crmFilterStatus"><option value="">Todos</option>${workspaceConfig[state.currentWorkspace].pipelineStages.map((stage) => `<option>${stage}</option>`).join("")}</select></label>
-      <label class="field"><span>Responsavel</span><select id="crmFilterOwner"><option value="">Todos</option>${workspaceConfig[state.currentWorkspace].memberOptions.map((owner) => `<option>${owner}</option>`).join("")}</select></label>
+      <label class="field"><span>Responsável</span><select id="crmFilterOwner"><option value="">Todos</option>${workspaceConfig[state.currentWorkspace].memberOptions.map((owner) => `<option>${displayText(owner)}</option>`).join("")}</select></label>
       <label class="field"><span>Tag</span><input id="crmFilterTag" placeholder="Ex: Investido"></label>
     </div>
   `;
@@ -3261,16 +3433,16 @@ function createCRMCard(item) {
       <div class="chips">${item.tags.map((tag) => `<span class="chip ${tagChipClass(tag)}">${displayText(tag)}</span>`).join("")}</div>
       <div class="card-info-stack">
         <div class="card-field card-description-preview">
-          <span>Company description</span>
+          <span>Descrição da empresa</span>
           <p>${companyDescription}</p>
         </div>
         <div class="card-meta-grid">
           <div class="card-field">
-            <span>Fundraising history</span>
+            <span>Histórico de captação</span>
             <p>${fundraisingHistory}</p>
           </div>
           <div class="card-field">
-            <span>Management team</span>
+            <span>Time de gestão</span>
             <p>${managementTeam}</p>
           </div>
           <div class="card-field">
@@ -3340,7 +3512,7 @@ function renderInvestedProjects() {
     <section class="panel">
       <div class="filters-row">
         <label class="field"><span>Setor</span><input id="investedSector" placeholder="Ex: Fitness"></label>
-        <label class="field"><span>Responsavel</span><input id="investedOwner" placeholder="Ex: Arthur"></label>
+        <label class="field"><span>Responsável</span><input id="investedOwner" placeholder="Ex: Arthur"></label>
         <label class="field"><span>Ano</span><input id="investedYear" placeholder="2026"></label>
       </div>
     </section>
@@ -3373,9 +3545,9 @@ function renderTasksBoard() {
   const themes = workspaceTaskThemes(state.currentWorkspace);
   const themeColors = workspaceTaskThemeColors(state.currentWorkspace);
   const kanbanSubtitles = {
-    rito: "Gestao da empresa organizada por tema",
+    rito: "Gestão da empresa organizada por tema",
     atica: "Gestao interna organizada por tema",
-    fast: "Operacao da empresa organizada por tema"
+    fast: "Operação da empresa organizada por tema"
   };
   const panel = document.createElement("section");
   panel.className = "content-grid ref-page workspace-soft-page";
@@ -3442,7 +3614,8 @@ function createTaskCard(task, projectScoped, projectName = "") {
       <div class="task-meta"><span class="task-dot ${priorityClass}"></span>${displayText(task.priority || "Media")}</div>
       ${ownerMarkup}
     </div>
-    ${task.dueDate ? `<div class="task-card-due${isLate ? " is-late" : ""}">${task.dueDate}</div>` : ""}
+    ${task.dueDate ? `<div class="task-card-due${isLate ? " is-late" : ""}">Prazo: ${task.dueDate}</div>` : ""}
+    ${task.completionDate ? `<div class="task-card-completion">Conclusão: ${task.completionDate}</div>` : ""}
   `;
   article.addEventListener("dragstart", (event) => {
     event.dataTransfer.setData("text/plain", task.id);
@@ -3554,7 +3727,7 @@ function renderDocuments() {
   `;
   const top = document.createElement("section");
   top.className = "panel";
-  top.innerHTML = `<div class="panel-header"><div><h3>Organizacao documental</h3><p>Upload, download, preview rapido e categorizacao por area</p></div></div>`;
+  top.innerHTML = `<div class="panel-header"><div><h3>Organização documental</h3><p>Upload, download, preview rápido e categorização por área</p></div></div>`;
   panel.appendChild(top);
 
   const grid = document.createElement("section");
@@ -3711,12 +3884,12 @@ function renderCalendar() {
   panel.className = "content-grid ref-page workspace-soft-page";
   panel.innerHTML = `
     <section class="page-head">
-      <div><h3>Calendario</h3><p>Visao mensal das tarefas com destaque para prazos</p></div>
+      <div><h3>Calendário</h3><p>Visão mensal das tarefas com destaque para prazos</p></div>
     </section>
   `;
   const top = document.createElement("section");
   top.className = "panel";
-  top.innerHTML = `<div class="panel-header"><div><h3>Calendario mensal</h3><p>Tarefas integradas com destaque visual para itens atrasados</p></div></div>`;
+  top.innerHTML = `<div class="panel-header"><div><h3>Calendário mensal</h3><p>Tarefas integradas com destaque visual para itens atrasados</p></div></div>`;
   panel.appendChild(top);
   const grid = document.createElement("section");
   grid.className = "calendar-grid";
@@ -3892,7 +4065,7 @@ function bindReferenceActions() {
 }
 
 function downloadPortfolioCSV() {
-  const headers = ["Nome", "Setor", "Status", "Responsavel", "Ano"];
+  const headers = ["Nome", "Setor", "Status", "Responsável", "Ano"];
   const rows = workspaceData().crmItems.map((item) => [item.name, item.sector, item.status, item.owner, item.year]);
   downloadCSV(`${state.currentWorkspace}-portfolio.csv`, headers, rows);
 }
@@ -3909,6 +4082,7 @@ function handleCRMCardAction(action, id) {
   if (action === "edit" || action === "menu") openProjectDetail(item.id, state.currentView[state.currentWorkspace]);
   if (action === "duplicate") {
     const copy = { ...JSON.parse(JSON.stringify(item)), id: uid("deal"), name: `${item.name} Copy` };
+    delete copy.referenceKey;
     workspaceData().crmItems.unshift(copy);
     saveState();
     renderApp();
@@ -4051,17 +4225,17 @@ function openOpportunityDialog() {
         <label class="field"><span>Website</span><input name="website"></label>
         <label class="field"><span>Valor estimado (R$)</span><input name="estimatedValue" type="number" value="0"></label>
         <label class="field"><span>Valor da operação (R$)</span><input name="investmentAmount" type="number" value="0"></label>
-        <label class="field"><span>Stage</span><select name="status">${["Lead", "Pipeline", "Due Diligence", "LOI", "Investidos", "Declinados"].map((stage) => `<option ${stage === current.status ? "selected" : ""}>${stage}</option>`).join("")}</select></label>
+        <label class="field"><span>Estágio</span><select name="status">${["Lead", "Pipeline", "Due Diligence", "LOI", "Investidos", "Declinados"].map((stage) => `<option ${stage === current.status ? "selected" : ""}>${displayText(stage)}</option>`).join("")}</select></label>
         <label class="field"><span>Temperatura</span><select name="temperature">${["Frio", "Morno", "Quente"].map((temp) => `<option ${temp === current.temperature ? "selected" : ""}>${temp}</option>`).join("")}</select></label>
-        <label class="field"><span>Responsavel Rito</span><select name="owner">${workspaceConfig[state.currentWorkspace].memberOptions.map((owner) => `<option ${owner === current.owner ? "selected" : ""}>${owner}</option>`).join("")}</select></label>
+        <label class="field"><span>Responsável Rito</span><select name="owner">${workspaceConfig[state.currentWorkspace].memberOptions.map((owner) => `<option ${owner === current.owner ? "selected" : ""}>${displayText(owner)}</option>`).join("")}</select></label>
         <label class="field"><span>Contato principal</span><input name="mainContact"></label>
         <label class="field"><span>Telefone</span><input name="phone"></label>
         <label class="field"><span>E-mail</span><input name="email"></label>
         <label class="field"><span>Data de fechamento</span><input name="closeDate" type="date"></label>
-        <label class="field full-span"><span>Tags (separadas por virgula)</span><input name="tags"></label>
-        <label class="field full-span"><span>Fundadores / Management</span><textarea name="managementTeam"></textarea></label>
-        <label class="field full-span"><span>Descricao da empresa</span><textarea name="description"></textarea></label>
-        <label class="field full-span"><span>Modelo de negocio</span><textarea name="businessModel"></textarea></label>
+        <label class="field full-span"><span>Tags (separadas por vírgula)</span><input name="tags"></label>
+        <label class="field full-span"><span>Fundadores / Time de gestão</span><textarea name="managementTeam"></textarea></label>
+        <label class="field full-span"><span>Descrição da empresa</span><textarea name="description"></textarea></label>
+        <label class="field full-span"><span>Modelo de negócio</span><textarea name="businessModel"></textarea></label>
         <label class="field full-span"><span>Competidores</span><textarea name="competitors"></textarea></label>
         <label class="field full-span"><span>Vantagens competitivas</span><textarea name="advantages"></textarea></label>
         <label class="field"><span>Upload de capa</span><input name="cover" type="file" accept="image/*"></label>
@@ -4156,25 +4330,25 @@ function openProjectDrawer(projectId) {
         <h3 style="margin:0;font-family:Georgia, 'Times New Roman', serif;font-size:2rem;">${item.name}</h3>
         <div class="subtle">${item.subtitle}</div>
         <div class="chips">${item.tags.map((tag) => `<span class="chip">${tag}</span>`).join("")}</div>
-        <div class="subtle">Responsavel: ${item.owner}</div>
+        <div class="subtle">Responsável: ${displayText(item.owner)}</div>
       </div>
 
       <section class="drawer-section">
-        <h4>Informacoes gerais</h4>
+        <h4>Informações gerais</h4>
         <div class="drawer-grid">
           <label class="field full-span"><span>Nome do projeto</span><input data-drawer-field="name" value="${escapeAttr(item.name)}"></label>
-          <label class="field full-span"><span>Descricao</span><textarea data-drawer-field="description">${item.description || ""}</textarea></label>
+          <label class="field full-span"><span>Descrição</span><textarea data-drawer-field="description">${displayText(item.description || "")}</textarea></label>
           <label class="field"><span>Setor</span><input data-drawer-field="sector" value="${escapeAttr(item.sector || "")}"></label>
-          <label class="field"><span>Subtitulo</span><input data-drawer-field="subtitle" value="${escapeAttr(item.subtitle || "")}"></label>
-          <label class="field"><span>Localizacao</span><input data-drawer-field="location" value="${escapeAttr(item.location || "")}"></label>
+          <label class="field"><span>Subtítulo</span><input data-drawer-field="subtitle" value="${escapeAttr(displayText(item.subtitle || ""))}"></label>
+          <label class="field"><span>Localização</span><input data-drawer-field="location" value="${escapeAttr(displayText(item.location || ""))}"></label>
           <label class="field"><span>Ano</span><input data-drawer-field="year" value="${escapeAttr(item.year || "")}"></label>
-          <label class="field"><span>Estagio do funil</span><select data-drawer-field="status">${workspaceConfig[state.currentWorkspace].pipelineStages.map((stage) => `<option ${stage === item.status ? "selected" : ""}>${stage}</option>`).join("")}</select></label>
+          <label class="field"><span>Estágio do funil</span><select data-drawer-field="status">${workspaceConfig[state.currentWorkspace].pipelineStages.map((stage) => `<option ${stage === item.status ? "selected" : ""}>${displayText(stage)}</option>`).join("")}</select></label>
           <label class="field"><span>Temperatura</span><select data-drawer-field="temperature"><option ${item.temperature === "Frio" ? "selected" : ""}>Frio</option><option ${item.temperature === "Morno" ? "selected" : ""}>Morno</option><option ${item.temperature === "Quente" ? "selected" : ""}>Quente</option></select></label>
-          <label class="field"><span>Status de investimento</span><select data-drawer-field="investmentStatus"><option ${item.investmentStatus === "Nao investido" ? "selected" : ""}>Nao investido</option><option ${item.investmentStatus === "Investido" ? "selected" : ""}>Investido</option></select></label>
+          <label class="field"><span>Status de investimento</span><select data-drawer-field="investmentStatus"><option ${item.investmentStatus === "Nao investido" ? "selected" : ""}>Não investido</option><option ${item.investmentStatus === "Investido" ? "selected" : ""}>Investido</option></select></label>
           <label class="field"><span>Valor estimado</span><input type="number" data-drawer-field="estimatedValue" value="${item.estimatedValue || 0}"></label>
-          <label class="field"><span>Valor da operacao</span><input type="number" data-drawer-field="investmentAmount" value="${item.investmentAmount || 0}"></label>
-          <label class="field"><span>Responsavel</span><select data-drawer-field="owner">${workspaceConfig[state.currentWorkspace].memberOptions.map((owner) => `<option ${owner === item.owner ? "selected" : ""}>${owner}</option>`).join("")}</select></label>
-          <label class="field"><span>Prioridade</span><select data-drawer-field="priority"><option ${item.priority === "Alta" ? "selected" : ""}>Alta</option><option ${item.priority === "Media" ? "selected" : ""}>Media</option><option ${item.priority === "Baixa" ? "selected" : ""}>Baixa</option></select></label>
+          <label class="field"><span>Valor da operação</span><input type="number" data-drawer-field="investmentAmount" value="${item.investmentAmount || 0}"></label>
+          <label class="field"><span>Responsável</span><select data-drawer-field="owner">${workspaceConfig[state.currentWorkspace].memberOptions.map((owner) => `<option ${owner === item.owner ? "selected" : ""}>${displayText(owner)}</option>`).join("")}</select></label>
+          <label class="field"><span>Prioridade</span><select data-drawer-field="priority"><option ${item.priority === "Alta" ? "selected" : ""}>Alta</option><option ${item.priority === "Media" ? "selected" : ""}>Média</option><option ${item.priority === "Baixa" ? "selected" : ""}>Baixa</option></select></label>
           <label class="field"><span>Origem do deal</span><input data-drawer-field="origin" value="${escapeAttr(item.origin || "")}"></label>
         </div>
       </section>
@@ -4185,21 +4359,21 @@ function openProjectDrawer(projectId) {
           <label class="field full-span"><span>Tese</span><textarea data-framework-field="tese">${item.frameworkDetails.tese}</textarea></label>
           <label class="field full-span"><span>Oportunidade</span><textarea data-framework-field="oportunidade">${item.frameworkDetails.oportunidade}</textarea></label>
           <label class="field full-span"><span>Riscos</span><textarea data-framework-field="riscos">${item.frameworkDetails.riscos}</textarea></label>
-          <label class="field full-span"><span>Proximos passos</span><textarea data-framework-field="proximosPassos">${item.frameworkDetails.proximosPassos}</textarea></label>
-          <label class="field"><span>Status da diligencia</span><input data-framework-field="statusDiligencia" value="${escapeAttr(item.frameworkDetails.statusDiligencia || "")}"></label>
-          <label class="field"><span>Observacoes estrategicas</span><input data-framework-field="observacoes" value="${escapeAttr(item.frameworkDetails.observacoes || "")}"></label>
+          <label class="field full-span"><span>Próximos passos</span><textarea data-framework-field="proximosPassos">${displayText(item.frameworkDetails.proximosPassos)}</textarea></label>
+          <label class="field"><span>Status da diligência</span><input data-framework-field="statusDiligencia" value="${escapeAttr(displayText(item.frameworkDetails.statusDiligencia || ""))}"></label>
+          <label class="field"><span>Observações estratégicas</span><input data-framework-field="observacoes" value="${escapeAttr(displayText(item.frameworkDetails.observacoes || ""))}"></label>
         </div>
       </section>
 
       <section class="drawer-section">
-        <h4>Gestao de midia</h4>
+        <h4>Gestão de mídia</h4>
         <div class="file-input-row">
           <label class="mini-button">Trocar capa <input id="drawerCoverUpload" type="file" accept="image/*" hidden></label>
           <label class="mini-button">Trocar logo <input id="drawerLogoUpload" type="file" accept="image/*" hidden></label>
           <button class="mini-button" id="pasteImageButton">Colar imagem</button>
         </div>
         <div class="drawer-grid">
-          <label class="field"><span>Posicao da capa</span><select data-media-field="coverPosition"><option ${item.media.coverPosition === "center" ? "selected" : ""}>center</option><option ${item.media.coverPosition === "top" ? "selected" : ""}>top</option><option ${item.media.coverPosition === "bottom" ? "selected" : ""}>bottom</option></select></label>
+          <label class="field"><span>Posição da capa</span><select data-media-field="coverPosition"><option ${item.media.coverPosition === "center" ? "selected" : ""}>center</option><option ${item.media.coverPosition === "top" ? "selected" : ""}>top</option><option ${item.media.coverPosition === "bottom" ? "selected" : ""}>bottom</option></select></label>
           <label class="field"><span>Zoom da capa</span><input type="number" min="50" max="160" data-media-field="coverZoom" value="${item.media.coverZoom || 100}"></label>
         </div>
       </section>
@@ -4211,7 +4385,7 @@ function openProjectDrawer(projectId) {
       </section>
 
       <section class="drawer-section">
-        <h4>Timeline / historico</h4>
+        <h4>Timeline / histórico</h4>
         <div class="timeline-list">${item.history.map((entry) => `<article class="timeline-item"><strong>${entry.text}</strong><span class="subtle">${entry.at}</span></article>`).join("")}</div>
       </section>
 
@@ -4230,9 +4404,9 @@ function openProjectDrawer(projectId) {
       <section class="drawer-section">
         <h4>Acoes</h4>
         <div class="drawer-actions">
-          <button class="action-button" id="saveDrawerChanges">Salvar alteracoes</button>
+          <button class="action-button" id="saveDrawerChanges">Salvar alterações</button>
           <button class="ghost-button" id="duplicateDrawerCard">Duplicar card</button>
-          <button class="ghost-button" id="moveDrawerStage">Mover de estagio</button>
+          <button class="ghost-button" id="moveDrawerStage">Mover de estágio</button>
           <button class="ghost-button" id="markDrawerInvested">Marcar como investido</button>
           <button class="ghost-button" id="archiveDrawerCard">Arquivar</button>
           <button class="ghost-button" id="deleteDrawerCard">Excluir card</button>
@@ -4262,6 +4436,7 @@ function bindProjectDrawer(item) {
   };
   document.getElementById("duplicateDrawerCard").onclick = () => {
     const copy = { ...JSON.parse(JSON.stringify(item)), id: uid("deal"), name: `${item.name} Copy` };
+    delete copy.referenceKey;
     pushHistory(copy, "Card duplicado");
     workspaceData().crmItems.unshift(copy);
     saveState();
@@ -4272,7 +4447,7 @@ function bindProjectDrawer(item) {
     const stages = workspaceConfig[state.currentWorkspace].pipelineStages;
     const nextIndex = (stages.indexOf(item.status) + 1) % stages.length;
     item.status = stages[nextIndex];
-    pushHistory(item, `Estagio alterado para ${item.status}`);
+    pushHistory(item, `Estágio alterado para ${displayText(item.status)}`);
     saveState();
     renderApp();
     openProjectDrawer(item.id);
@@ -4333,7 +4508,7 @@ function bindProjectDrawer(item) {
       saveState();
       openProjectDrawer(item.id);
     } catch (error) {
-      alert(error?.message || "Nao foi possivel atualizar a capa.");
+      alert(error?.message || "Não foi possível atualizar a capa.");
     }
   };
   document.getElementById("drawerLogoUpload").onchange = async (event) => {
@@ -4343,7 +4518,7 @@ function bindProjectDrawer(item) {
       saveState();
       openProjectDrawer(item.id);
     } catch (error) {
-      alert(error?.message || "Nao foi possivel atualizar a logo.");
+      alert(error?.message || "Não foi possível atualizar a logo.");
     }
   };
   document.getElementById("pasteImageButton").onclick = async () => {
@@ -4360,7 +4535,7 @@ function bindProjectDrawer(item) {
         return;
       }
     } catch (error) {
-      alert(error?.message || "Nao foi possivel colar imagem agora.");
+      alert(error?.message || "Não foi possível colar a imagem agora.");
     }
   };
 }
@@ -4380,7 +4555,8 @@ async function persistDrawerProject(item, root = document) {
     item.media[field.dataset.mediaField] = field.type === "number" ? Number(field.value) : field.value;
   });
   if (oldName !== item.name && workspaceData().projectBoards[oldName]) {
-    workspaceData().projectBoards[item.name] = workspaceData().projectBoards[oldName];
+    const existingBoard = workspaceData().projectBoards[item.name] || [];
+    workspaceData().projectBoards[item.name] = [...existingBoard, ...workspaceData().projectBoards[oldName]];
     delete workspaceData().projectBoards[oldName];
   }
   workspaceData().documents.forEach((doc) => {
@@ -4389,7 +4565,7 @@ async function persistDrawerProject(item, root = document) {
   syncInvestmentTag(item);
   item.subtitle = item.subtitle || `${item.sector} - ${item.location} - ${item.year}`;
   item.updatedAt = todayISO();
-  if (JSON.stringify(item) !== before) pushHistory(item, "Informacoes do projeto atualizadas");
+  if (JSON.stringify(item) !== before) pushHistory(item, "Informações do projeto atualizadas");
   upsertCRMItem(item);
 }
 
@@ -4405,17 +4581,17 @@ async function applyProjectImageFile(item, target, file, sourceView, options = {
   try {
     if (target === "logo") {
       item.logo = await imageFileToProjectDataURL(file, "logo", item.logo);
-      pushHistory(item, "Logo colada da area de transferencia");
+      pushHistory(item, "Logo colada da área de transferência");
     } else {
       item.cover = await imageFileToProjectDataURL(file, "cover", item.cover);
-      pushHistory(item, "Capa colada da area de transferencia");
+      pushHistory(item, "Capa colada da área de transferência");
     }
     item.updatedAt = todayISO();
     saveState();
     if (reopen) openProjectDetail(item.id, sourceView);
     return true;
   } catch (error) {
-    throw new Error(error?.message || "Nao foi possivel salvar a imagem no projeto.");
+    throw new Error(error?.message || "Não foi possível salvar a imagem no projeto.");
   }
 }
 
@@ -4430,7 +4606,7 @@ async function pasteProjectImageFromClipboard(item, target, sourceView) {
       return applyProjectImageFile(item, target, file, sourceView);
     }
   } catch (error) {
-    throw new Error(error?.message || "Nao foi possivel colar a imagem da area de transferencia.");
+    throw new Error(error?.message || "Não foi possível colar a imagem da área de transferência.");
   }
   return false;
 }
@@ -4481,7 +4657,7 @@ function openProjectPasteDialog(item, target, sourceView) {
       requestAnimationFrame(() => openProjectDetail(item.id, sourceView));
     } catch (error) {
       setLoadingState(false);
-      dropzone.textContent = error?.message || "Nao foi possivel aplicar a imagem. Tente novamente.";
+      dropzone.textContent = error?.message || "Não foi possível aplicar a imagem. Tente novamente.";
     }
   };
   const onPaste = async (event) => {
@@ -4514,29 +4690,29 @@ function openProjectEditDialog(item, sourceView) {
       </div>
       <div class="dialog-grid crm-dialog-grid">
         <label class="field full-span"><span>Nome</span><input name="name" value="${escapeAttr(item.name || "")}"></label>
-        <label class="field full-span"><span>Descricao da empresa</span><textarea name="description">${item.description || ""}</textarea></label>
-        <label class="field"><span>Stage</span><select name="status">${workspaceConfig[state.currentWorkspace].pipelineStages.map((stage) => `<option ${stage === item.status ? "selected" : ""}>${stage}</option>`).join("")}</select></label>
-        <label class="field"><span>Responsavel</span><select name="owner">${workspaceConfig[state.currentWorkspace].memberOptions.map((owner) => `<option ${item.owner === owner ? "selected" : ""}>${owner}</option>`).join("")}</select></label>
+        <label class="field full-span"><span>Descrição da empresa</span><textarea name="description">${displayText(item.description || "")}</textarea></label>
+        <label class="field"><span>Estágio</span><select name="status">${workspaceConfig[state.currentWorkspace].pipelineStages.map((stage) => `<option ${stage === item.status ? "selected" : ""}>${displayText(stage)}</option>`).join("")}</select></label>
+        <label class="field"><span>Responsável</span><select name="owner">${workspaceConfig[state.currentWorkspace].memberOptions.map((owner) => `<option ${item.owner === owner ? "selected" : ""}>${displayText(owner)}</option>`).join("")}</select></label>
         <label class="field"><span>Prazo</span><input name="deadline" type="date" value="${escapeAttr(item.deadline || "")}"></label>
         <label class="field"><span>Valor (R$)</span><input name="estimatedValue" type="number" value="${escapeAttr(item.estimatedValue || 0)}"></label>
-        <label class="field"><span>Valor da operacao (R$)</span><input name="investmentAmount" type="number" value="${escapeAttr(item.investmentAmount || 0)}"></label>
+        <label class="field"><span>Valor da operação (R$)</span><input name="investmentAmount" type="number" value="${escapeAttr(item.investmentAmount || 0)}"></label>
         <label class="field full-span"><span>Progresso (0-100)</span><input name="progress" type="number" min="0" max="100" value="${escapeAttr(item.progress || 0)}"></label>
         <label class="field"><span>Company</span><input name="company" value="${escapeAttr(item.name || "")}"></label>
         <label class="field"><span>Ano</span><input name="year" value="${escapeAttr(item.year || "")}"></label>
-        <label class="field"><span>Localizacao</span><input name="location" value="${escapeAttr(item.location || "")}"></label>
+        <label class="field"><span>Localização</span><input name="location" value="${escapeAttr(displayText(item.location || ""))}"></label>
         <label class="field"><span>Website</span><input name="website" value="${escapeAttr(item.website || "")}"></label>
         <label class="field"><span>Categoria</span><input name="category" value="${escapeAttr(item.category || item.origin || "")}"></label>
-        <label class="field"><span>Setor</span><input name="sector" value="${escapeAttr(item.sector || "")}"></label>
+        <label class="field"><span>Setor</span><input name="sector" value="${escapeAttr(displayText(item.sector || ""))}"></label>
         <label class="field"><span>Temperatura</span><select name="temperature"><option ${item.temperature === "Frio" ? "selected" : ""}>Frio</option><option ${item.temperature === "Morno" ? "selected" : ""}>Morno</option><option ${item.temperature === "Quente" ? "selected" : ""}>Quente</option></select></label>
-        <label class="field"><span>Prioridade</span><select name="priority"><option ${item.priority === "Alta" ? "selected" : ""}>Alta</option><option ${item.priority === "Media" ? "selected" : ""}>Media</option><option ${item.priority === "Baixa" ? "selected" : ""}>Baixa</option></select></label>
+        <label class="field"><span>Prioridade</span><select name="priority"><option ${item.priority === "Alta" ? "selected" : ""}>Alta</option><option ${item.priority === "Media" ? "selected" : ""}>Média</option><option ${item.priority === "Baixa" ? "selected" : ""}>Baixa</option></select></label>
         <label class="field"><span>VC/PE Backed</span><input name="vcPeBacked" value="${escapeAttr(item.vcPeBacked || "")}"></label>
-        <label class="field"><span>Investimento</span><select name="investmentStatus"><option ${item.investmentStatus === "Nao investido" ? "selected" : ""}>Nao investido</option><option ${item.investmentStatus === "Investido" ? "selected" : ""}>Investido</option></select></label>
+        <label class="field"><span>Investimento</span><select name="investmentStatus"><option ${item.investmentStatus === "Nao investido" ? "selected" : ""}>Não investido</option><option ${item.investmentStatus === "Investido" ? "selected" : ""}>Investido</option></select></label>
         <label class="field"><span>Criado em</span><input name="createdAt" type="date" value="${escapeAttr(item.createdAt || "")}"></label>
         <label class="field"><span>Atualizado em</span><input name="updatedAt" type="date" value="${escapeAttr(item.updatedAt || "")}"></label>
-        <label class="field full-span"><span>Management Team</span><textarea name="managementTeam">${item.managementTeam || ""}</textarea></label>
-        <label class="field full-span"><span>Modelo de Negocio</span><textarea name="businessModel">${item.businessModel || ""}</textarea></label>
+        <label class="field full-span"><span>Time de gestão</span><textarea name="managementTeam">${displayText(item.managementTeam || "")}</textarea></label>
+        <label class="field full-span"><span>Modelo de negócio</span><textarea name="businessModel">${displayText(item.businessModel || "")}</textarea></label>
         <label class="field full-span"><span>Receitas</span><textarea name="revenues">${item.revenues || ""}</textarea></label>
-        <label class="field full-span"><span>Historico de captacao</span><textarea name="fundraisingHistory">${item.fundraisingHistory || ""}</textarea></label>
+        <label class="field full-span"><span>Histórico de captação</span><textarea name="fundraisingHistory">${displayText(item.fundraisingHistory || "")}</textarea></label>
         <label class="field full-span"><span>Competidores</span><textarea name="competitors">${item.competitors || ""}</textarea></label>
         <label class="field full-span"><span>Vantagens competitivas</span><textarea name="advantages">${item.advantages || ""}</textarea></label>
         <label class="field full-span"><span>Fundadores</span><textarea name="founders">${item.founders || ""}</textarea></label>
@@ -4653,14 +4829,15 @@ function openTaskDialog(projectName, presetStage = "") {
         <button class="dialog-close-button" data-dialog-close type="button" aria-label="Fechar">×</button>
       </div>
       <div class="dialog-grid crm-dialog-grid task-editor-grid">
-        <label class="field"><span>Tema</span><select name="stage">${stages.map((stage) => `<option ${stage === selectedStage ? "selected" : ""}>${stage}</option>`).join("")}</select></label>
+        <label class="field"><span>Tema</span><select name="stage">${stages.map((stage) => `<option ${stage === selectedStage ? "selected" : ""}>${displayText(stage)}</option>`).join("")}</select></label>
         <div class="field task-editor-spacer"></div>
-        <label class="field full-span"><span>Titulo</span><input name="title" placeholder="Titulo da tarefa"></label>
-        <label class="field full-span"><span>Descricao</span><textarea name="description"></textarea></label>
-        <label class="field"><span>Status</span><select name="status"><option>A Fazer</option><option>Em andamento</option><option>Revisao</option><option>Concluido</option></select></label>
-        <label class="field"><span>Prioridade</span><select name="priority"><option>Alta</option><option>Media</option><option>Baixa</option></select></label>
-        <label class="field"><span>Responsavel</span><select name="owner"><option value="">Selecione</option>${workspaceConfig[state.currentWorkspace].memberOptions.map((owner) => `<option>${owner}</option>`).join("")}</select></label>
+        <label class="field full-span"><span>Título</span><input name="title" placeholder="Título da tarefa"></label>
+        <label class="field full-span"><span>Descrição</span><textarea name="description"></textarea></label>
+        <label class="field"><span>Status</span><select name="status"><option>A Fazer</option><option>Em andamento</option><option>Revisão</option><option>Concluído</option></select></label>
+        <label class="field"><span>Prioridade</span><select name="priority"><option>Alta</option><option>Média</option><option>Baixa</option></select></label>
+        <label class="field"><span>Responsável</span><select name="owner"><option value="">Selecione</option>${workspaceConfig[state.currentWorkspace].memberOptions.map((owner) => `<option>${displayText(owner)}</option>`).join("")}</select></label>
         <label class="field"><span>Prazo</span><input name="dueDate" type="date" value="${todayISO()}"></label>
+        <label class="field"><span>Data de conclusão</span><input name="completionDate" type="date"></label>
         <label class="field full-span"><span>Tags</span><input name="tags" placeholder="Ex: Marketing, Growth"></label>
       </div>
       <div class="dialog-actions task-create-actions">
@@ -4685,6 +4862,7 @@ function openTaskDialog(projectName, presetStage = "") {
       description: formData.get("description"),
       owner: formData.get("owner"),
       dueDate: formData.get("dueDate"),
+      completionDate: formData.get("completionDate"),
       priority: formData.get("priority"),
       stage: formData.get("stage"),
       status: formData.get("status") || "A Fazer",
@@ -4777,10 +4955,14 @@ function openTaskThemesDialog() {
     event.preventDefault();
     const nextThemes = [];
     const nextColors = [];
+    const seenThemes = new Set();
     rowsRoot.querySelectorAll("[data-theme-row]").forEach((row, index) => {
       const name = row.querySelector(`input[name^='theme-name-']`)?.value.trim();
       const color = row.querySelector(`input[name^='theme-color-']`)?.value.trim();
       if (!name) return;
+      const normalizedName = name.toLowerCase();
+      if (seenThemes.has(normalizedName)) return;
+      seenThemes.add(normalizedName);
       nextThemes.push(name);
       nextColors.push(color || DEFAULT_KANBAN_THEME_COLORS[index % DEFAULT_KANBAN_THEME_COLORS.length]);
     });
@@ -4825,14 +5007,15 @@ function openTaskEditor(taskId, isProject, projectName = "") {
         <button class="dialog-close-button" data-dialog-close type="button" aria-label="Fechar">×</button>
       </div>
       <div class="dialog-grid crm-dialog-grid task-editor-grid">
-        <label class="field"><span>Tema</span><select name="stage">${themes.map((theme) => `<option ${task.stage === theme ? "selected" : ""}>${theme}</option>`).join("")}</select></label>
+        <label class="field"><span>Tema</span><select name="stage">${themes.map((theme) => `<option ${task.stage === theme ? "selected" : ""}>${displayText(theme)}</option>`).join("")}</select></label>
         <div class="field task-editor-spacer"></div>
-        <label class="field full-span"><span>Titulo</span><input name="title" value="${escapeAttr(task.title)}"></label>
-        <label class="field full-span"><span>Descricao</span><textarea name="description">${task.description || ""}</textarea></label>
-        <label class="field"><span>Status</span><select name="status"><option ${task.status === "A Fazer" || task.status === "A fazer" ? "selected" : ""}>A Fazer</option><option ${task.status === "Em Execucao" || task.status === "Em andamento" ? "selected" : ""}>Em andamento</option><option ${task.status === "Revisao" || task.status === "Revisão" ? "selected" : ""}>Revisao</option><option ${task.status === "Concluido" || task.status === "Concluído" ? "selected" : ""}>Concluido</option></select></label>
-        <label class="field"><span>Prioridade</span><select name="priority"><option ${task.priority === "Alta" ? "selected" : ""}>Alta</option><option ${task.priority === "Media" ? "selected" : ""}>Media</option><option ${task.priority === "Baixa" ? "selected" : ""}>Baixa</option></select></label>
-        <label class="field"><span>Responsavel</span><select name="owner">${memberOptions.map((owner) => `<option ${task.owner === owner ? "selected" : ""}>${owner}</option>`).join("")}</select></label>
+        <label class="field full-span"><span>Título</span><input name="title" value="${escapeAttr(displayText(task.title))}"></label>
+        <label class="field full-span"><span>Descrição</span><textarea name="description">${displayText(task.description || "")}</textarea></label>
+        <label class="field"><span>Status</span><select name="status"><option ${task.status === "A Fazer" || task.status === "A fazer" ? "selected" : ""}>A Fazer</option><option ${task.status === "Em Execucao" || task.status === "Em andamento" ? "selected" : ""}>Em andamento</option><option ${task.status === "Revisao" || task.status === "Revisão" ? "selected" : ""}>Revisão</option><option ${task.status === "Concluido" || task.status === "Concluído" ? "selected" : ""}>Concluído</option></select></label>
+        <label class="field"><span>Prioridade</span><select name="priority"><option ${task.priority === "Alta" ? "selected" : ""}>Alta</option><option ${task.priority === "Media" ? "selected" : ""}>Média</option><option ${task.priority === "Baixa" ? "selected" : ""}>Baixa</option></select></label>
+        <label class="field"><span>Responsável</span><select name="owner">${memberOptions.map((owner) => `<option ${task.owner === owner ? "selected" : ""}>${displayText(owner)}</option>`).join("")}</select></label>
         <label class="field"><span>Prazo</span><input name="dueDate" type="date" value="${escapeAttr(task.dueDate || todayISO())}"></label>
+        <label class="field"><span>Data de conclusão</span><input name="completionDate" type="date" value="${escapeAttr(task.completionDate || "")}"></label>
         <label class="field full-span"><span>Excluir</span><button class="ghost-button task-delete-button" type="button" id="taskDeleteButton">Excluir tarefa</button></label>
       </div>
       <div class="dialog-actions task-editor-actions">
@@ -4870,6 +5053,7 @@ function openTaskEditor(taskId, isProject, projectName = "") {
     task.priority = String(formData.get("priority") || task.priority);
     task.owner = String(formData.get("owner") || task.owner);
     task.dueDate = String(formData.get("dueDate") || task.dueDate);
+    task.completionDate = String(formData.get("completionDate") || "");
     saveState();
     dialog.close();
     dialog.classList.add("hidden");
@@ -4884,11 +5068,11 @@ function openDocumentDialog(linkedToPreset = "") {
   dialog.classList.remove("hidden");
   dialog.innerHTML = `
       <form method="dialog" id="documentForm" class="compact-dialog-form">
-        <div class="panel-header dialog-header"><div><h3>Novo documento</h3><p>Upload com download local e categorizacao por area</p></div><button class="dialog-close-button" data-dialog-close type="button" aria-label="Fechar">X</button></div>
+        <div class="panel-header dialog-header"><div><h3>Novo documento</h3><p>Upload com download local e categorização por área</p></div><button class="dialog-close-button" data-dialog-close type="button" aria-label="Fechar">X</button></div>
       <div class="dialog-grid compact-dialog-grid">
         <label class="field"><span>Nome</span><input name="name"></label>
-        <label class="field"><span>Categoria</span><select name="category"><option>Juridico</option><option>Financeiro</option><option>Comercial</option></select></label>
-        <label class="field full-span"><span>Vinculado a</span><input name="linkedTo" placeholder="Projeto ou area" value="${escapeAttr(linkedToPreset)}"></label>
+        <label class="field"><span>Categoria</span><select name="category"><option>Jurídico</option><option>Financeiro</option><option>Comercial</option></select></label>
+        <label class="field full-span"><span>Vinculado a</span><input name="linkedTo" placeholder="Projeto ou área" value="${escapeAttr(linkedToPreset)}"></label>
         <label class="field full-span"><span>Arquivo</span><input name="file" type="file"></label>
       </div>
       <div class="dialog-actions">
@@ -4945,7 +5129,7 @@ function renameKanbanColumn(kind, index, nextName) {
   const list = kind === "project" ? workspaceProjectThemes(state.currentWorkspace) : workspaceTaskThemes(state.currentWorkspace);
   const previous = list[index];
   if (!previous || previous === cleanName) return;
-  list[index] = cleanName;
+  const duplicateIndex = list.findIndex((entry, entryIndex) => entryIndex !== index && String(entry || "").trim().toLowerCase() === cleanName.toLowerCase());
   const collections = kind === "project"
     ? Object.values(workspaceData().projectBoards || {})
     : [workspaceData().taskItems || []];
@@ -4954,6 +5138,14 @@ function renameKanbanColumn(kind, index, nextName) {
       if (task.stage === previous) task.stage = cleanName;
     });
   });
+  if (duplicateIndex >= 0) {
+    list.splice(index, 1);
+    if (kind !== "project" && Array.isArray(workspaceData().taskThemeColors)) {
+      workspaceData().taskThemeColors.splice(index, 1);
+    }
+  } else {
+    list[index] = cleanName;
+  }
   saveState();
   renderApp();
 }
@@ -5086,13 +5278,13 @@ function bindInlineEditing() {
 }
 
 function exportCRM() {
-  const headers = ["Nome", "Status", "Setor", "Responsavel", "Valor", "Tags"];
+  const headers = ["Nome", "Status", "Setor", "Responsável", "Valor", "Tags"];
   const rows = workspaceData().crmItems.map((item) => [item.name, item.status, item.sector, item.owner, item.estimatedValue, item.tags.join(" | ")]);
   downloadCSV(`${state.currentWorkspace}-crm.csv`, headers, rows);
 }
 
 function exportTasks() {
-  const headers = ["Titulo", "Coluna", "Responsavel", "Prazo", "Prioridade", "Tags"];
+  const headers = ["Título", "Coluna", "Responsável", "Prazo", "Prioridade", "Tags"];
   const rows = workspaceData().taskItems.map((item) => [item.title, item.stage, item.owner, item.dueDate, item.priority, item.tags.join(" | ")]);
   downloadCSV(`${state.currentWorkspace}-tasks.csv`, headers, rows);
 }
@@ -5223,7 +5415,7 @@ function importStateBackup() {
       alert("Backup importado com sucesso.");
     } catch (error) {
       console.error(error);
-      alert("Nao foi possivel importar o backup selecionado.");
+      alert("Não foi possível importar o backup selecionado.");
     }
   };
   input.click();
