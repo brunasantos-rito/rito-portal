@@ -140,6 +140,8 @@ const DEFAULT_TASK_THEMES = {
   fast: ["ABF", "Pessoas", "Operacoes", "Estrategico", "Financeiro", "Marketing"]
 };
 
+const FAST_DAILY_THEMES = ["ABF", "Felps", "Penog", "Prospecta", "Financeiro", "Estratégico", "Design Gráfico", "Operações", "Comercial", "Mayra"];
+
 const DEFAULT_PROJECT_THEMES = {
   rito: ["Operacao", "Financeiro", "Comercial", "Juridico", "Growth"],
   atica: ["Operacao", "Financeiro", "Comercial", "Juridico", "Governanca"],
@@ -909,6 +911,46 @@ function buildFastTaskItems() {
   ];
 }
 
+function buildFastDailyTasksMarch30() {
+  const dueDate = "2026-03-30";
+  const seed = (title, stage, owner = "", description = "", priority = "Media") => ({
+    id: uid("task"),
+    title,
+    description,
+    owner,
+    dueDate,
+    completionDate: "",
+    priority,
+    stage,
+    status: "A Fazer",
+    tags: [stage, "Pauta 30/03"].filter(Boolean)
+  });
+
+  return [
+    seed("Contratar vendedor com experiência de franquia", "ABF", "Samuel", "", "Alta"),
+    seed("Definir 2 pessoas para atender investidores na ABF", "ABF", "Samuel", "Levar mais 1 pessoa", "Alta"),
+    seed("Definir 2 pessoas para pegar dados e bipar crachá", "ABF", "Samuel", "", "Alta"),
+    seed("Organizar tráfego pago da ABF", "ABF", "Mayra", "", "Alta"),
+    seed("Verificar possibilidade de contratar consultor comercial", "Felps", "Samuel", "Avaliar aumento da variável e redução do fixo", "Alta"),
+    seed("Avaliar agência de franquias", "Penog", "Samuel", "Proposta: 5k fee + 1% do valor da venda da franquia", "Alta"),
+    seed("Avaliar agência de franquia", "Prospecta", "Samuel", "", "Media"),
+    seed("Pagar Júlia em espécie e encerrar recorrência", "Financeiro", "Bruna Cristina", "Ex-colaboradora", "Alta"),
+    seed("Negociar bandeira Master e Visa", "Estratégico", "Arthur Bueno", "Ver possibilidade de negociação", "Alta"),
+    seed("Reduzir valor da social media e reforçar design", "Design Gráfico", "Mayra", "", "Media"),
+    seed("Verificar redução do contrato do Júlio", "Financeiro", "Rodrigo", "", "Alta"),
+    seed("Definir pagamentos do todo dia 20", "Financeiro", "Bruna Cristina", "", "Alta"),
+    seed("Estruturar caminhão para ações em cidades", "Operações", "Mayra", "", "Media"),
+    seed("Organizar expansão comercial de quarta às 11h", "Comercial", "Bruna Cristina", "Enviar invite", "Alta"),
+    seed("Resolver tapume do aeroporto para retirada do teto", "Operações", "Moisés", "", "Alta"),
+    seed("Verificar contrato de Cuiabá", "Operações", "", "Avaliar venda da praça", "Alta"),
+    seed("Verificar contratos dos PJs", "Financeiro", "", "", "Alta"),
+    seed("Renegociar aluguel da matriz", "Financeiro", "", "Pagar IPTU e pedir pagamento de apenas 3 meses com desconto", "Alta"),
+    seed("Cobrar fundo de promoção e marketing dos franqueados", "Financeiro", "", "", "Alta"),
+    seed("Revisitar verba de tráfego", "Mayra", "Mayra", "1.300 para a agência + 5.000 de tráfego", "Media"),
+    seed("Revisar unit economics por massagem", "Financeiro", "", "", "Alta")
+  ];
+}
+
 function normalizeFastTaskThemeName(stage = "") {
   const value = String(stage || "").trim();
   const map = {
@@ -1054,6 +1096,7 @@ function migrateFastWorkspace(rootState) {
   if (!fast) return;
 
   const seededTasks = buildFastTaskItems();
+  const dailyTasks = buildFastDailyTasksMarch30();
   const currentTasks = Array.isArray(fast.taskItems) ? fast.taskItems : [];
   const currentThemes = Array.isArray(fast.taskThemes) && fast.taskThemes.length
     ? fast.taskThemes.map((theme) => String(theme || "").trim()).filter(Boolean)
@@ -1064,12 +1107,21 @@ function migrateFastWorkspace(rootState) {
       task.stage = normalizeFastTaskThemeName(task.stage);
     });
   }
+  const existingTitles = new Set(nextTasks.map((task) => String(task.title || "").trim().toLowerCase()));
+  dailyTasks.forEach((task) => {
+    if (!existingTitles.has(String(task.title || "").trim().toLowerCase())) {
+      nextTasks.unshift(task);
+      existingTitles.add(String(task.title || "").trim().toLowerCase());
+    }
+  });
   fast.taskItems = nextTasks;
-  fast.taskThemes = currentThemes.length ? [...new Set(currentThemes)] : [...DEFAULT_TASK_THEMES.fast];
+  const preservedThemes = currentThemes.length ? currentThemes : [...DEFAULT_TASK_THEMES.fast];
+  const nextThemes = [...new Set([...FAST_DAILY_THEMES, ...preservedThemes])].filter(Boolean);
+  fast.taskThemes = nextThemes.length ? nextThemes : [...DEFAULT_TASK_THEMES.fast];
   fast.members = fast.members || [];
-  ["Bruna Cristina", "Arthur Bueno", "Ciro Ribeiro", "Mayra", "Eduardo", "Rodrigo", "Grace"].forEach((name) => {
+  ["Bruna Cristina", "Arthur Bueno", "Ciro Ribeiro", "Mayra", "Eduardo", "Rodrigo", "Grace", "Samuel", "Moisés"].forEach((name) => {
     if (!fast.members.some((member) => member.name === name)) {
-      fast.members.push({ name, role: name === "Grace" ? "Marketing" : name === "Mayra" ? "Operacoes" : name === "Eduardo" ? "Operacoes" : name === "Rodrigo" ? "Operacoes" : name === "Arthur Bueno" ? "CEO" : name === "Ciro Ribeiro" ? "Socio" : "Financeiro", photo: defaultMemberPhoto(name) });
+      fast.members.push({ name, role: name === "Grace" ? "Marketing" : name === "Mayra" ? "Operacoes" : name === "Eduardo" ? "Operacoes" : name === "Rodrigo" ? "Operacoes" : name === "Samuel" ? "Comercial" : name === "Moisés" ? "Operacoes" : name === "Arthur Bueno" ? "CEO" : name === "Ciro Ribeiro" ? "Socio" : "Financeiro", photo: defaultMemberPhoto(name) });
     }
   });
 }
@@ -2382,18 +2434,19 @@ function renderRitoDashboardTable(rows = referenceDashboardRows()) {
   rows.forEach((rowData) => {
     const row = document.createElement("div");
     row.className = "table-row rito-table-row";
+    const linked = workspaceData().crmItems.find((item) => item.name === rowData.company);
+    const shouldShowDeclinedReason = normalizeReferenceDashboardStage(linked || rowData) === "Declined";
     row.innerHTML = `
       <div class="company-cell">
         ${renderCompanyBadge(rowData)}
         <div><strong>${displayText(rowData.company)}</strong><div class="subtle">${displayText(rowData.segment)}</div></div>
       </div>
-      <div class="table-summary-cell">${normalizeReferenceDashboardStage(linked || rowData) === "Declined" ? (rowData.statusSummary || "-") : ""}</div>
+      <div class="table-summary-cell">${shouldShowDeclinedReason ? (rowData.statusSummary || "-") : ""}</div>
       <div><span class="chip chip-${rowData.stage.toLowerCase().replace(/\s+/g, "-")}">${rowData.stage}</span></div>
       <div><span class="chip chip-${rowData.temp.toLowerCase()}">${rowData.temp}</span></div>
       <div class="owner-cell">${renderOwnerAvatar(rowData.owner)}<span>${displayText(rowData.owner)}</span></div>
       <div>${rowData.close}</div>
     `;
-    const linked = workspaceData().crmItems.find((item) => item.name === rowData.company);
     if (linked) {
       row.draggable = true;
       row.dataset.crmId = linked.id;
@@ -5293,6 +5346,15 @@ function renameKanbanColumn(kind, index, nextName) {
   renderApp();
 }
 
+function persistKanbanColumnDraft(kind, index, nextName) {
+  const cleanName = String(nextName || "").trim();
+  if (!cleanName) return;
+  const list = kind === "project" ? workspaceProjectThemes(state.currentWorkspace) : workspaceTaskThemes(state.currentWorkspace);
+  if (!list[index]) return;
+  list[index] = cleanName;
+  saveState();
+}
+
 function fileToDataURL(file, fallback) {
   if (!file) return Promise.resolve(fallback);
   return new Promise((resolve, reject) => {
@@ -5410,6 +5472,13 @@ function bindInlineEditing() {
   });
 
   document.querySelectorAll("[data-inline-column]").forEach((node) => {
+    let renameTimer = null;
+    node.addEventListener("input", () => {
+      clearTimeout(renameTimer);
+      renameTimer = setTimeout(() => {
+        persistKanbanColumnDraft(node.dataset.inlineColumn, Number(node.dataset.columnIndex), node.textContent);
+      }, 180);
+    });
     node.addEventListener("blur", () => renameKanbanColumn(node.dataset.inlineColumn, Number(node.dataset.columnIndex), node.textContent));
     node.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
