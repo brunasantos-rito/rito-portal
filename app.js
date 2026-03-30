@@ -913,6 +913,7 @@ function normalizeFastTaskThemeName(stage = "") {
   const value = String(stage || "").trim();
   const map = {
     "Operacao": "Operacoes",
+    "Operações": "Operacoes",
     "Operação": "Operacoes",
     "Marketing & Marca": "Marketing",
     "Estratégico": "Estrategico"
@@ -1054,15 +1055,16 @@ function migrateFastWorkspace(rootState) {
 
   const seededTasks = buildFastTaskItems();
   const currentTasks = Array.isArray(fast.taskItems) ? fast.taskItems : [];
-  const nextTasks = currentTasks.length ? currentTasks : seededTasks;
-  nextTasks.forEach((task) => {
-    task.stage = normalizeFastTaskThemeName(task.stage);
-  });
-  fast.taskItems = nextTasks;
-
   const currentThemes = Array.isArray(fast.taskThemes) && fast.taskThemes.length
-    ? fast.taskThemes.map((theme) => normalizeFastTaskThemeName(theme))
+    ? fast.taskThemes.map((theme) => String(theme || "").trim()).filter(Boolean)
     : [];
+  const nextTasks = currentTasks.length ? currentTasks : seededTasks;
+  if (!currentThemes.length) {
+    nextTasks.forEach((task) => {
+      task.stage = normalizeFastTaskThemeName(task.stage);
+    });
+  }
+  fast.taskItems = nextTasks;
   fast.taskThemes = currentThemes.length ? [...new Set(currentThemes)] : [...DEFAULT_TASK_THEMES.fast];
   fast.members = fast.members || [];
   ["Bruna Cristina", "Arthur Bueno", "Ciro Ribeiro", "Mayra", "Eduardo", "Rodrigo", "Grace"].forEach((name) => {
@@ -1320,7 +1322,11 @@ function inferThemeFromTask(task, themes) {
 
 function normalizeKanbanTask(task, themes) {
   const directMatch = themes.find((theme) => theme === task.stage);
-  const normalizedMatch = themes.find((theme) => normalizeColumnKey(theme) === normalizeColumnKey(task.stage));
+  const canonicalStage = normalizeFastTaskThemeName(task.stage);
+  const normalizedMatch = themes.find((theme) =>
+    normalizeColumnKey(theme) === normalizeColumnKey(task.stage) ||
+    normalizeColumnKey(normalizeFastTaskThemeName(theme)) === normalizeColumnKey(canonicalStage)
+  );
   if (normalizedMatch && !directMatch) {
     task.stage = normalizedMatch;
   } else if (!task.stage || !directMatch) {
@@ -1663,6 +1669,11 @@ function dealStatusSummaryPreview(item, maxLength = 150) {
   return `${summary.slice(0, maxLength).trim()}...`;
 }
 
+function declinedReasonPreview(item, maxLength = 150) {
+  if (!item || normalizeReferenceDashboardStage(item) !== "Declined") return "";
+  return dealStatusSummaryPreview(item, maxLength);
+}
+
 function declinedDealReasonStats(items) {
   const buckets = new Map();
   (items || [])
@@ -1690,9 +1701,9 @@ function referenceCardSubtle(card) {
 
 function referenceCardStatusSummary(card) {
   const matched = referenceDashboardRows().find((row) => row.company === card.name);
-  if (matched) return matched.statusSummary;
+  if (matched) return declinedReasonPreview(matched, 180);
   const linked = workspaceData().crmItems.find((item) => item.name === card.name);
-  return dealStatusSummaryPreview(linked);
+  return declinedReasonPreview(linked, 180);
 }
 
 function createReferenceProjectRow(card, sourceView = "crm") {
@@ -2376,7 +2387,7 @@ function renderRitoDashboardTable(rows = referenceDashboardRows()) {
         ${renderCompanyBadge(rowData)}
         <div><strong>${displayText(rowData.company)}</strong><div class="subtle">${displayText(rowData.segment)}</div></div>
       </div>
-      <div class="table-summary-cell">${rowData.statusSummary || "-"}</div>
+      <div class="table-summary-cell">${normalizeReferenceDashboardStage(linked || rowData) === "Declined" ? (rowData.statusSummary || "-") : ""}</div>
       <div><span class="chip chip-${rowData.stage.toLowerCase().replace(/\s+/g, "-")}">${rowData.stage}</span></div>
       <div><span class="chip chip-${rowData.temp.toLowerCase()}">${rowData.temp}</span></div>
       <div class="owner-cell">${renderOwnerAvatar(rowData.owner)}<span>${displayText(rowData.owner)}</span></div>
@@ -2801,7 +2812,12 @@ function bindRitoProjectDetailPage(page, item) {
       openProjectDetail(item.id, sourceView);
     };
   });
+  let autosaveTimer = null;
   page.querySelectorAll("[data-drawer-field], [data-framework-field]").forEach((field) => {
+    field.addEventListener("input", () => {
+      clearTimeout(autosaveTimer);
+      autosaveTimer = setTimeout(() => persistProjectDraft(item, page), 220);
+    });
     field.addEventListener("change", () => persistDrawerProject(item, page));
     field.addEventListener("blur", () => persistDrawerProject(item, page));
   });
@@ -3018,7 +3034,9 @@ function createReferenceProjectCard(card, invested = false, sourceView = "crm") 
   const displayOwner = linked?.owner || card.owner;
   const displayProgress = linked?.progress ?? card.progress ?? 35;
   const companyDescription = displayText(linked?.description || card.description || linked?.businessModel || card.framework || "-");
-  const statusSummary = dealStatusSummaryPreview(linked || card, 160);
+  const statusSummarySource = linked || card;
+  const statusSummary = dealStatusSummaryPreview(statusSummarySource, 160);
+  const statusSummaryLabel = normalizeReferenceDashboardStage(statusSummarySource) === "Declined" ? "Motivo do declínio" : "Resumo do status";
   if (linked) {
     article.draggable = true;
     article.dataset.crmId = linked.id;
@@ -3038,7 +3056,7 @@ function createReferenceProjectCard(card, invested = false, sourceView = "crm") 
         <p>${companyDescription}</p>
       </div>
       <div class="reference-description-block reference-status-block">
-        <span>Resumo do status</span>
+        <span>${statusSummaryLabel}</span>
         <p>${statusSummary}</p>
       </div>
       <label class="reference-value-field">
@@ -3491,6 +3509,7 @@ function createCRMCard(item) {
   const accent = coverPalette[item.status] || "#2864ff";
   const companyDescription = displayText(item.description || item.businessModel || item.framework || "-");
   const statusSummary = dealStatusSummaryPreview(item, 150);
+  const statusSummaryLabel = normalizeReferenceDashboardStage(item) === "Declined" ? "Motivo do declínio" : "Resumo do status";
   const managementTeam = displayText(item.managementTeam || item.management || item.founders || "-");
   const fundraisingHistory = displayText(item.fundraisingHistory || "-");
   const vcBacked = displayText(item.vcPeBacked || "-");
@@ -3513,7 +3532,7 @@ function createCRMCard(item) {
           <p>${companyDescription}</p>
         </div>
         <div class="card-field card-description-preview card-status-summary">
-          <span>Resumo do status</span>
+          <span>${statusSummaryLabel}</span>
           <p>${statusSummary}</p>
         </div>
         <div class="card-meta-grid">
@@ -4653,6 +4672,37 @@ async function persistDrawerProject(item, root = document) {
   item.updatedAt = todayISO();
   if (JSON.stringify(item) !== before) pushHistory(item, "Informações do projeto atualizadas");
   upsertCRMItem(item);
+}
+
+function persistProjectDraft(item, root = document) {
+  ensureProjectShape(item);
+  const oldName = item.name;
+  root.querySelectorAll("[data-drawer-field]").forEach((field) => {
+    const key = field.dataset.drawerField;
+    item[key] = field.type === "number" ? Number(field.value) : field.value;
+  });
+  root.querySelectorAll("[data-framework-field]").forEach((field) => {
+    item.frameworkDetails[field.dataset.frameworkField] = field.value;
+  });
+  root.querySelectorAll("[data-media-field]").forEach((field) => {
+    item.media[field.dataset.mediaField] = field.type === "number" ? Number(field.value) : field.value;
+  });
+  if (oldName !== item.name && workspaceData().projectBoards[oldName]) {
+    const existingBoard = workspaceData().projectBoards[item.name] || [];
+    workspaceData().projectBoards[item.name] = [...existingBoard, ...workspaceData().projectBoards[oldName]];
+    delete workspaceData().projectBoards[oldName];
+  }
+  workspaceData().documents.forEach((doc) => {
+    if ((doc.linkedTo || "").toLowerCase() === oldName.toLowerCase()) doc.linkedTo = item.name;
+  });
+  syncInvestmentTag(item);
+  item.subtitle = item.subtitle || `${item.sector} - ${item.location} - ${item.year}`;
+  item.updatedAt = todayISO();
+  const items = workspaceData().crmItems;
+  const index = items.findIndex((entry) => entry.id === item.id);
+  if (index >= 0) items[index] = item;
+  else items.unshift(item);
+  saveState();
 }
 
 function clipboardImageFromPasteEvent(event) {
