@@ -1827,11 +1827,13 @@ body[data-theme="dark"] .card-cover::after {
 .declined-reasons-panel {
   display: grid;
   gap: 14px;
+  background: #ffffff;
 }
 
 .project-confidence-panel {
   display: grid;
   gap: 14px;
+  background: #ffffff;
 }
 
 .project-confidence-grid {
