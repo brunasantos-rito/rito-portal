@@ -6398,7 +6398,9 @@ async function showLoginScreen() {
       return;
     }
 
-    location.reload();
+    msg.style.color = "#2e7d32";
+    msg.textContent = "Entrando...";
+    await protectApp();
   });
 
   registerBtn.addEventListener("click", async () => {
@@ -6421,9 +6423,22 @@ async function showLoginScreen() {
   });
 }
 
+async function persistPortalBeforeSessionChange() {
+  flushOpenEditors();
+  state.lastSavedAt = new Date().toISOString();
+  cacheStateLocally(state);
+  try {
+    await flushRemoteSave();
+  } catch (error) {
+    console.warn("Falha ao sincronizar antes da troca de sessão. Mantendo cache local.", error);
+  }
+}
+
 async function logoutUser() {
+  await persistPortalBeforeSessionChange();
   await supabaseClient.auth.signOut();
-  location.reload();
+  document.getElementById("portalLogoutButton")?.remove();
+  await showLoginScreen();
 }
 
 function addLogoutButton() {
