@@ -2097,6 +2097,15 @@ function getFilteredRitoDashboardCards() {
   return getRitoReferenceCards().filter((card) => names.has(card.name));
 }
 
+function reconcileProjectInvestmentState(item) {
+  const investmentKey = normalizeProjectTagKey(item?.investmentStatus);
+  const explicitNonInvested = investmentKey === normalizeProjectTagKey("Não investido");
+  const normalizedStatus = normalizeRitoDealStatus(item?.status, item?.investmentStatus);
+  if (explicitNonInvested && ["Portfólio", "Aporte", "Exit"].includes(normalizedStatus)) {
+    item.status = "Pipeline";
+  }
+}
+
 function updateRitoDashboardView() {
   if (!usingReferenceDashboard() || state.currentView[state.currentWorkspace] !== "dashboard") {
     renderApp();
@@ -2117,6 +2126,7 @@ function updateRitoDashboardView() {
 }
 
 function ensureProjectShape(item) {
+  reconcileProjectInvestmentState(item);
   item.tags = normalizeProjectTagList(item.tags || [], item);
   const normalizedStatus = normalizeRitoDealStatus(item.status, item.investmentStatus);
   const investedByStatus = ["Portfólio", "Aporte", "Exit"].includes(normalizedStatus);
