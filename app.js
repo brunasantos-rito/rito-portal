@@ -100,6 +100,65 @@ function scheduleSave() {
   }, 800);
 }
 
+function flushRemoteSave() {
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  return saveSharedPortalState(state)
+    .then(() => console.log("Portal salvo no banco."))
+    .catch((error) => console.error("Erro ao salvar:", error));
+}
+
+function persistTaskEditorDraft() {
+  const form = document.getElementById("taskEditorForm");
+  if (!form) return;
+  const taskId = form.dataset.taskId;
+  const isProject = form.dataset.taskProject === "1";
+  const projectName = form.dataset.projectName || "";
+  const task = findKanbanTask(taskId, isProject, projectName);
+  if (!task) return;
+  const formData = new FormData(form);
+  task.stage = String(formData.get("stage") || task.stage);
+  task.title = String(formData.get("title") || task.title).trim();
+  task.description = String(formData.get("description") || "").trim();
+  task.status = String(formData.get("status") || task.status);
+  task.priority = String(formData.get("priority") || task.priority);
+  task.owner = String(formData.get("owner") || task.owner);
+  task.dueDate = normalizeDateInputValue(formData.get("dueDate") || task.dueDate);
+  task.completionDate = normalizeDateInputValue(formData.get("completionDate") || "");
+  saveState();
+}
+
+function flushOpenEditors() {
+  try {
+    const projectPage = document.querySelector(".project-detail-page");
+    const selectedProject = getSelectedProject();
+    if (projectPage && selectedProject) {
+      persistProjectDraft(selectedProject, projectPage);
+    }
+  } catch (error) {
+    console.warn("Falha ao salvar rascunho do projeto antes de sair.", error);
+  }
+
+  try {
+    const drawer = document.getElementById("entityDrawer");
+    const selectedProject = getSelectedProject();
+    if (drawer && !drawer.classList.contains("hidden") && selectedProject) {
+      persistProjectDraft(selectedProject, drawer);
+    }
+  } catch (error) {
+    console.warn("Falha ao salvar rascunho do drawer antes de sair.", error);
+  }
+
+  try {
+    persistTaskEditorDraft();
+  } catch (error) {
+    console.warn("Falha ao salvar rascunho da tarefa antes de sair.", error);
+  }
+
+  state.lastSavedAt = new Date().toISOString();
+  cacheStateLocally(state);
+}
+
 const ARTHUR_BUENO_PHOTO = "foto-arthur.jpg";
 
 const workspaceConfig = {
@@ -109,18 +168,8 @@ const workspaceConfig = {
     subtitle: "CRM, investimento e operação",
     mark: "Rito",
     views: ["dashboard", "crm", "invested", "tasks", "projectBoards", "documents", "members", "settings"],
-    pipelineStages: ["Frio", "Morno", "Quente", "Pipeline", "Declined"],
-    kanbanStages: ["A fazer", "Em andamento", "Concluido"],
-    memberOptions: ["Bruna Cristina", "Arthur Bueno", "Ciro Ribeiro", "Gabriela Reis"]
-  },
-  atica: {
-    id: "atica",
-    name: "Ática Gestão",
-    subtitle: "CRM e gestão interna",
-    mark: "AG",
-    views: ["dashboard", "crm", "tasks", "projectBoards", "documents"],
-    pipelineStages: ["Frio", "Morno", "Quente", "Pipeline", "Declined"],
-    kanbanStages: ["A fazer", "Em andamento", "Concluido"],
+    pipelineStages: ["Lead", "Pipeline", "NDA", "IRL", "LOI", "NBO", "Proposta", "Due Diligence", "Signing", "Closing", "Aporte", "Portfólio", "Declinado", "Exit"],
+    kanbanStages: ["A fazer", "Em andamento", "Concluído"],
     memberOptions: ["Bruna Cristina", "Arthur Bueno", "Ciro Ribeiro", "Gabriela Reis"]
   },
   fast: {
@@ -134,18 +183,18 @@ const workspaceConfig = {
   }
 };
 
+const RITO_DEAL_STATUS_OPTIONS = ["Lead", "Pipeline", "NDA", "IRL", "LOI", "NBO", "Proposta", "Due Diligence", "Signing", "Closing", "Aporte", "Portfólio", "Declinado", "Exit"];
+
 const DEFAULT_TASK_THEMES = {
   rito: ["Infra / CRM", "Marca e Marketing", "Digital", "Juridico", "Deals", "Governanca", "Marca", "Financeiro"],
-  atica: ["Operacao", "Financeiro", "Comercial", "Governanca", "Projetos"],
   fast: ["ABF", "Pessoas", "Operacoes", "Estrategico", "Financeiro", "Marketing"]
 };
 
 const FAST_DAILY_THEMES = ["ABF", "Felps", "Penog", "Prospecta", "Financeiro", "Estratégico", "Design Gráfico", "Operações", "Comercial", "Mayra"];
 
 const DEFAULT_PROJECT_THEMES = {
-  rito: ["Operacao", "Financeiro", "Comercial", "Juridico", "Growth"],
-  atica: ["Operacao", "Financeiro", "Comercial", "Juridico", "Governanca"],
-  fast: ["Operacao", "Marketing", "Expansao", "Financeiro"]
+  rito: ["Operação", "Financeiro", "Comercial", "Jurídico", "Growth"],
+  fast: ["Operação", "Marketing", "Expansão", "Financeiro"]
 };
 
 const DEFAULT_KANBAN_THEME_COLORS = ["#8AAFCC", "#80CBC4", "#C87070", "#B0ACCE", "#F48FB1", "#FFCC80", "#FF8A65", "#B8A47A", "#4DB6AC", "#7986CB", "#BA68C8"];
@@ -196,12 +245,6 @@ const workspaceLaunchMeta = {
     shortLabel: "FM",
     descriptor: "Operações",
     greeting: "Operação, marketing e expansão da marca."
-  },
-  atica: {
-    index: "03",
-    shortLabel: "AG",
-    descriptor: "Gestão Interna",
-    greeting: "CRM e gestão interna do workspace."
   }
 };
 
@@ -491,21 +534,113 @@ function ritoSubtitle(sector, location, year) {
   return [sector, location, year].filter(Boolean).join(" - ");
 }
 
+function normalizeRitoDealStatus(status, investmentStatus = "") {
+  const value = String(status || "").trim();
+  const normalized = value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  const map = {
+    lead: "Lead",
+    pipeline: "Pipeline",
+    nda: "NDA",
+    irl: "IRL",
+    loi: "LOI",
+    nbo: "NBO",
+    proposta: "Proposta",
+    "due diligence": "Due Diligence",
+    signing: "Signing",
+    closing: "Closing",
+    aporte: "Aporte",
+    portfolio: "Portfólio",
+    portfolioo: "Portfólio",
+    portfólio: "Portfólio",
+    investidos: "Portfólio",
+    invested: "Portfólio",
+    declined: "Declinado",
+    declinado: "Declinado",
+    exit: "Exit"
+  };
+  if (map[normalized]) return map[normalized];
+  if (!value && investmentStatus === "Investido") return "Portfólio";
+  return value || "Lead";
+}
+
+function progressFromRitoDealStatus(status) {
+  const normalized = normalizeRitoDealStatus(status);
+  const progressMap = {
+    Lead: 10,
+    Pipeline: 20,
+    NDA: 30,
+    IRL: 40,
+    LOI: 50,
+    NBO: 60,
+    Proposta: 70,
+    "Due Diligence": 80,
+    Signing: 90,
+    Closing: 100,
+    Aporte: 100,
+    "Portfólio": 100,
+    Declinado: 0,
+    Exit: 100
+  };
+  return progressMap[normalized] ?? 0;
+}
+
+function temperatureFromRitoDealStatus(status) {
+  const normalized = normalizeRitoDealStatus(status);
+  if (normalized === "Lead") return "Frio";
+  if (["Pipeline", "NDA", "IRL"].includes(normalized)) return "Morno";
+  if (["LOI", "NBO", "Proposta", "Due Diligence", "Signing", "Closing"].includes(normalized)) return "Quente";
+  if (["Aporte", "Portfólio"].includes(normalized)) return "Investida";
+  if (normalized === "Declinado") return "Declinada";
+  if (normalized === "Exit") return "Exit";
+  return "Frio";
+}
+
+function applyDealStatus(item, nextStatus) {
+  const normalized = normalizeRitoDealStatus(nextStatus, item?.investmentStatus);
+  item.status = normalized;
+  item.progress = progressFromRitoDealStatus(normalized);
+  item.temperature = temperatureFromRitoDealStatus(normalized);
+  if (["Aporte", "Portfólio", "Exit"].includes(normalized)) {
+    item.investmentStatus = "Investido";
+  } else if (normalized === "Declinado") {
+    item.investmentStatus = "Nao investido";
+  }
+  syncInvestmentTag(item);
+}
+
+function ritoStatusOptionsMarkup(selectedStatus) {
+  const current = normalizeRitoDealStatus(selectedStatus);
+  return RITO_DEAL_STATUS_OPTIONS
+    .map((status) => `<option value="${escapeAttr(status)}" ${status === current ? "selected" : ""}>${status}</option>`)
+    .join("");
+}
+
 function referenceStatusLabel(status, investmentStatus) {
-  return investmentStatus === "Investido" ? "Investido" : status;
+  return normalizeRitoDealStatus(status, investmentStatus);
 }
 
 function referenceAccent(status, investmentStatus) {
-  if (investmentStatus === "Investido") return "#77d7ef";
+  const normalized = normalizeRitoDealStatus(status, investmentStatus);
+  if (["Aporte", "Portfólio", "Exit"].includes(normalized) || investmentStatus === "Investido") return "#77d7ef";
   return {
     Pipeline: "#c69a10",
-    Declined: "#df8f86",
+    NDA: "#4c88c8",
+    IRL: "#6d86d8",
+    LOI: "#7d5cf2",
+    NBO: "#8a67d9",
+    Proposta: "#c27a4d",
     LOI: "#7d5cf2",
     "Due Diligence": "#c4a26a",
+    Signing: "#9b7e4f",
+    Closing: "#2c9a72",
+    Declinado: "#df8f86",
     Frio: "#5d7ff0",
     Morno: "#c4a26a",
     Quente: "#ef7a69"
-  }[status] || "#a0a6b4";
+  }[normalized] || "#a0a6b4";
 }
 
 const ritoReferenceProjects = [
@@ -641,6 +776,7 @@ function referenceProjectToCRMItem(project) {
   const investmentStatus = project.investmentStatus || "Nao investido";
   const temperature = project.temperature || "Morno";
   const statusLabel = referenceStatusLabel(project.status, investmentStatus);
+  const normalizedStatus = normalizeRitoDealStatus(project.status, investmentStatus);
   return {
     id: uid("deal"),
     referenceKey: referenceProjectKey(project),
@@ -653,14 +789,14 @@ function referenceProjectToCRMItem(project) {
     sector: project.sector || "",
     location: project.location || "",
     year: project.year || "",
-    status: project.status,
+    status: normalizedStatus,
     subtitle,
     tags: [...new Set([...(project.tags || []), statusLabel, investmentStatus === "Investido" ? "Investido" : "Nao investido", temperature])],
     owner: project.owner || "Arthur Bueno",
     estimatedValue: project.estimatedValue || 0,
     investmentAmount: project.investmentAmount || 0,
     framework: project.framework || `${project.sector || "Projeto"} / Thesis / Diligence`,
-    progress: project.progress !== undefined ? project.progress : investmentStatus === "Investido" ? 100 : project.status === "Due Diligence" ? 60 : project.status === "LOI" ? 72 : project.status === "Pipeline" ? 35 : 18,
+    progress: project.progress !== undefined ? project.progress : progressFromRitoDealStatus(normalizedStatus),
     temperature,
     investmentStatus,
     priority: project.priority || "Media",
@@ -1129,37 +1265,36 @@ function migrateFastWorkspace(rootState) {
 function seedData() {
   return {
     theme: "light",
-    workspaceOrder: ["rito", "atica", "fast"],
+    workspaceOrder: ["rito", "fast"],
     currentWorkspace: "rito",
     currentView: {
       rito: "dashboard",
-      atica: "dashboard",
       fast: "dashboard"
     },
     selectedProjectId: {
       rito: "",
-      atica: "",
       fast: ""
     },
     projectReturnView: {
       rito: "crm",
-      atica: "crm",
       fast: "dashboard"
     },
     dashboardFilters: {
       rito: { stage: "Todos", temp: "Todos", query: "" },
-      atica: { stage: "Todos", temp: "Todos", query: "" },
       fast: { stage: "Todos", temp: "Todos", query: "" }
     },
     pipelineFilters: {
       rito: { temp: "Todos", query: "" },
-      atica: { temp: "Todos", query: "" },
       fast: { temp: "Todos", query: "" }
     },
     referenceViewModes: {
       rito: { crm: "cards", invested: "cards" },
-      atica: { crm: "cards", invested: "cards" },
       fast: { crm: "cards", invested: "cards" }
+    },
+    fastDashboardStatusFocus: "",
+    kanbanCompletedVisibility: {
+      rito: {},
+      fast: {}
     },
     workspaces: {
       rito: {
@@ -1178,46 +1313,6 @@ function seedData() {
         documents: [
           { id: uid("doc"), name: "SPA - Omni Internet.pdf", category: "Juridico", linkedTo: "Omni Internet", fileData: "", fileType: "application/pdf", uploadedAt: "2026-03-10" },
           { id: uid("doc"), name: "Modelo Financeiro Fast Massagem.xlsx", category: "Financeiro", linkedTo: "Fast Massagem", fileData: "", fileType: "application/vnd.ms-excel", uploadedAt: "2026-03-14" }
-        ],
-        members: [
-          { name: "Bruna Cristina", role: "Sell Side", photo: "" },
-          { name: "Arthur Bueno", role: "CEO", photo: ARTHUR_BUENO_PHOTO },
-          { name: "Ciro Ribeiro", role: "Socio", photo: "" },
-          { name: "Gabriela Reis", role: "Sell Side", photo: "" }
-        ]
-      },
-      atica: {
-        crmItems: [
-          {
-            id: uid("deal"),
-            name: "Atica Advisory Prime",
-            logo: "",
-            cover: defaultCover("Atica", "#3a1c71", "#d76d77"),
-            description: "Mandato consultivo com foco em performance financeira e governanca.",
-            sector: "Consultoria",
-            location: "Goiania - GO",
-            year: "2026",
-            status: "Pipeline",
-            tags: ["Pipeline", "B2B", "Investido"],
-            owner: "Bruna Cristina",
-            estimatedValue: 2800000,
-            framework: "CFO as a Service / Governance / Growth",
-            progress: 74
-          }
-        ],
-        taskItems: [
-          { id: uid("task"), title: "Atualizar cronograma financeiro", stage: "A fazer", owner: "Ciro Ribeiro", dueDate: "2026-03-22", priority: "Media", status: "A fazer", tags: ["Financeiro"] },
-          { id: uid("task"), title: "Consolidar OKRs internos", stage: "Em andamento", owner: "Arthur Bueno", dueDate: "2026-03-19", priority: "Alta", status: "Em andamento", tags: ["Gestao"] }
-        ],
-        taskThemes: [...DEFAULT_TASK_THEMES.atica],
-        projectThemes: [...DEFAULT_PROJECT_THEMES.atica],
-        projectBoards: {
-          "Atica Advisory Prime": [
-            { id: uid("proj"), title: "Revisar estrutura de reporting", stage: "A fazer", owner: "Bruna Cristina", dueDate: "2026-03-25", priority: "Media", status: "A fazer", tags: ["Reporting"] }
-          ]
-        },
-        documents: [
-          { id: uid("doc"), name: "Template de governanca.pdf", category: "Comercial", linkedTo: "Atica Advisory Prime", fileData: "", fileType: "application/pdf", uploadedAt: "2026-03-09" }
         ],
         members: [
           { name: "Bruna Cristina", role: "Sell Side", photo: "" },
@@ -1249,6 +1344,55 @@ function seedData() {
 let state = seedData();
 applyDefaultMemberPhotos(state);
 
+function pruneDeprecatedWorkspaces(rootState) {
+  if (!rootState || typeof rootState !== "object") return;
+  delete rootState.workspaces?.atica;
+  if (Array.isArray(rootState.workspaceOrder)) {
+    rootState.workspaceOrder = rootState.workspaceOrder.filter((id) => id !== "atica");
+  }
+  if (rootState.currentWorkspace === "atica" || !workspaceConfig[rootState.currentWorkspace]) {
+    rootState.currentWorkspace = "rito";
+  }
+  ["currentView", "selectedProjectId", "projectReturnView", "dashboardFilters", "pipelineFilters", "referenceViewModes", "kanbanCompletedVisibility"].forEach((key) => {
+    if (rootState[key] && typeof rootState[key] === "object") {
+      delete rootState[key].atica;
+    }
+  });
+}
+
+function buildPortalState(snapshot = null) {
+  if (!snapshot || typeof snapshot !== "object" || !Object.keys(snapshot).length) {
+    const seeded = seedData();
+    seeded.lastSavedAt = seeded.lastSavedAt || new Date().toISOString();
+    pruneDeprecatedWorkspaces(seeded);
+    applyDefaultMemberPhotos(seeded);
+    return seeded;
+  }
+
+  const base = seedData();
+  const merged = { ...base, ...snapshot };
+
+  merged.referenceViewModes = {
+    ...base.referenceViewModes,
+    ...(snapshot.referenceViewModes || {})
+  };
+
+  Object.keys(base.referenceViewModes).forEach((workspace) => {
+    merged.referenceViewModes[workspace] = {
+      ...base.referenceViewModes[workspace],
+      ...((snapshot.referenceViewModes || {})[workspace] || {})
+    };
+  });
+
+  migrateRitoReferenceProjects(merged);
+  migrateRitoKanbanTasks(merged);
+  migrateFastWorkspace(merged);
+  pruneDeprecatedWorkspaces(merged);
+  applyDefaultMemberPhotos(merged);
+  merged.lastSavedAt = merged.lastSavedAt || new Date().toISOString();
+  return merged;
+}
+
 async function loadState() {
   const localState = loadStateFromLocalCache();
   try {
@@ -1262,63 +1406,14 @@ async function loadState() {
 
     const remoteState = data?.data && Object.keys(data.data).length ? data.data : null;
     const parsed = chooseMoreRecentState(localState, remoteState, data?.updated_at);
-    if (!parsed) {
-      const seeded = seedData();
-      seeded.lastSavedAt = new Date().toISOString();
-      applyDefaultMemberPhotos(seeded);
-      cacheStateLocally(seeded);
-      return seeded;
-    }
-
-    const base = seedData();
-    const merged = { ...base, ...parsed };
-
-    merged.referenceViewModes = {
-      ...base.referenceViewModes,
-      ...(parsed.referenceViewModes || {})
-    };
-
-    Object.keys(base.referenceViewModes).forEach((workspace) => {
-      merged.referenceViewModes[workspace] = {
-        ...base.referenceViewModes[workspace],
-        ...((parsed.referenceViewModes || {})[workspace] || {})
-      };
-    });
-
-    migrateRitoReferenceProjects(merged);
-    migrateRitoKanbanTasks(merged);
-    migrateFastWorkspace(merged);
-    applyDefaultMemberPhotos(merged);
+    const merged = buildPortalState(parsed);
     cacheStateLocally(merged);
-
     return merged;
   } catch (error) {
     console.error("Falha ao carregar dados do banco", error);
-    if (localState) {
-      const base = seedData();
-      const merged = { ...base, ...localState };
-      merged.referenceViewModes = {
-        ...base.referenceViewModes,
-        ...(localState.referenceViewModes || {})
-      };
-      Object.keys(base.referenceViewModes).forEach((workspace) => {
-        merged.referenceViewModes[workspace] = {
-          ...base.referenceViewModes[workspace],
-          ...((localState.referenceViewModes || {})[workspace] || {})
-        };
-      });
-      migrateRitoReferenceProjects(merged);
-      migrateRitoKanbanTasks(merged);
-      migrateFastWorkspace(merged);
-      applyDefaultMemberPhotos(merged);
-      cacheStateLocally(merged);
-      return merged;
-    }
-    const seeded = seedData();
-    seeded.lastSavedAt = new Date().toISOString();
-    applyDefaultMemberPhotos(seeded);
-    cacheStateLocally(seeded);
-    return seeded;
+    const fallback = buildPortalState(localState);
+    cacheStateLocally(fallback);
+    return fallback;
   }
 }
 
@@ -1550,6 +1645,18 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function normalizeDateInputValue(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const brMatch = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (brMatch) {
+    const [, day, month, year] = brMatch;
+    return `${year}-${month}-${day}`;
+  }
+  return raw;
+}
+
 const RITO_PRIORITY_PIPELINE_ORDER = [
   "Pop Move",
   "Geral / Braslar",
@@ -1560,6 +1667,20 @@ const RITO_PRIORITY_PIPELINE_ORDER = [
 function workspaceData() {
   ensureWorkspaceKanbans(state.currentWorkspace);
   return state.workspaces[state.currentWorkspace];
+}
+
+function workspaceKanbanCompletedVisibility(workspaceId = state.currentWorkspace) {
+  if (!state.kanbanCompletedVisibility) {
+    state.kanbanCompletedVisibility = { rito: {}, atica: {}, fast: {} };
+  }
+  if (!state.kanbanCompletedVisibility[workspaceId]) {
+    state.kanbanCompletedVisibility[workspaceId] = {};
+  }
+  return state.kanbanCompletedVisibility[workspaceId];
+}
+
+function isCompletedTaskStatus(status = "") {
+  return ["concluido", "concluído"].includes(String(status || "").trim().toLowerCase());
 }
 
 function prioritizedRitoPipelineItems(items = []) {
@@ -1838,11 +1959,12 @@ function usingReferenceDashboard() {
 }
 
 function normalizeReferenceDashboardStage(item) {
-  if (item.investmentStatus === "Investido" || (item.tags || []).includes("Investido")) return "Portfolio";
-  if (item.status === "Declined" || item.status === "Declinado") return "Declined";
-  if (item.status === "Due Diligence") return "Due Diligence";
-  if (item.status === "LOI") return "LOI";
-  if (item.status === "Lead") return "Lead";
+  const normalized = normalizeRitoDealStatus(item.status, item.investmentStatus);
+  if (["Aporte", "Portfólio", "Exit"].includes(normalized) || item.investmentStatus === "Investido" || (item.tags || []).includes("Investido")) return "Portfolio";
+  if (normalized === "Declinado") return "Declined";
+  if (["LOI", "NBO", "Proposta"].includes(normalized)) return "LOI";
+  if (["Due Diligence", "Signing", "Closing"].includes(normalized)) return "Due Diligence";
+  if (normalized === "Lead") return "Lead";
   return "Pipeline";
 }
 
@@ -1854,6 +1976,8 @@ function referenceDashboardRows() {
       segment: item.email || item.sector || item.subtitle || "-",
       contact: item.contact || item.mainContact || item.email || "-",
       statusSummary: dealStatusSummaryPreview(item, 180),
+      projectStrengths: displayText(item.projectStrengths || ""),
+      projectWeaknesses: displayText(item.projectWeaknesses || ""),
       stage: normalizeReferenceDashboardStage(item),
       temp: item.temperature || "Frio",
       owner: item.owner || "-",
@@ -1883,7 +2007,7 @@ function getFilteredRitoDashboardRows() {
   const filters = dashboardFilterState();
   const query = (filters.query || "").toLowerCase();
   return referenceDashboardRows().filter((row) => {
-    const queryMatch = !query || [row.company, row.segment, row.contact, row.owner].join(" ").toLowerCase().includes(query);
+    const queryMatch = !query || [row.company, row.segment, row.contact, row.owner, row.statusSummary, row.projectStrengths, row.projectWeaknesses].join(" ").toLowerCase().includes(query);
     const tempMatch = filters.temp === "Todos" || row.temp === filters.temp;
     const stageMatch = dashboardStageMatches(row, filters.stage);
     return queryMatch && tempMatch && stageMatch;
@@ -1916,17 +2040,22 @@ function updateRitoDashboardView() {
 }
 
 function ensureProjectShape(item) {
+  item.tags = normalizeProjectTagList(item.tags || [], item);
   if (!item.temperature) item.temperature = item.tags.includes("Quente") ? "Quente" : item.tags.includes("Morno") ? "Morno" : "Frio";
   if (!item.investmentStatus) item.investmentStatus = item.tags.includes("Investido") ? "Investido" : "Nao investido";
+  item.status = normalizeRitoDealStatus(item.status, item.investmentStatus);
+  item.temperature = temperatureFromRitoDealStatus(item.status);
   if (!item.investmentAmount) item.investmentAmount = 0;
   if (!item.priority) item.priority = "Media";
   if (!item.origin) item.origin = "Inbound";
   if (!item.subtitle) item.subtitle = `${item.sector || ""} - ${item.location || ""} - ${item.year || ""}`.replace(/^ - | - $/g, "");
   if (!item.history) item.history = [{ at: todayISO(), text: "Projeto criado no CRM" }];
-  if (item.progress === undefined) item.progress = item.tags.includes("Investido") ? 100 : item.status === "Pipeline" ? 30 : item.status === "Quente" ? 54 : 16;
+  item.progress = progressFromRitoDealStatus(item.status);
   if (!item.website) item.website = "";
   if (!item.vcPeBacked) item.vcPeBacked = "";
   if (!item.dealHistory) item.dealHistory = item.statusSummary || "";
+  if (!item.projectStrengths) item.projectStrengths = "";
+  if (!item.projectWeaknesses) item.projectWeaknesses = "";
   if (!item.createdAt) item.createdAt = todayISO();
   if (!item.updatedAt) item.updatedAt = todayISO();
   if (!item.managementTeam) item.managementTeam = "";
@@ -2371,11 +2500,11 @@ function renderRitoDashboardSide() {
   side.className = "dashboard-side rito-dashboard-side";
 
   const metrics = [
-    [String(filteredRows.length), "Deals", "visiveis"],
+    [String(filteredRows.length), "Deals", "visíveis"],
     [allocatedValue ? currency(allocatedValue) : "-", "Valor alocado", "projetos investidos"],
     [String(filteredRows.filter((row) => row.temp === "Quente").length), "Quentes", "em andamento"],
     [String(filteredRows.filter((row) => row.stage === "Portfolio").length), "Fechadas", "investidos"],
-    [projectedValue ? currency(projectedValue) : "-", "Projecao de alocacao", "nao investidos"]
+    [projectedValue ? currency(projectedValue) : "-", "Projeção de alocação", "não investidos"]
   ];
 
   const metricsRow = document.createElement("section");
@@ -2419,6 +2548,7 @@ function renderRitoDashboardSide() {
   side.appendChild(controls);
 
   side.appendChild(renderRitoDashboardTable(filteredRows));
+  side.appendChild(renderProjectConfidencePanel(filteredRows));
   side.appendChild(renderDeclinedReasonsPanel(crmItems));
   return side;
 }
@@ -2428,7 +2558,7 @@ function renderRitoDashboardTable(rows = referenceDashboardRows()) {
   table.className = "panel dashboard-table rito-dashboard-table";
   const head = document.createElement("div");
   head.className = "table-head";
-  head.innerHTML = "<div>Empresa</div><div>Resumo do status</div><div>Estágio</div><div>Temp.</div><div>Responsável</div><div>Fechamento</div>";
+  head.innerHTML = "<div>Empresa</div><div>Resumo do status</div><div>Estágio</div><div>Temp.</div><div>Responsável</div>";
   table.appendChild(head);
 
   rows.forEach((rowData) => {
@@ -2442,12 +2572,21 @@ function renderRitoDashboardTable(rows = referenceDashboardRows()) {
         <div><strong>${displayText(rowData.company)}</strong><div class="subtle">${displayText(rowData.segment)}</div></div>
       </div>
       <div class="table-summary-cell">${shouldShowDeclinedReason ? (rowData.statusSummary || "-") : ""}</div>
-      <div><span class="chip chip-${rowData.stage.toLowerCase().replace(/\s+/g, "-")}">${rowData.stage}</span></div>
+      <div class="stage-select-cell">${linked ? `<select class="deal-status-select deal-status-select-table" data-dashboard-status="${linked.id}">${ritoStatusOptionsMarkup(linked.status)}</select>` : `<span class="chip chip-${rowData.stage.toLowerCase().replace(/\s+/g, "-")}">${rowData.stage}</span>`}</div>
       <div><span class="chip chip-${rowData.temp.toLowerCase()}">${rowData.temp}</span></div>
       <div class="owner-cell">${renderOwnerAvatar(rowData.owner)}<span>${displayText(rowData.owner)}</span></div>
-      <div>${rowData.close}</div>
     `;
     if (linked) {
+      const statusSelect = row.querySelector(`[data-dashboard-status="${linked.id}"]`);
+      ["click", "mousedown", "mouseup", "touchstart", "touchend"].forEach((eventName) => {
+        statusSelect?.addEventListener(eventName, (event) => event.stopPropagation());
+      });
+      statusSelect?.addEventListener("change", (event) => {
+        applyDealStatus(linked, event.target.value);
+        linked.updatedAt = todayISO();
+        saveState();
+        updateRitoDashboardView();
+      });
       row.draggable = true;
       row.dataset.crmId = linked.id;
       row.classList.add("is-clickable");
@@ -2499,6 +2638,75 @@ function renderRitoDashboardTable(rows = referenceDashboardRows()) {
   return table;
 }
 
+function summarizeProjectField(items, key) {
+  const stats = new Map();
+  items.forEach((item) => {
+    String(item?.[key] || "")
+      .split(/\n|;/)
+      .map((part) => displayText(part).trim())
+      .filter(Boolean)
+      .forEach((label) => {
+        stats.set(label, (stats.get(label) || 0) + 1);
+      });
+  });
+  return Array.from(stats.entries())
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "pt-BR"));
+}
+
+function renderConfidenceBucket(title, subtitle, entries, toneClass) {
+  const bucket = document.createElement("article");
+  bucket.className = `project-confidence-bucket ${toneClass}`;
+  bucket.innerHTML = `
+    <div class="panel-header">
+      <div>
+        <h3>${title}</h3>
+        <p>${subtitle}</p>
+      </div>
+    </div>
+  `;
+  const list = document.createElement("div");
+  list.className = "project-confidence-list";
+  if (!entries.length) {
+    list.innerHTML = `<div class="subtle">Nenhum item preenchido ainda.</div>`;
+  } else {
+    const maxCount = Math.max(...entries.map((entry) => entry.count), 1);
+    entries.forEach((entry) => {
+      const row = document.createElement("article");
+      row.className = "project-confidence-row";
+      row.innerHTML = `
+        <div class="project-confidence-head">
+          <strong>${displayText(entry.label)}</strong>
+          <span>${entry.count}</span>
+        </div>
+        <div class="project-confidence-bar"><span style="width:${Math.max((entry.count / maxCount) * 100, 10)}%"></span></div>
+      `;
+      list.appendChild(row);
+    });
+  }
+  bucket.appendChild(list);
+  return bucket;
+}
+
+function renderProjectConfidencePanel(rows = referenceDashboardRows()) {
+  const panel = document.createElement("section");
+  panel.className = "panel project-confidence-panel";
+  panel.innerHTML = `
+    <div class="panel-header">
+      <div>
+        <h3>Leitura do pipeline</h3>
+        <p>Seguranças e inseguranças consolidadas dos projetos visíveis</p>
+      </div>
+    </div>
+  `;
+  const grid = document.createElement("div");
+  grid.className = "project-confidence-grid";
+  grid.appendChild(renderConfidenceBucket("Seguranças", "Pontos positivos mais recorrentes", summarizeProjectField(rows, "projectStrengths"), "is-strength"));
+  grid.appendChild(renderConfidenceBucket("Inseguranças", "Pontos de atenção mais recorrentes", summarizeProjectField(rows, "projectWeaknesses"), "is-weakness"));
+  panel.appendChild(grid);
+  return panel;
+}
+
 function renderDeclinedReasonsPanel(items) {
   const panel = document.createElement("section");
   panel.className = "panel declined-reasons-panel";
@@ -2537,7 +2745,7 @@ function renderDeclinedReasonsPanel(items) {
 function renderRitoDashboardCards(cards = []) {
   const wrap = document.createElement("section");
   wrap.className = "dashboard-highlight-section";
-  wrap.innerHTML = `<div class="section-head-row"><h4>Deals em destaque</h4><span class="subtle">${cards.length} visiveis</span></div>`;
+  wrap.innerHTML = `<div class="section-head-row"><h4>Deals em destaque</h4><span class="subtle">${cards.length} visíveis</span></div>`;
   const grid = document.createElement("div");
   grid.className = "dashboard-highlight-grid";
   (cards.length ? cards.slice(0, 3) : getRitoReferenceCards().slice(0, 3)).forEach((card) => {
@@ -2568,7 +2776,7 @@ function renderRitoPipelinePage() {
     </section>
   `;
   page.appendChild(renderStatStrip([
-      [String(crmItems.length), "Total"], [String(investedCount), "Investidos"], [String(pipelineCount), "Pipeline"], [String(declinedCount), "Declinados"], [totalPortfolioValue ? currency(totalPortfolioValue) : "-", "Projecao de Alocacao"]
+      [String(crmItems.length), "Total"], [String(investedCount), "Investidos"], [String(pipelineCount), "Pipeline"], [String(declinedCount), "Declinados"], [totalPortfolioValue ? currency(totalPortfolioValue) : "-", "Projeção de alocação"]
     ], "compact"));
   page.appendChild(renderRitoPipelineToolbar());
   const results = viewMode === "list"
@@ -2596,7 +2804,7 @@ function renderRitoInvestedPage() {
       </div>
     </section>
   `;
-  page.appendChild(renderStatStrip([[String(investedCards.length), "Total"], [String(activeCount), "Em Andamento"], [String(completedCount), "Concluidos"], [investedValue ? currency(investedValue) : "-", "Valor Alocado"]], "compact compact-four"));
+  page.appendChild(renderStatStrip([[String(investedCards.length), "Total"], [String(activeCount), "Em andamento"], [String(completedCount), "Concluídos"], [investedValue ? currency(investedValue) : "-", "Valor alocado"]], "compact compact-four"));
   if (viewMode === "list") {
     page.appendChild(renderReferenceList(investedCards, "invested", "Nenhum projeto investido encontrado"));
   } else {
@@ -2620,6 +2828,9 @@ function openProjectDetail(projectId, sourceView = state.currentView[state.curre
   state.currentView[state.currentWorkspace] = "projectDetail";
   saveState();
   renderApp();
+  window.scrollTo({ top: 0, behavior: "auto" });
+  document.querySelector(".main-panel")?.scrollTo({ top: 0, behavior: "auto" });
+  document.querySelector(".page-stack")?.scrollTo({ top: 0, behavior: "auto" });
 }
 
 function closeProjectDetail() {
@@ -2669,19 +2880,40 @@ function renderRitoProjectDetailPage() {
       <div class="project-progress-head"><span>Progresso</span><strong>${item.progress}%</strong></div>
       <div class="progress-bar"><span style="width:${item.progress}%;background:${item.accent || coverPalette[item.status] || "#6677b8"}"></span></div>
     </section>
+    <section class="project-detail-card project-tag-toolbar">
+      <div class="project-tag-toolbar-row">
+        <span class="project-tag-toolbar-label">Tags</span>
+        <button class="ghost-button" id="toggleProjectTagPicker" type="button">Selecionar</button>
+      </div>
+      <div class="tag-editor project-tag-selected-list is-compact">${editableProjectTags(item).map((tag) => `<span class="tag-chip ${tagChipClass(tag)}">${tag}<button data-remove-project-tag="${escapeAttr(tag)}" type="button">×</button></span>`).join("") || "<div class='subtle'>Nenhuma tag personalizada selecionada.</div>"}</div>
+      <section class="tag-picker-shell tag-picker-shell-compact hidden" id="projectTagPicker">
+        <div class="tag-picker-inline-row">
+          <input id="projectTagCreateInput" placeholder="Criar tag">
+          <button class="ghost-button" id="projectTagCreateButton" type="button">Adicionar</button>
+        </div>
+        <div class="tag-picker-block">
+          <span class="field-label">Selecionar tags</span>
+          <div class="tag-picker-options">${workspaceProjectTagOptions().map((tag) => `<button class="tag-picker-option ${tagChipClass(tag)} ${editableProjectTags(item).some((entry) => normalizeProjectTagKey(entry) === normalizeProjectTagKey(tag)) ? "is-selected" : ""}" data-toggle-project-tag="${escapeAttr(tag)}" type="button">${tag}</button>`).join("") || "<div class='subtle'>Nenhuma tag cadastrada ainda.</div>"}</div>
+        </div>
+        <div class="tag-picker-block">
+          <span class="field-label">Gerenciar catálogo</span>
+          <div class="tag-manage-list">${workspaceProjectTagOptions().map((tag) => `<div class="tag-manage-row"><input data-tag-rename-input="${escapeAttr(tag)}" value="${escapeAttr(tag)}"><button class="ghost-button" data-save-tag-rename="${escapeAttr(tag)}" type="button">Renomear</button><button class="ghost-button danger-button" data-delete-project-tag="${escapeAttr(tag)}" type="button">Excluir</button></div>`).join("") || "<div class='subtle'>As novas tags aparecerão aqui.</div>"}</div>
+        </div>
+      </section>
+    </section>
     <section class="project-meta-grid">
       ${renderProjectMetaCard("Nome", `<input data-drawer-field="name" value="${escapeAttr(item.name || "")}">`)}
-      ${renderProjectMetaCard("Stage", `<select data-drawer-field="status">${workspaceConfig[state.currentWorkspace].pipelineStages.map((stage) => `<option ${stage === item.status ? "selected" : ""}>${stage}</option>`).join("")}</select>`)}
+      ${renderProjectMetaCard("Fase", `<select data-drawer-field="status">${workspaceConfig[state.currentWorkspace].pipelineStages.map((stage) => `<option ${stage === item.status ? "selected" : ""}>${stage}</option>`).join("")}</select>`)}
       ${renderProjectMetaCard("Subtítulo", `<input data-drawer-field="subtitle" value="${escapeAttr(item.subtitle || "")}">`)}
       ${renderProjectMetaCard("Setor", `<input data-drawer-field="sector" value="${escapeAttr(item.sector || "")}">`)}
       ${renderProjectMetaCard("Localização", `<input data-drawer-field="location" value="${escapeAttr(item.location || "")}">`)}
       ${renderProjectMetaCard("Ano", `<input data-drawer-field="year" value="${escapeAttr(item.year || "")}">`)}
       ${renderProjectMetaCard("Website", `<input data-drawer-field="website" value="${escapeAttr(item.website || "")}">`)}
       ${renderProjectMetaCard("Responsável", `<select data-drawer-field="owner">${workspaceConfig[state.currentWorkspace].memberOptions.map((owner) => `<option ${owner === item.owner ? "selected" : ""}>${owner}</option>`).join("")}</select>`)}
-      ${renderProjectMetaCard("Temperatura", `<select data-drawer-field="temperature"><option ${item.temperature === "Frio" ? "selected" : ""}>Frio</option><option ${item.temperature === "Morno" ? "selected" : ""}>Morno</option><option ${item.temperature === "Quente" ? "selected" : ""}>Quente</option></select>`)}
-      ${renderProjectMetaCard("Prioridade", `<select data-drawer-field="priority"><option ${item.priority === "Alta" ? "selected" : ""}>Alta</option><option ${item.priority === "Media" ? "selected" : ""}>Media</option><option ${item.priority === "Baixa" ? "selected" : ""}>Baixa</option></select>`)}
+      ${renderProjectMetaCard("Temperatura", `<input data-drawer-field="temperature" value="${escapeAttr(item.temperature || "")}" readonly>`)}
+      ${renderProjectMetaCard("Prioridade", `<select data-drawer-field="priority"><option ${item.priority === "Alta" ? "selected" : ""}>Alta</option><option ${item.priority === "Media" ? "selected" : ""}>Média</option><option ${item.priority === "Baixa" ? "selected" : ""}>Baixa</option></select>`)}
       ${renderProjectMetaCard("VC/PE Backed", `<input data-drawer-field="vcPeBacked" value="${escapeAttr(item.vcPeBacked || "")}">`)}
-      ${renderProjectMetaCard("Investimento", `<select data-drawer-field="investmentStatus"><option ${item.investmentStatus === "Nao investido" ? "selected" : ""}>Nao investido</option><option ${item.investmentStatus === "Investido" ? "selected" : ""}>Investido</option></select>`)}
+      ${renderProjectMetaCard("Investimento", `<select data-drawer-field="investmentStatus"><option ${item.investmentStatus === "Nao investido" ? "selected" : ""}>Não investido</option><option ${item.investmentStatus === "Investido" ? "selected" : ""}>Investido</option></select>`)}
       ${renderProjectMetaCard("Valor da operação", `<input data-drawer-field="investmentAmount" type="number" value="${escapeAttr(item.investmentAmount || 0)}">`)}
       ${renderProjectMetaCard("Criado em", `<input data-drawer-field="createdAt" value="${escapeAttr(item.createdAt || "")}">`)}
       ${renderProjectMetaCard("Atualizado em", `<input data-drawer-field="updatedAt" value="${escapeAttr(item.updatedAt || "")}">`)}
@@ -2689,6 +2921,8 @@ function renderRitoProjectDetailPage() {
     <section class="project-detail-sections">
       <article class="project-detail-card"><h4>Descrição da Empresa</h4><textarea class="detail-textarea" data-drawer-field="description">${item.description || ""}</textarea></article>
       <article class="project-detail-card"><h4>Histórico do deal / Resumo do status</h4><textarea class="detail-textarea" data-drawer-field="dealHistory">${item.dealHistory || ""}</textarea></article>
+      <article class="project-detail-card"><h4>Seguranças do projeto</h4><textarea class="detail-textarea" data-drawer-field="projectStrengths">${item.projectStrengths || ""}</textarea></article>
+      <article class="project-detail-card"><h4>Inseguranças do projeto</h4><textarea class="detail-textarea" data-drawer-field="projectWeaknesses">${item.projectWeaknesses || ""}</textarea></article>
       <article class="project-detail-card"><h4>Time de gestão</h4><textarea class="detail-textarea" data-drawer-field="managementTeam">${displayText(item.managementTeam || "")}</textarea></article>
       <article class="project-detail-card"><h4>Modelo de Negócio</h4><textarea class="detail-textarea" data-drawer-field="businessModel">${item.businessModel || ""}</textarea></article>
       <article class="project-detail-card"><h4>Competidores</h4><textarea class="detail-textarea" data-drawer-field="competitors">${item.competitors || ""}</textarea></article>
@@ -2703,12 +2937,6 @@ function renderRitoProjectDetailPage() {
           <label class="field"><span>Status da diligência</span><input data-framework-field="statusDiligencia" value="${escapeAttr(item.frameworkDetails.statusDiligencia || "")}"></label>
           <label class="field"><span>Observações estratégicas</span><input data-framework-field="observacoes" value="${escapeAttr(item.frameworkDetails.observacoes || "")}"></label>
         </div>
-      </article>
-      <article class="project-detail-card">
-        <h4>Tags</h4>
-        <div class="tag-editor">${item.tags.map((tag) => `<span class="tag-chip">${tag}<button data-remove-tag="${escapeAttr(tag)}" type="button">X</button></span>`).join("")}</div>
-        <label class="field"><span>Adicionar tag</span><input id="projectNewTagInput" placeholder="Ex: SaaS"></label>
-        <div class="subtle">Use "Colar capa" ou "Colar logo" e depois Ctrl+V para inserir imagens direto da área de transferência.</div>
       </article>
     </section>
     <section class="project-detail-card project-detail-kanban-card">
@@ -2829,20 +3057,82 @@ function bindRitoProjectDetailPage(page, item) {
       page.querySelector(".project-progress-card .progress-bar span").style.width = `${field.value}%`;
     });
   });
-  page.querySelector("#projectNewTagInput")?.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter") return;
-    event.preventDefault();
-    const value = event.target.value.trim();
-    if (!value) return;
-    item.tags.push(value);
+  const statusField = page.querySelector("[data-drawer-field='status']");
+  const temperatureField = page.querySelector("[data-drawer-field='temperature']");
+  statusField?.addEventListener("change", () => {
+    if (temperatureField) temperatureField.value = temperatureFromRitoDealStatus(statusField.value);
+  });
+  page.querySelector("#toggleProjectTagPicker")?.addEventListener("click", () => {
+    page.querySelector("#projectTagPicker")?.classList.toggle("hidden");
+  });
+  const createProjectTag = () => {
+    const input = page.querySelector("#projectTagCreateInput");
+    const value = String(input?.value || "").trim();
+    const key = normalizeProjectTagKey(value);
+    if (!value || !key) return;
+    const options = workspaceProjectTagOptions();
+    if (!options.some((tag) => normalizeProjectTagKey(tag) === key)) {
+      workspaceData().projectTagOptions = [...options, value];
+    }
+    const nextTags = [...editableProjectTags(item)];
+    if (!nextTags.some((tag) => normalizeProjectTagKey(tag) === key)) nextTags.push(value);
+    setEditableProjectTags(item, nextTags);
+    item.updatedAt = todayISO();
     pushHistory(item, `Tag adicionada: ${value}`);
     saveState();
     openProjectDetail(item.id, sourceView);
+  };
+  page.querySelector("#projectTagCreateButton")?.addEventListener("click", createProjectTag);
+  page.querySelector("#projectTagCreateInput")?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    createProjectTag();
   });
-  page.querySelectorAll("[data-remove-tag]").forEach((button) => {
+  page.querySelectorAll("[data-toggle-project-tag]").forEach((button) => {
     button.onclick = () => {
-      item.tags = item.tags.filter((tag) => tag !== button.dataset.removeTag);
-      pushHistory(item, `Tag removida: ${button.dataset.removeTag}`);
+      const value = button.dataset.toggleProjectTag;
+      const current = editableProjectTags(item);
+      const exists = current.some((tag) => normalizeProjectTagKey(tag) === normalizeProjectTagKey(value));
+      const nextTags = exists
+        ? current.filter((tag) => normalizeProjectTagKey(tag) !== normalizeProjectTagKey(value))
+        : [...current, value];
+      setEditableProjectTags(item, nextTags);
+      item.updatedAt = todayISO();
+      pushHistory(item, exists ? `Tag removida: ${value}` : `Tag adicionada: ${value}`);
+      saveState();
+      openProjectDetail(item.id, sourceView);
+    };
+  });
+  page.querySelectorAll("[data-remove-project-tag]").forEach((button) => {
+    button.onclick = () => {
+      const value = button.dataset.removeProjectTag;
+      const nextTags = editableProjectTags(item).filter((tag) => normalizeProjectTagKey(tag) !== normalizeProjectTagKey(value));
+      setEditableProjectTags(item, nextTags);
+      item.updatedAt = todayISO();
+      pushHistory(item, `Tag removida: ${value}`);
+      saveState();
+      openProjectDetail(item.id, sourceView);
+    };
+  });
+  page.querySelectorAll("[data-save-tag-rename]").forEach((button) => {
+    button.onclick = () => {
+      const oldTag = button.dataset.saveTagRename;
+      const input = button.closest(".tag-manage-row")?.querySelector("input[data-tag-rename-input]");
+      const nextTag = String(input?.value || "").trim();
+      if (!nextTag) return;
+      renameProjectTagAcrossWorkspace(oldTag, nextTag);
+      item.updatedAt = todayISO();
+      pushHistory(item, `Tag renomeada: ${oldTag} -> ${nextTag}`);
+      saveState();
+      openProjectDetail(item.id, sourceView);
+    };
+  });
+  page.querySelectorAll("[data-delete-project-tag]").forEach((button) => {
+    button.onclick = () => {
+      const value = button.dataset.deleteProjectTag;
+      deleteProjectTagAcrossWorkspace(value);
+      item.updatedAt = todayISO();
+      pushHistory(item, `Tag excluída do catálogo: ${value}`);
       saveState();
       openProjectDetail(item.id, sourceView);
     };
@@ -3082,8 +3372,8 @@ function createReferenceProjectCard(card, invested = false, sourceView = "crm") 
   const displayLogo = linked?.logo || card.logo || "";
   const displayLogoText = linked?.logoText || card.logoText || "";
   const displayLogoBg = displayLogo ? "transparent" : (linked?.logoBg || card.logoBg || "transparent");
-  const displayTags = linked?.tags?.length ? linked.tags : card.tags;
-  const displayStatus = linked ? (linked.investmentStatus === "Investido" ? "Investido" : linked.status) : card.status;
+  const displayTags = normalizeProjectTagList(linked?.tags?.length ? linked.tags : card.tags, linked || card);
+  const displayStatus = linked ? linked.status : card.status;
   const displayOwner = linked?.owner || card.owner;
   const displayProgress = linked?.progress ?? card.progress ?? 35;
   const companyDescription = displayText(linked?.description || card.description || linked?.businessModel || card.framework || "-");
@@ -3228,6 +3518,8 @@ function renderFastDashboardDetail(tasks) {
     { label: "Aguardando", key: "Revisao", count: tasks.filter((task) => task.status === "Revisao").length, color: "#c6932d" },
     { label: "Concluídas", key: "Concluido", count: tasks.filter((task) => task.status === "Concluido").length, color: "#32a36a" }
   ];
+  const activeStatusKey = state.fastDashboardStatusFocus || "";
+  const activeStatusGroup = statusGroups.find((item) => item.key === activeStatusKey) || null;
   const statusSegments = [];
   let cumulative = 0;
   statusGroups.forEach((item) => {
@@ -3252,14 +3544,57 @@ function renderFastDashboardDetail(tasks) {
       </div>
       <div class="fast-legend-list">
         ${statusGroups.map((item) => `
-          <div class="fast-legend-row">
+          <button class="fast-legend-row ${activeStatusKey === item.key ? "is-active" : ""}" data-fast-status-filter="${item.key}" type="button">
             <span class="fast-legend-main"><span class="fast-legend-dot" style="background:${item.color}"></span>${item.label}</span>
             <strong>${item.count}</strong>
-          </div>
+          </button>
         `).join("")}
       </div>
     </div>
   `;
+  statusPanel.querySelectorAll("[data-fast-status-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const nextKey = button.dataset.fastStatusFilter;
+      state.fastDashboardStatusFocus = state.fastDashboardStatusFocus === nextKey ? "" : nextKey;
+      renderApp();
+    });
+  });
+  if (activeStatusGroup) {
+    const matchingTasks = tasks.filter((task) => task.status === activeStatusGroup.key);
+    const detail = document.createElement("div");
+    detail.className = "fast-status-detail";
+    detail.innerHTML = `
+      <div class="fast-status-detail-head">
+        <div>
+          <strong>${activeStatusGroup.label}</strong>
+          <span>${matchingTasks.length} atividade${matchingTasks.length === 1 ? "" : "s"}</span>
+        </div>
+        <button class="ghost-button" data-fast-status-close type="button">Fechar</button>
+      </div>
+      <div class="fast-status-task-list">
+        ${matchingTasks.map((task) => `
+          <button class="fast-status-task-item" data-fast-status-task="${task.id}" type="button">
+            <div class="fast-status-task-top">
+              <strong>${displayText(task.title)}</strong>
+              <span class="soft-pill">${displayText(task.stage)}</span>
+            </div>
+            <div class="fast-status-task-meta">${displayText(task.owner || "Sem responsável")} • ${displayText(task.priority || "Média")}${task.dueDate ? ` • Prazo: ${task.dueDate}` : ""}</div>
+            ${task.description ? `<p>${displayText(task.description)}</p>` : ""}
+          </button>
+        `).join("") || "<div class='subtle'>Nenhuma atividade encontrada.</div>"}
+      </div>
+    `;
+    detail.querySelector("[data-fast-status-close]")?.addEventListener("click", () => {
+      state.fastDashboardStatusFocus = "";
+      renderApp();
+    });
+    detail.querySelectorAll("[data-fast-status-task]").forEach((button) => {
+      button.addEventListener("click", () => {
+        openTaskEditor(button.dataset.fastStatusTask, false);
+      });
+    });
+    statusPanel.appendChild(detail);
+  }
 
   const workstreamPanel = document.createElement("section");
   workstreamPanel.className = "panel fast-panel";
@@ -3729,21 +4064,61 @@ function renderTasksBoard() {
     board.innerHTML = "";
     themes.forEach((stage, index) => {
       const accentColor = themeColors[index] || DEFAULT_KANBAN_THEME_COLORS[index % DEFAULT_KANBAN_THEME_COLORS.length];
-      const column = document.createElement("article");
-      column.className = "board-column reference-column";
-      column.innerHTML = `<div class="column-header reference-column-head"><span class="reference-column-accent" style="background:${accentColor}"></span><strong contenteditable="true" spellcheck="false" data-inline-column="task" data-column-index="${index}">${stage}</strong><span class="column-count">${data.taskItems.filter((task) => task.stage === stage).length}</span><button class="ghost-icon-button column-open" data-add-theme-task="${stage}" type="button">+</button></div><div class="kanban-list reference-column-list" data-dropzone="${stage}"></div>`;
-      const list = column.querySelector(".kanban-list");
-      data.taskItems
+      const stageTasks = data.taskItems
         .filter((task) => task.stage === stage)
         .filter((task) => !owner || task.owner.toLowerCase().includes(owner))
         .filter((task) => !priority || task.priority === priority)
-        .filter((task) => !tag || task.tags.join(" ").toLowerCase().includes(tag))
-        .forEach((task) => list.appendChild(createTaskCard(task, false, "")));
+        .filter((task) => !tag || task.tags.join(" ").toLowerCase().includes(tag));
+      const visibleTasks = stageTasks.filter((task) => !isCompletedTaskStatus(task.status));
+      const completedTasks = stageTasks.filter((task) => isCompletedTaskStatus(task.status));
+      const completedVisibility = workspaceKanbanCompletedVisibility();
+      const showCompleted = Boolean(completedVisibility[stage]);
+      const column = document.createElement("article");
+      column.className = "board-column reference-column";
+      column.innerHTML = `
+        <div class="column-header reference-column-head">
+          <span class="reference-column-accent" style="background:${accentColor}"></span>
+          <strong contenteditable="true" spellcheck="false" data-inline-column="task" data-column-index="${index}">${stage}</strong>
+          <span class="column-count">${visibleTasks.length}</span>
+          <button class="ghost-icon-button column-open" data-add-theme-task="${stage}" type="button">+</button>
+        </div>
+        <div class="kanban-list reference-column-list" data-dropzone="${stage}"></div>
+        ${completedTasks.length ? `
+          <div class="kanban-completed-section ${showCompleted ? "is-open" : ""}">
+            <button class="kanban-completed-toggle" data-toggle-completed-stage="${escapeAttr(stage)}" type="button">
+              <span>${showCompleted ? "Ocultar" : "Ver"} concluídas</span>
+              <strong>${completedTasks.length}</strong>
+            </button>
+            <div class="kanban-completed-list ${showCompleted ? "" : "hidden"}" data-completed-list="${escapeAttr(stage)}"></div>
+          </div>
+        ` : ""}
+      `;
+      const list = column.querySelector(".kanban-list");
+      visibleTasks.forEach((task) => list.appendChild(createTaskCard(task, false, "")));
+      if (!visibleTasks.length) {
+        const empty = document.createElement("div");
+        empty.className = "kanban-column-empty";
+        empty.textContent = completedTasks.length ? "Atividades concluídas ocultas no rodapé." : "Sem tarefas";
+        list.appendChild(empty);
+      }
+      const completedList = column.querySelector(`[data-completed-list="${escapeAttr(stage)}"]`);
+      if (completedList && showCompleted) {
+        completedTasks.forEach((task) => completedList.appendChild(createTaskCard(task, false, "")));
+      }
       board.appendChild(column);
     });
     attachDnD("[data-dropzone]", updateTaskStage);
     board.querySelectorAll("[data-add-theme-task]").forEach((button) => {
       button.onclick = () => openTaskDialog("", button.dataset.addThemeTask);
+    });
+    board.querySelectorAll("[data-toggle-completed-stage]").forEach((button) => {
+      button.onclick = () => {
+        const stage = button.dataset.toggleCompletedStage;
+        const visibility = workspaceKanbanCompletedVisibility();
+        visibility[stage] = !visibility[stage];
+        saveState();
+        draw();
+      };
     });
   };
 
@@ -3755,6 +4130,7 @@ function createTaskCard(task, projectScoped, projectName = "") {
   const article = document.createElement("article");
   article.className = "kanban-card reference-task-card";
   article.draggable = true;
+  article.dataset.taskId = task.id;
   const isLate = task.dueDate < todayISO();
   const priorityClass = task.priority === "Alta" ? "high" : task.priority === "Baixa" ? "low" : "mid";
   const ownerMarkup = task.owner ? renderOwnerAvatar(task.owner, "task-card-assignee") : '<span class="task-card-assignee is-empty"></span>';
@@ -3770,7 +4146,30 @@ function createTaskCard(task, projectScoped, projectName = "") {
     ${task.completionDate ? `<div class="task-card-completion">Conclusão: ${task.completionDate}</div>` : ""}
   `;
   article.addEventListener("dragstart", (event) => {
+    event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", task.id);
+    article.classList.add("is-dragging");
+  });
+  article.addEventListener("dragend", () => {
+    article.classList.remove("is-dragging");
+    document.querySelectorAll(".kanban-list").forEach((list) => list.classList.remove("is-drop-target"));
+  });
+  article.addEventListener("dragover", (event) => {
+    const zone = article.closest("[data-dropzone]");
+    if (!zone || projectScoped) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    document.querySelectorAll(".kanban-list").forEach((list) => {
+      if (list !== zone) list.classList.remove("is-drop-target");
+    });
+    zone.classList.add("is-drop-target");
+  });
+  article.addEventListener("drop", (event) => {
+    const zone = article.closest("[data-dropzone]");
+    if (!zone || projectScoped) return;
+    event.preventDefault();
+    zone.classList.remove("is-drop-target");
+    updateTaskStage(event.dataTransfer.getData("text/plain"), zone.dataset.dropzone);
   });
   article.addEventListener("click", (event) => {
     if (event.target.closest("button,a,input,select,textarea")) return;
@@ -4500,7 +4899,7 @@ function openProjectDrawer(projectId) {
           <label class="field"><span>Localização</span><input data-drawer-field="location" value="${escapeAttr(displayText(item.location || ""))}"></label>
           <label class="field"><span>Ano</span><input data-drawer-field="year" value="${escapeAttr(item.year || "")}"></label>
           <label class="field"><span>Estágio do funil</span><select data-drawer-field="status">${workspaceConfig[state.currentWorkspace].pipelineStages.map((stage) => `<option ${stage === item.status ? "selected" : ""}>${displayText(stage)}</option>`).join("")}</select></label>
-          <label class="field"><span>Temperatura</span><select data-drawer-field="temperature"><option ${item.temperature === "Frio" ? "selected" : ""}>Frio</option><option ${item.temperature === "Morno" ? "selected" : ""}>Morno</option><option ${item.temperature === "Quente" ? "selected" : ""}>Quente</option></select></label>
+          <label class="field"><span>Temperatura</span><input data-drawer-field="temperature" value="${escapeAttr(item.temperature || "")}" readonly></label>
           <label class="field"><span>Status de investimento</span><select data-drawer-field="investmentStatus"><option ${item.investmentStatus === "Nao investido" ? "selected" : ""}>Não investido</option><option ${item.investmentStatus === "Investido" ? "selected" : ""}>Investido</option></select></label>
           <label class="field"><span>Valor estimado</span><input type="number" data-drawer-field="estimatedValue" value="${item.estimatedValue || 0}"></label>
           <label class="field"><span>Valor da operação</span><input type="number" data-drawer-field="investmentAmount" value="${item.investmentAmount || 0}"></label>
@@ -4712,6 +5111,7 @@ async function persistDrawerProject(item, root = document) {
   root.querySelectorAll("[data-media-field]").forEach((field) => {
     item.media[field.dataset.mediaField] = field.type === "number" ? Number(field.value) : field.value;
   });
+  ensureProjectShape(item);
   if (oldName !== item.name && workspaceData().projectBoards[oldName]) {
     const existingBoard = workspaceData().projectBoards[item.name] || [];
     workspaceData().projectBoards[item.name] = [...existingBoard, ...workspaceData().projectBoards[oldName]];
@@ -4740,6 +5140,7 @@ function persistProjectDraft(item, root = document) {
   root.querySelectorAll("[data-media-field]").forEach((field) => {
     item.media[field.dataset.mediaField] = field.type === "number" ? Number(field.value) : field.value;
   });
+  ensureProjectShape(item);
   if (oldName !== item.name && workspaceData().projectBoards[oldName]) {
     const existingBoard = workspaceData().projectBoards[item.name] || [];
     workspaceData().projectBoards[item.name] = [...existingBoard, ...workspaceData().projectBoards[oldName]];
@@ -4893,7 +5294,7 @@ function openProjectEditDialog(item, sourceView) {
         <label class="field"><span>Website</span><input name="website" value="${escapeAttr(item.website || "")}"></label>
         <label class="field"><span>Categoria</span><input name="category" value="${escapeAttr(item.category || item.origin || "")}"></label>
         <label class="field"><span>Setor</span><input name="sector" value="${escapeAttr(displayText(item.sector || ""))}"></label>
-        <label class="field"><span>Temperatura</span><select name="temperature"><option ${item.temperature === "Frio" ? "selected" : ""}>Frio</option><option ${item.temperature === "Morno" ? "selected" : ""}>Morno</option><option ${item.temperature === "Quente" ? "selected" : ""}>Quente</option></select></label>
+        <label class="field"><span>Temperatura</span><input name="temperature" value="${escapeAttr(item.temperature || "")}" readonly></label>
         <label class="field"><span>Prioridade</span><select name="priority"><option ${item.priority === "Alta" ? "selected" : ""}>Alta</option><option ${item.priority === "Media" ? "selected" : ""}>Média</option><option ${item.priority === "Baixa" ? "selected" : ""}>Baixa</option></select></label>
         <label class="field"><span>VC/PE Backed</span><input name="vcPeBacked" value="${escapeAttr(item.vcPeBacked || "")}"></label>
         <label class="field"><span>Investimento</span><select name="investmentStatus"><option ${item.investmentStatus === "Nao investido" ? "selected" : ""}>Não investido</option><option ${item.investmentStatus === "Investido" ? "selected" : ""}>Investido</option></select></label>
@@ -4945,7 +5346,6 @@ function openProjectEditDialog(item, sourceView) {
     item.category = String(formData.get("category") || "");
     item.origin = item.category;
     item.sector = String(formData.get("sector") || "");
-    item.temperature = String(formData.get("temperature") || item.temperature);
     item.priority = String(formData.get("priority") || item.priority);
     item.vcPeBacked = String(formData.get("vcPeBacked") || "");
     item.investmentStatus = String(formData.get("investmentStatus") || item.investmentStatus);
@@ -4966,6 +5366,7 @@ function openProjectEditDialog(item, sourceView) {
     workspaceData().documents.forEach((doc) => {
       if ((doc.linkedTo || "").toLowerCase() === oldName.toLowerCase()) doc.linkedTo = item.name;
     });
+    ensureProjectShape(item);
     syncInvestmentTag(item);
     pushHistory(item, "Projeto editado na tela secundaria");
     upsertCRMItem(item);
@@ -4976,9 +5377,150 @@ function openProjectEditDialog(item, sourceView) {
 }
 
 function syncInvestmentTag(item) {
-  item.tags = item.tags.filter((tag) => tag !== "Investido" && tag !== "Nao investido" && tag !== "Frio" && tag !== "Morno" && tag !== "Quente");
+  item.tags = item.tags.filter((tag) => tag !== "Investido" && tag !== "Nao investido" && tag !== "Não investido" && tag !== "Frio" && tag !== "Morno" && tag !== "Quente" && tag !== "Investida" && tag !== "Declinada" && tag !== "Declinado" && tag !== "Declined" && tag !== "Exit");
   item.tags.push(item.investmentStatus === "Investido" ? "Investido" : "Nao investido");
   item.tags.push(item.temperature);
+  item.tags = normalizeProjectTagList(item.tags, item);
+}
+
+function normalizeProjectTagKey(tag) {
+  return String(tag || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function canonicalProjectTag(tag) {
+  const key = normalizeProjectTagKey(tag);
+  if (!key) return "";
+  const aliases = {
+    declined: "Declinado",
+    declinado: "Declinado",
+    declinada: "Declinado",
+    portfolio: "Portfólio",
+    "portfólio": "Portfólio",
+    "nao investido": "Não investido",
+    "não investido": "Não investido",
+    investida: "Investido"
+  };
+  return aliases[key] || String(tag || "").trim();
+}
+
+function normalizeProjectTagList(tags = [], item = null) {
+  const seen = new Set();
+  const next = [];
+  const normalizedStatus = item ? normalizeRitoDealStatus(item.status, item.investmentStatus) : "";
+  const normalizedTemperature = item ? temperatureFromRitoDealStatus(normalizedStatus) : "";
+
+  (tags || []).forEach((tag) => {
+    const value = canonicalProjectTag(tag);
+    const key = normalizeProjectTagKey(value);
+    if (!value || !key) return;
+    if (normalizedStatus === "Declinado" && key === normalizeProjectTagKey("Declinada")) return;
+    if ((normalizedStatus === "Aporte" || normalizedStatus === "Portfólio") && key === normalizeProjectTagKey("Investida")) return;
+    if (seen.has(key)) return;
+    seen.add(key);
+    next.push(value);
+  });
+
+  if (item && normalizedStatus === "Declinado") {
+    const declinedKey = normalizeProjectTagKey("Declinado");
+    if (!seen.has(declinedKey)) next.push("Declinado");
+  }
+
+  if (item && normalizedTemperature && normalizedStatus !== "Declinado") {
+    const temperatureKey = normalizeProjectTagKey(canonicalProjectTag(normalizedTemperature));
+    if (!seen.has(temperatureKey)) next.push(canonicalProjectTag(normalizedTemperature));
+  }
+
+  return next;
+}
+
+function isSystemProjectTag(tag) {
+  const key = normalizeProjectTagKey(tag);
+  const systemTags = new Set([
+    ...RITO_DEAL_STATUS_OPTIONS.map((status) => normalizeProjectTagKey(status)),
+    normalizeProjectTagKey("Declined"),
+    normalizeProjectTagKey("Portfolio"),
+    normalizeProjectTagKey("Investido"),
+    normalizeProjectTagKey("Nao investido"),
+    normalizeProjectTagKey("Frio"),
+    normalizeProjectTagKey("Morno"),
+    normalizeProjectTagKey("Quente")
+  ]);
+  return systemTags.has(key);
+}
+
+function editableProjectTags(item) {
+  return (item.tags || []).filter((tag) => !isSystemProjectTag(tag));
+}
+
+function workspaceProjectTagOptions(workspaceId = state.currentWorkspace) {
+  const data = state.workspaces[workspaceId];
+  if (!data.projectTagOptions) data.projectTagOptions = [];
+  const seen = new Set();
+  const next = [];
+  data.projectTagOptions.forEach((tag) => {
+    const value = String(tag || "").trim();
+    const key = normalizeProjectTagKey(value);
+    if (!value || !key || isSystemProjectTag(value) || seen.has(key)) return;
+    seen.add(key);
+    next.push(value);
+  });
+  (data.crmItems || []).forEach((item) => {
+    editableProjectTags(item).forEach((tag) => {
+      const value = String(tag || "").trim();
+      const key = normalizeProjectTagKey(value);
+      if (!value || !key || seen.has(key)) return;
+      seen.add(key);
+      next.push(value);
+    });
+  });
+  data.projectTagOptions = next;
+  return data.projectTagOptions;
+}
+
+function setEditableProjectTags(item, nextTags) {
+  const preserved = (item.tags || []).filter((tag) => isSystemProjectTag(tag));
+  const seen = new Set();
+  const cleaned = [];
+  (nextTags || []).forEach((tag) => {
+    const value = String(tag || "").trim();
+    const key = normalizeProjectTagKey(value);
+    if (!value || !key || isSystemProjectTag(value) || seen.has(key)) return;
+    seen.add(key);
+    cleaned.push(value);
+  });
+  item.tags = [...preserved, ...cleaned];
+  workspaceProjectTagOptions();
+}
+
+function renameProjectTagAcrossWorkspace(oldTag, newTag, workspaceId = state.currentWorkspace) {
+  const oldKey = normalizeProjectTagKey(oldTag);
+  const nextValue = String(newTag || "").trim();
+  const nextKey = normalizeProjectTagKey(nextValue);
+  if (!oldKey || !nextKey) return false;
+  const data = state.workspaces[workspaceId];
+  data.crmItems.forEach((item) => {
+    const nextTags = editableProjectTags(item).map((tag) => (normalizeProjectTagKey(tag) === oldKey ? nextValue : tag));
+    setEditableProjectTags(item, nextTags);
+  });
+  data.projectTagOptions = workspaceProjectTagOptions(workspaceId).map((tag) => (normalizeProjectTagKey(tag) === oldKey ? nextValue : tag));
+  data.projectTagOptions = workspaceProjectTagOptions(workspaceId);
+  return true;
+}
+
+function deleteProjectTagAcrossWorkspace(tag, workspaceId = state.currentWorkspace) {
+  const targetKey = normalizeProjectTagKey(tag);
+  if (!targetKey) return false;
+  const data = state.workspaces[workspaceId];
+  data.crmItems.forEach((item) => {
+    const nextTags = editableProjectTags(item).filter((entry) => normalizeProjectTagKey(entry) !== targetKey);
+    setEditableProjectTags(item, nextTags);
+  });
+  data.projectTagOptions = workspaceProjectTagOptions(workspaceId).filter((entry) => normalizeProjectTagKey(entry) !== targetKey);
+  return true;
 }
 
 function getRelatedTasks(item) {
@@ -5026,8 +5568,8 @@ function openTaskDialog(projectName, presetStage = "") {
         <label class="field"><span>Status</span><select name="status"><option>A Fazer</option><option>Em andamento</option><option>Revisão</option><option>Concluído</option></select></label>
         <label class="field"><span>Prioridade</span><select name="priority"><option>Alta</option><option>Média</option><option>Baixa</option></select></label>
         <label class="field"><span>Responsável</span><select name="owner"><option value="">Selecione</option>${workspaceConfig[state.currentWorkspace].memberOptions.map((owner) => `<option>${displayText(owner)}</option>`).join("")}</select></label>
-        <label class="field"><span>Prazo</span><input name="dueDate" type="date" value="${todayISO()}"></label>
-        <label class="field"><span>Data de conclusão</span><input name="completionDate" type="date"></label>
+        <label class="field"><span>Prazo</span><input name="dueDate" type="date" value="${normalizeDateInputValue(todayISO())}"></label>
+        <label class="field"><span>Data de conclusão</span><input name="completionDate" type="date" value=""></label>
         <label class="field full-span"><span>Tags</span><input name="tags" placeholder="Ex: Marketing, Growth"></label>
       </div>
       <div class="dialog-actions task-create-actions">
@@ -5051,8 +5593,8 @@ function openTaskDialog(projectName, presetStage = "") {
       title: formData.get("title"),
       description: formData.get("description"),
       owner: formData.get("owner"),
-      dueDate: formData.get("dueDate"),
-      completionDate: formData.get("completionDate"),
+      dueDate: normalizeDateInputValue(formData.get("dueDate")),
+      completionDate: normalizeDateInputValue(formData.get("completionDate")),
       priority: formData.get("priority"),
       stage: formData.get("stage"),
       status: formData.get("status") || "A Fazer",
@@ -5189,7 +5731,7 @@ function openTaskEditor(taskId, isProject, projectName = "") {
   dialog.dataset.dialogSize = "wide";
   dialog.classList.remove("hidden");
   dialog.innerHTML = `
-    <form method="dialog" id="taskEditorForm" class="crm-dialog-form">
+    <form method="dialog" id="taskEditorForm" class="crm-dialog-form" data-task-id="${escapeAttr(task.id)}" data-task-project="${isProject ? "1" : "0"}" data-project-name="${escapeAttr(projectName || "")}">
       <div class="dialog-header-split">
         <div class="dialog-header-copy">
           <h3>Editar Tarefa</h3>
@@ -5204,8 +5746,8 @@ function openTaskEditor(taskId, isProject, projectName = "") {
         <label class="field"><span>Status</span><select name="status"><option ${task.status === "A Fazer" || task.status === "A fazer" ? "selected" : ""}>A Fazer</option><option ${task.status === "Em Execucao" || task.status === "Em andamento" ? "selected" : ""}>Em andamento</option><option ${task.status === "Revisao" || task.status === "Revisão" ? "selected" : ""}>Revisão</option><option ${task.status === "Concluido" || task.status === "Concluído" ? "selected" : ""}>Concluído</option></select></label>
         <label class="field"><span>Prioridade</span><select name="priority"><option ${task.priority === "Alta" ? "selected" : ""}>Alta</option><option ${task.priority === "Media" ? "selected" : ""}>Média</option><option ${task.priority === "Baixa" ? "selected" : ""}>Baixa</option></select></label>
         <label class="field"><span>Responsável</span><select name="owner">${memberOptions.map((owner) => `<option ${task.owner === owner ? "selected" : ""}>${displayText(owner)}</option>`).join("")}</select></label>
-        <label class="field"><span>Prazo</span><input name="dueDate" type="date" value="${escapeAttr(task.dueDate || todayISO())}"></label>
-        <label class="field"><span>Data de conclusão</span><input name="completionDate" type="date" value="${escapeAttr(task.completionDate || "")}"></label>
+        <label class="field"><span>Prazo</span><input name="dueDate" type="date" value="${escapeAttr(normalizeDateInputValue(task.dueDate || todayISO()))}"></label>
+        <label class="field"><span>Data de conclusão</span><input name="completionDate" type="date" value="${escapeAttr(normalizeDateInputValue(task.completionDate || ""))}"></label>
         <label class="field full-span"><span>Excluir</span><button class="ghost-button task-delete-button" type="button" id="taskDeleteButton">Excluir tarefa</button></label>
       </div>
       <div class="dialog-actions task-editor-actions">
@@ -5233,17 +5775,29 @@ function openTaskEditor(taskId, isProject, projectName = "") {
     renderApp();
   };
   const form = document.getElementById("taskEditorForm");
+  form.querySelectorAll("input[type='date']").forEach((input) => {
+    const openPicker = () => {
+      if (typeof input.showPicker === "function") {
+        try {
+          input.showPicker();
+        } catch {}
+      }
+    };
+    input.addEventListener("focus", openPicker);
+    input.addEventListener("click", openPicker);
+  });
+  let taskEditorAutosaveTimer = null;
+  form.querySelectorAll("input, textarea, select").forEach((field) => {
+    field.addEventListener("input", () => {
+      clearTimeout(taskEditorAutosaveTimer);
+      taskEditorAutosaveTimer = setTimeout(() => persistTaskEditorDraft(), 180);
+    });
+    field.addEventListener("change", () => persistTaskEditorDraft());
+    field.addEventListener("blur", () => persistTaskEditorDraft());
+  });
   form.addEventListener("submit", (event) => {
     event.preventDefault();
-    const formData = new FormData(form);
-    task.stage = String(formData.get("stage") || task.stage);
-    task.title = String(formData.get("title") || task.title).trim();
-    task.description = String(formData.get("description") || "").trim();
-    task.status = String(formData.get("status") || task.status);
-    task.priority = String(formData.get("priority") || task.priority);
-    task.owner = String(formData.get("owner") || task.owner);
-    task.dueDate = String(formData.get("dueDate") || task.dueDate);
-    task.completionDate = String(formData.get("completionDate") || "");
+    persistTaskEditorDraft();
     saveState();
     dialog.close();
     dialog.classList.add("hidden");
@@ -5441,9 +5995,20 @@ async function imageFileToProjectDataURL(file, target, fallback) {
 
 function attachDnD(selector, onDrop) {
   document.querySelectorAll(selector).forEach((zone) => {
-    zone.addEventListener("dragover", (event) => event.preventDefault());
+    zone.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+      document.querySelectorAll(selector).forEach((node) => {
+        if (node !== zone) node.classList.remove("is-drop-target");
+      });
+      zone.classList.add("is-drop-target");
+    });
+    zone.addEventListener("dragleave", () => {
+      zone.classList.remove("is-drop-target");
+    });
     zone.addEventListener("drop", (event) => {
       event.preventDefault();
+      zone.classList.remove("is-drop-target");
       const dragId = event.dataTransfer.getData("text/plain");
       onDrop(dragId, zone.dataset.dropzone);
     });
@@ -5529,7 +6094,8 @@ function buildBrowserReadyHTML() {
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="light dark">
-  <title>Rito OS</title>
+<title>Portal Rito</title>
+  <link rel="icon" type="image/png" href="./Logo_Branca_Reduzida.png">
   <link rel="stylesheet" href="${stylesHref}">
 </head>
 <body>
@@ -5598,7 +6164,7 @@ function buildBrowserReadyHTML() {
       <span class="metric-footnote"></span>
     </article>
   </template>
-  <noscript>Ative o JavaScript para usar o portal Rito OS.</noscript>
+  <noscript>Ative o JavaScript para usar o Portal Rito.</noscript>
   <script src="${supabaseHref}"></script>
   <script src="${scriptHref}"></script>
 </body>
@@ -5861,7 +6427,10 @@ async function logoutUser() {
 }
 
 function addLogoutButton() {
+  const existing = document.getElementById("portalLogoutButton");
+  if (existing) return;
   const btn = document.createElement("button");
+  btn.id = "portalLogoutButton";
   btn.textContent = "Sair";
   btn.style.position = "fixed";
   btn.style.right = "20px";
@@ -5884,10 +6453,39 @@ async function protectApp() {
     return;
   }
 
-  state = await loadState();
+  state = buildPortalState(loadStateFromLocalCache());
   bootstrapFromURL();
   renderApp();
   addLogoutButton();
+
+  setTimeout(async () => {
+    try {
+      const hydratedState = await loadState();
+      const currentStamp = getStateTimestamp(state);
+      const hydratedStamp = getStateTimestamp(hydratedState);
+      state = hydratedState;
+      bootstrapFromURL();
+      if (hydratedStamp !== currentStamp) renderApp();
+      addLogoutButton();
+    } catch (error) {
+      console.error("Falha ao hidratar o portal em segundo plano.", error);
+    }
+  }, 0);
 }
+
+window.addEventListener("beforeunload", () => {
+  flushOpenEditors();
+});
+
+window.addEventListener("pagehide", () => {
+  flushOpenEditors();
+  flushRemoteSave();
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "hidden") return;
+  flushOpenEditors();
+  flushRemoteSave();
+});
 
 window.addEventListener("load", protectApp);
