@@ -1263,6 +1263,7 @@ function migrateFastWorkspace(rootState) {
 }
 
 function seedData() {
+  const today = new Date();
   return {
     theme: "light",
     workspaceOrder: ["rito", "fast"],
@@ -1292,6 +1293,10 @@ function seedData() {
       fast: { crm: "cards", invested: "cards" }
     },
     fastDashboardStatusFocus: "",
+    calendarCursor: {
+      rito: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`,
+      fast: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`
+    },
     kanbanCompletedVisibility: {
       rito: {},
       fast: {}
@@ -1669,6 +1674,48 @@ function workspaceData() {
   return state.workspaces[state.currentWorkspace];
 }
 
+function calendarCursorValue(workspaceId = state.currentWorkspace) {
+  if (!state.calendarCursor || typeof state.calendarCursor !== "object") {
+    state.calendarCursor = {};
+  }
+  if (!state.calendarCursor[workspaceId]) {
+    const today = new Date();
+    state.calendarCursor[workspaceId] = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+  }
+  return state.calendarCursor[workspaceId];
+}
+
+function shiftCalendarCursor(offset, workspaceId = state.currentWorkspace) {
+  const [yearText, monthText] = calendarCursorValue(workspaceId).split("-");
+  const base = new Date(Number(yearText), Number(monthText) - 1 + offset, 1);
+  state.calendarCursor[workspaceId] = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}`;
+  saveState();
+  renderApp();
+}
+
+function resetCalendarCursor(workspaceId = state.currentWorkspace) {
+  const today = new Date();
+  state.calendarCursor[workspaceId] = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+  saveState();
+  renderApp();
+}
+
+function calendarTaskEntries() {
+  const directTasks = (workspaceData().taskItems || []).map((task) => ({
+    ...task,
+    projectName: "",
+    isProjectTask: false
+  }));
+  const projectTasks = Object.entries(workspaceData().projectBoards || {}).flatMap(([projectName, tasks]) =>
+    (tasks || []).map((task) => ({
+      ...task,
+      projectName,
+      isProjectTask: true
+    }))
+  );
+  return [...directTasks, ...projectTasks].filter((task) => normalizeDateInputValue(task.dueDate));
+}
+
 function workspaceKanbanCompletedVisibility(workspaceId = state.currentWorkspace) {
   if (!state.kanbanCompletedVisibility) {
     state.kanbanCompletedVisibility = { rito: {}, atica: {}, fast: {} };
@@ -1783,9 +1830,9 @@ function renderRitoPipelineToolbar() {
     <div class="toolbar-left">
       <span class="eyebrow">Temperatura</span>
       <div class="pill-group">
-        <button class="soft-pill ${filters.temp === "Quente" ? "is-active" : ""}" data-pipeline-temp="Quente" type="button">Quente</button>
-        <button class="soft-pill ${filters.temp === "Morno" ? "is-active" : ""}" data-pipeline-temp="Morno" type="button">Morno</button>
-        <button class="soft-pill ${filters.temp === "Frio" ? "is-active" : ""}" data-pipeline-temp="Frio" type="button">Frio</button>
+        <button class="soft-pill filter-chip-quente ${filters.temp === "Quente" ? "is-active" : ""}" data-pipeline-temp="Quente" type="button">Quente</button>
+        <button class="soft-pill filter-chip-morno ${filters.temp === "Morno" ? "is-active" : ""}" data-pipeline-temp="Morno" type="button">Morno</button>
+        <button class="soft-pill filter-chip-frio ${filters.temp === "Frio" ? "is-active" : ""}" data-pipeline-temp="Frio" type="button">Frio</button>
       </div>
     </div>
     <label class="search-field top-search"><input data-pipeline-search type="search" placeholder="Buscar empresa, contato..." value="${escapeAttr(filters.query || "")}"></label>
@@ -2494,21 +2541,32 @@ function renderRitoDashboardSide() {
   const filters = dashboardFilterState();
   const filteredRows = getFilteredRitoDashboardRows();
   const crmItems = workspaceData().crmItems || [];
-  const allocatedValue = allocatedPortfolioValue(crmItems);
-  const projectedValue = projectedAllocationValue(crmItems);
+  const visibleCompanies = new Set(filteredRows.map((row) => row.company));
+  const visibleItems = crmItems.filter((item) => visibleCompanies.has(item.name));
+  const allocatedValue = allocatedPortfolioValue(visibleItems);
+  const projectedValue = projectedAllocationValue(visibleItems);
   const side = document.createElement("section");
   side.className = "dashboard-side rito-dashboard-side";
 
   const metrics = [
-    [String(filteredRows.length), "Deals", "visíveis"],
+    [String(filteredRows.length), "Deals", "visíveis no dashboard"],
+    [String(filteredRows.filter((row) => row.stage === "Portfolio").length), "Investidos", "deals investidos"],
+    [String(filteredRows.filter((row) => row.stage === "Declined").length), "Declinados", "deals recusados"],
+    [String(filteredRows.filter((row) => row.temp === "Quente").length), "Quentes", "prioridade alta"],
+    [String(filteredRows.filter((row) => row.temp === "Morno").length), "Mornos", "em acompanhamento"],
+    [String(filteredRows.filter((row) => row.temp === "Frio").length), "Frios", "baixa tração"],
     [allocatedValue ? currency(allocatedValue) : "-", "Valor alocado", "projetos investidos"],
-    [String(filteredRows.filter((row) => row.temp === "Quente").length), "Quentes", "em andamento"],
-    [String(filteredRows.filter((row) => row.stage === "Portfolio").length), "Fechadas", "investidos"],
-    [projectedValue ? currency(projectedValue) : "-", "Projeção de alocação", "não investidos"]
+    [projectedValue ? currency(projectedValue) : "-", "Projeção de alocação", "deals não investidos"]
   ];
 
   const metricsRow = document.createElement("section");
   metricsRow.className = "metrics-grid rito-metrics-grid";
+  metricsRow.style.maxWidth = "1320px";
+  metricsRow.style.width = "100%";
+  metricsRow.style.margin = "0 auto";
+  metricsRow.style.display = "grid";
+  metricsRow.style.gridTemplateColumns = "repeat(3, minmax(0, 1fr))";
+  metricsRow.style.gap = "10px 14px";
   metrics.forEach(([value, label, foot]) => {
     const node = document.getElementById("metricCardTemplate").content.firstElementChild.cloneNode(true);
     node.querySelector(".metric-value").textContent = value;
@@ -2524,13 +2582,49 @@ function renderRitoDashboardSide() {
     <label class="search-field top-search">
       <input id="ritoDashboardSearch" type="search" placeholder="Buscar empresa ou deal..." value="${escapeAttr(filters.query || "")}">
     </label>
-    <div class="pill-group">
-      <button class="soft-pill ${filters.temp === "Quente" ? "is-active" : ""}" data-dashboard-temp="Quente">Quente</button>
-      <button class="soft-pill ${filters.temp === "Morno" ? "is-active" : ""}" data-dashboard-temp="Morno">Morno</button>
-      <button class="soft-pill ${filters.temp === "Frio" ? "is-active" : ""}" data-dashboard-temp="Frio">Frio</button>
-      <button class="soft-pill ${filters.temp === "Todos" ? "is-active" : ""}" data-dashboard-temp="Todos">Todos</button>
+    <div class="rito-filter-actions">
+      <div class="pill-group rito-filter-primary">
+        <button class="soft-pill filter-chip-frio ${filters.temp === "Frio" ? "is-active" : ""}" data-dashboard-temp="Frio">Frio</button>
+        <button class="soft-pill filter-chip-morno ${filters.temp === "Morno" ? "is-active" : ""}" data-dashboard-temp="Morno">Morno</button>
+        <button class="soft-pill filter-chip-quente ${filters.temp === "Quente" ? "is-active" : ""}" data-dashboard-temp="Quente">Quente</button>
+        <button class="soft-pill filter-chip-declined ${filters.stage === "Declinados" ? "is-active" : ""}" data-dashboard-stage="Declinados">Declinados</button>
+      </div>
+      <div class="pill-group rito-filter-reset">
+        <button class="soft-pill filter-chip-neutral ${(filters.temp === "Todos" && filters.stage === "Todos") ? "is-active" : ""}" data-dashboard-reset="1">Todos</button>
+      </div>
     </div>
   `;
+  controls.style.gridTemplateColumns = "minmax(220px, 320px) 1fr";
+  controls.style.alignItems = "center";
+  controls.style.gap = "12px";
+  const searchField = controls.querySelector(".top-search");
+  const searchInput = controls.querySelector("#ritoDashboardSearch");
+  const primaryGroup = controls.querySelector(".rito-filter-primary");
+  const resetGroup = controls.querySelector(".rito-filter-reset");
+  searchField.style.maxWidth = "320px";
+  searchField.style.width = "100%";
+  searchInput.style.minHeight = "40px";
+  searchInput.style.padding = "0 14px";
+  searchInput.style.fontSize = "0.74rem";
+  primaryGroup.style.display = "flex";
+  primaryGroup.style.flexWrap = "nowrap";
+  primaryGroup.style.gap = "8px";
+  primaryGroup.style.alignItems = "center";
+  resetGroup.style.display = "flex";
+  resetGroup.style.justifyContent = "flex-start";
+  resetGroup.style.marginTop = "0";
+  const actions = controls.querySelector(".rito-filter-actions");
+  actions.style.display = "flex";
+  actions.style.alignItems = "center";
+  actions.style.justifyContent = "flex-start";
+  actions.style.flexWrap = "nowrap";
+  actions.style.gap = "8px";
+  controls.querySelectorAll(".soft-pill").forEach((button) => {
+    button.style.minWidth = button.dataset.dashboardReset ? "88px" : "84px";
+    button.style.minHeight = "36px";
+    button.style.padding = "0 12px";
+    button.style.fontSize = "0.64rem";
+  });
   controls.querySelector("#ritoDashboardSearch").oninput = (event) => {
     dashboardFilterState().query = event.target.value;
     saveState();
@@ -2541,6 +2635,27 @@ function renderRitoDashboardSide() {
     button.onclick = () => {
       const current = dashboardFilterState();
       current.temp = current.temp === button.dataset.dashboardTemp ? "Todos" : button.dataset.dashboardTemp;
+      if (current.temp !== "Todos" && current.stage === "Declinados") current.stage = "Todos";
+      saveState();
+      updateRitoDashboardView();
+    };
+  });
+  controls.querySelectorAll("[data-dashboard-stage]").forEach((button) => {
+    button.onmousedown = (event) => event.preventDefault();
+    button.onclick = () => {
+      const current = dashboardFilterState();
+      current.stage = current.stage === button.dataset.dashboardStage ? "Todos" : button.dataset.dashboardStage;
+      if (current.stage !== "Todos") current.temp = "Todos";
+      saveState();
+      updateRitoDashboardView();
+    };
+  });
+  controls.querySelectorAll("[data-dashboard-reset]").forEach((button) => {
+    button.onmousedown = (event) => event.preventDefault();
+    button.onclick = () => {
+      const current = dashboardFilterState();
+      current.temp = "Todos";
+      current.stage = "Todos";
       saveState();
       updateRitoDashboardView();
     };
@@ -2777,7 +2892,7 @@ function renderRitoPipelinePage() {
   `;
   page.appendChild(renderStatStrip([
       [String(crmItems.length), "Total"], [String(investedCount), "Investidos"], [String(pipelineCount), "Pipeline"], [String(declinedCount), "Declinados"], [totalPortfolioValue ? currency(totalPortfolioValue) : "-", "Projeção de alocação"]
-    ], "compact"));
+    ], "pipeline-stat-strip"));
   page.appendChild(renderRitoPipelineToolbar());
   const results = viewMode === "list"
     ? renderReferenceList(getFilteredRitoPipelineCards(), "crm", "Nenhum deal encontrado")
@@ -4440,28 +4555,77 @@ function renderCalendar() {
   `;
   const top = document.createElement("section");
   top.className = "panel";
-  top.innerHTML = `<div class="panel-header"><div><h3>Calendário mensal</h3><p>Tarefas integradas com destaque visual para itens atrasados</p></div></div>`;
+  const [yearText, monthText] = calendarCursorValue().split("-");
+  const year = Number(yearText);
+  const month = Number(monthText) - 1;
+  const monthDate = new Date(year, month, 1);
+  const monthLabel = monthDate.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  top.innerHTML = `
+    <div class="panel-header calendar-panel-head">
+      <div>
+        <h3>Calendário mensal</h3>
+        <p>Tarefas integradas com destaque visual para itens atrasados</p>
+      </div>
+      <div class="calendar-toolbar">
+        <button class="ghost-button" type="button" data-calendar-nav="-1">Anterior</button>
+        <strong>${monthLabel}</strong>
+        <button class="ghost-button" type="button" data-calendar-nav="1">Próximo</button>
+        <button class="ghost-button" type="button" data-calendar-today>Hoje</button>
+      </div>
+    </div>
+  `;
   panel.appendChild(top);
   const grid = document.createElement("section");
   grid.className = "calendar-grid";
-
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstWeekday = new Date(year, month, 1).getDay();
+  const weekdayLabels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
+  const tasksByDate = new Map();
+  calendarTaskEntries().forEach((task) => {
+    const date = normalizeDateInputValue(task.dueDate);
+    if (!tasksByDate.has(date)) tasksByDate.set(date, []);
+    tasksByDate.get(date).push(task);
+  });
+
+  for (let i = 0; i < firstWeekday; i += 1) {
+    const empty = document.createElement("article");
+    empty.className = "calendar-day calendar-day-empty";
+    grid.appendChild(empty);
+  }
+
   for (let day = 1; day <= daysInMonth; day += 1) {
     const date = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
     const cell = document.createElement("article");
-    cell.className = "calendar-day";
-    cell.innerHTML = `<header><strong>${day}</strong><span class="subtle">${["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"][new Date(year, month, day).getDay()]}</span></header>`;
-    workspaceData().taskItems.filter((task) => task.dueDate === date).forEach((task) => {
-      const item = document.createElement("div");
-      item.className = `day-task ${task.dueDate < todayISO() ? "late" : ""}`;
-      item.textContent = `${task.title} - ${task.owner}`;
-      cell.appendChild(item);
-    });
+    const isToday = date === todayISO();
+    cell.className = `calendar-day${isToday ? " is-today" : ""}`;
+    cell.innerHTML = `<header><strong>${day}</strong><span class="subtle">${weekdayLabels[new Date(year, month, day).getDay()]}</span></header>`;
+    const dayTasks = tasksByDate.get(date) || [];
+    if (!dayTasks.length) {
+      const emptyState = document.createElement("div");
+      emptyState.className = "calendar-day-empty-copy";
+      emptyState.textContent = "Sem tarefas";
+      cell.appendChild(emptyState);
+    } else {
+      dayTasks
+        .sort((a, b) => String(a.priority || "").localeCompare(String(b.priority || "")) || String(a.title || "").localeCompare(String(b.title || "")))
+        .forEach((task) => {
+          const item = document.createElement("button");
+          item.type = "button";
+          item.className = `day-task ${normalizeDateInputValue(task.dueDate) < todayISO() ? "late" : ""}`;
+          item.innerHTML = `
+            <strong>${displayText(task.title)}</strong>
+            <span>${displayText(task.owner || "Sem responsável")}${task.projectName ? ` • ${displayText(task.projectName)}` : ""}</span>
+          `;
+          item.addEventListener("click", () => openTaskEditor(task.id, task.isProjectTask, task.projectName || ""));
+          cell.appendChild(item);
+        });
+    }
     grid.appendChild(cell);
   }
+  top.querySelectorAll("[data-calendar-nav]").forEach((button) => {
+    button.addEventListener("click", () => shiftCalendarCursor(Number(button.dataset.calendarNav || 0)));
+  });
+  top.querySelector("[data-calendar-today]")?.addEventListener("click", () => resetCalendarCursor());
   panel.appendChild(grid);
   return panel;
 }
@@ -6462,6 +6626,7 @@ async function persistPortalBeforeSessionChange() {
 
 async function logoutUser() {
   await persistPortalBeforeSessionChange();
+  history.replaceState({}, "", location.pathname);
   await supabaseClient.auth.signOut();
   document.getElementById("portalLogoutButton")?.remove();
   await showLoginScreen();
@@ -6480,6 +6645,7 @@ function addLogoutButton() {
   btn.style.background = "#111";
   btn.style.color = "#fff";
   btn.style.border = "none";
+  btn.style.borderRadius = "18px";
   btn.style.cursor = "pointer";
   btn.onclick = logoutUser;
 
@@ -6494,6 +6660,7 @@ async function protectApp() {
     return;
   }
 
+  history.replaceState({}, "", location.pathname);
   document.getElementById("loginOverlay")?.remove();
   setPortalVisibility(true);
   state = buildPortalState(loadStateFromLocalCache());
