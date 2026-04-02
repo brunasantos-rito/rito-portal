@@ -5592,7 +5592,19 @@ function openProjectEditDialog(item, sourceView) {
 }
 
 function syncInvestmentTag(item) {
-  item.tags = item.tags.filter((tag) => tag !== "Investido" && tag !== "Nao investido" && tag !== "Não investido" && tag !== "Frio" && tag !== "Morno" && tag !== "Quente" && tag !== "Investida" && tag !== "Declinada" && tag !== "Declinado" && tag !== "Declined" && tag !== "Exit");
+  const transientTagKeys = new Set([
+    normalizeProjectTagKey("Investido"),
+    normalizeProjectTagKey("Não investido"),
+    normalizeProjectTagKey("Frio"),
+    normalizeProjectTagKey("Morno"),
+    normalizeProjectTagKey("Quente"),
+    normalizeProjectTagKey("Investida"),
+    normalizeProjectTagKey("Declinada"),
+    normalizeProjectTagKey("Declinado"),
+    normalizeProjectTagKey("Declined"),
+    normalizeProjectTagKey("Exit")
+  ]);
+  item.tags = (item.tags || []).filter((tag) => !transientTagKeys.has(normalizeProjectTagKey(tag)));
   item.tags.push(item.investmentStatus === "Investido" ? "Investido" : "Nao investido");
   item.tags.push(item.temperature);
   item.tags = normalizeProjectTagList(item.tags, item);
