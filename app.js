@@ -6209,8 +6209,33 @@ function bootstrapFromURL() {
   }
 }
 
+function setPortalVisibility(isVisible) {
+  const dialog = document.getElementById("entityDialog");
+  document.body.classList.toggle("login-mode", !isVisible);
+  document.querySelector(".app-shell")?.classList.toggle("hidden", !isVisible);
+  document.getElementById("drawerBackdrop")?.classList.add("hidden");
+  document.getElementById("entityDrawer")?.classList.add("hidden");
+  if (dialog?.open) dialog.close();
+  dialog?.classList.add("hidden");
+}
+
 async function showLoginScreen() {
-  document.body.innerHTML = `
+  setPortalVisibility(false);
+
+  let overlay = document.getElementById("loginOverlay");
+
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.id = "loginOverlay";
+    overlay.style.cssText = `
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+    `;
+    document.body.appendChild(overlay);
+  }
+
+  overlay.innerHTML = `
     <div style="
       min-height: 100vh;
       display: grid;
@@ -6370,14 +6395,14 @@ async function showLoginScreen() {
     </div>
   `;
 
-  const form = document.getElementById("loginForm");
-  const registerBtn = document.getElementById("registerBtn");
-  const msg = document.getElementById("loginMessage");
+  const form = overlay.querySelector("#loginForm");
+  const registerBtn = overlay.querySelector("#registerBtn");
+  const msg = overlay.querySelector("#loginMessage");
 
   function getCreds() {
     return {
-      email: document.getElementById("loginEmail").value.trim(),
-      password: document.getElementById("loginPassword").value.trim()
+      email: overlay.querySelector("#loginEmail").value.trim(),
+      password: overlay.querySelector("#loginPassword").value.trim()
     };
   }
 
@@ -6394,7 +6419,8 @@ async function showLoginScreen() {
     const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
 
     if (error) {
-      msg.textContent = "Credenciais inválidas.";
+      msg.style.color = "#d9534f";
+      msg.textContent = error.message || "Credenciais inválidas.";
       return;
     }
 
@@ -6468,6 +6494,8 @@ async function protectApp() {
     return;
   }
 
+  document.getElementById("loginOverlay")?.remove();
+  setPortalVisibility(true);
   state = buildPortalState(loadStateFromLocalCache());
   bootstrapFromURL();
   renderApp();
