@@ -1135,6 +1135,7 @@ function migrateRitoReferenceProjects(rootState) {
   const rito = rootState.workspaces?.rito;
   if (!rito) return;
   rito.projectBoards = rito.projectBoards || {};
+  const hadExistingItems = Array.isArray(rito.crmItems) && rito.crmItems.length > 0;
   const legacySeedNames = new Set(["pulse fitness club", "dermavita clinics", "amazoo pets"]);
   rito.crmItems = (rito.crmItems || []).filter((item) => !legacySeedNames.has(String(item.name || "").toLowerCase()));
   const seededItems = buildRitoReferenceCRMItems();
@@ -1188,13 +1189,15 @@ function migrateRitoReferenceProjects(rootState) {
       existingByReference.set(key, existing);
       return;
     }
-    const seededItem = JSON.parse(JSON.stringify(seeded));
-    seededItem.referenceKey = key;
-    rito.crmItems.unshift(seededItem);
-    if (seededItem.investmentStatus === "Investido" && !rito.projectBoards[seededItem.name]) {
-      rito.projectBoards[seededItem.name] = [];
+    if (!hadExistingItems) {
+      const seededItem = JSON.parse(JSON.stringify(seeded));
+      seededItem.referenceKey = key;
+      rito.crmItems.unshift(seededItem);
+      if (seededItem.investmentStatus === "Investido" && !rito.projectBoards[seededItem.name]) {
+        rito.projectBoards[seededItem.name] = [];
+      }
+      existingByReference.set(key, seededItem);
     }
-    existingByReference.set(key, seededItem);
   });
   const popIndex = rito.crmItems.findIndex((item) => item.name === "Pop Move");
   const braslarIndex = rito.crmItems.findIndex((item) => item.name === "Geral / Braslar");
