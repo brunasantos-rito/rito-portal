@@ -136,6 +136,19 @@ function persistTaskEditorDraft() {
   saveState();
 }
 
+function persistVisibleCardEdits(root = document) {
+  root.querySelectorAll("[data-card-investment]").forEach((input) => {
+    const card = input.closest("[data-crm-id]");
+    const crmId = card?.dataset.crmId;
+    if (!crmId) return;
+    const item = workspaceData().crmItems.find((entry) => entry.id === crmId);
+    if (!item) return;
+    item.investmentAmount = Math.max(0, parseLocaleNumber(input.value || 0));
+    item.updatedAt = todayISO();
+    syncInvestmentTag(item);
+  });
+}
+
 function flushOpenEditors() {
   try {
     const projectPage = document.querySelector(".project-detail-page");
@@ -161,6 +174,12 @@ function flushOpenEditors() {
     persistTaskEditorDraft();
   } catch (error) {
     console.warn("Falha ao salvar rascunho da tarefa antes de sair.", error);
+  }
+
+  try {
+    persistVisibleCardEdits();
+  } catch (error) {
+    console.warn("Falha ao salvar edições dos cards antes de sair.", error);
   }
 
   state.lastSavedAt = new Date().toISOString();
@@ -3545,14 +3564,21 @@ function createReferenceProjectCard(card, invested = false, sourceView = "crm") 
     ["click", "mousedown", "mouseup", "touchstart", "touchend"].forEach((eventName) => {
       investmentInput.addEventListener(eventName, (event) => event.stopPropagation());
     });
-    const commitInvestmentAmount = () => {
+    const syncInvestmentAmount = () => {
       linked.investmentAmount = Math.max(0, parseLocaleNumber(investmentInput.value || 0));
-      investmentInput.value = formatLocaleNumber(linked.investmentAmount);
       linked.updatedAt = todayISO();
       syncInvestmentTag(linked);
+    };
+    const commitInvestmentAmount = () => {
+      syncInvestmentAmount();
+      investmentInput.value = formatLocaleNumber(linked.investmentAmount);
       saveState();
       renderApp();
     };
+    investmentInput.addEventListener("input", () => {
+      syncInvestmentAmount();
+      saveState();
+    });
     investmentInput.addEventListener("change", commitInvestmentAmount);
     investmentInput.addEventListener("blur", commitInvestmentAmount);
     article.addEventListener("dragstart", (event) => {
