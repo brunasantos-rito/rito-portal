@@ -60,15 +60,23 @@ function getStateTimestamp(candidate, fallback = "") {
   return String(candidate?.lastSavedAt || candidate?.updated_at || fallback || "");
 }
 
+function getEmbeddedStateTimestamp(candidate) {
+  return String(candidate?.lastSavedAt || candidate?.updated_at || "");
+}
+
 function chooseMoreRecentState(localState, remoteState, remoteUpdatedAt = "") {
   if (!localState && !remoteState) return null;
   if (localState && !remoteState) return localState;
   if (!localState && remoteState) return remoteState;
-  const localStamp = Date.parse(getStateTimestamp(localState));
-  const remoteStamp = Date.parse(getStateTimestamp(remoteState, remoteUpdatedAt));
-  if (Number.isFinite(localStamp) && Number.isFinite(remoteStamp)) {
-    return localStamp >= remoteStamp ? localState : remoteState;
+  const localStamp = Date.parse(getEmbeddedStateTimestamp(localState));
+  const remoteEmbeddedStamp = Date.parse(getEmbeddedStateTimestamp(remoteState));
+  if (Number.isFinite(localStamp) && Number.isFinite(remoteEmbeddedStamp)) {
+    return localStamp >= remoteEmbeddedStamp ? localState : remoteState;
   }
+  if (Number.isFinite(localStamp)) return localState;
+  if (Number.isFinite(remoteEmbeddedStamp)) return remoteState;
+  const remoteRowStamp = Date.parse(String(remoteUpdatedAt || ""));
+  if (Number.isFinite(remoteRowStamp) && !localState) return remoteState;
   return localState || remoteState;
 }
 
@@ -2088,8 +2096,12 @@ function updateRitoDashboardView() {
 
 function ensureProjectShape(item) {
   item.tags = normalizeProjectTagList(item.tags || [], item);
+  const normalizedStatus = normalizeRitoDealStatus(item.status, item.investmentStatus);
+  const investedByStatus = ["Portfólio", "Aporte", "Exit"].includes(normalizedStatus);
   if (!item.temperature) item.temperature = item.tags.includes("Quente") ? "Quente" : item.tags.includes("Morno") ? "Morno" : "Frio";
-  if (!item.investmentStatus) item.investmentStatus = item.tags.includes("Investido") ? "Investido" : "Nao investido";
+  item.investmentStatus = item.investmentStatus === "Investido" || item.tags.includes("Investido") || investedByStatus
+    ? "Investido"
+    : "Nao investido";
   item.status = normalizeRitoDealStatus(item.status, item.investmentStatus);
   item.temperature = temperatureFromRitoDealStatus(item.status);
   if (!item.investmentAmount) item.investmentAmount = 0;
@@ -6671,8 +6683,11 @@ async function protectApp() {
   setTimeout(async () => {
     try {
       const hydratedState = await loadState();
-      const currentStamp = getStateTimestamp(state);
-      const hydratedStamp = getStateTimestamp(hydratedState);
+      const currentStamp = Date.parse(getEmbeddedStateTimestamp(state));
+      const hydratedStamp = Date.parse(getEmbeddedStateTimestamp(hydratedState));
+      if (Number.isFinite(currentStamp) && Number.isFinite(hydratedStamp) && hydratedStamp < currentStamp) {
+        return;
+      }
       state = hydratedState;
       bootstrapFromURL();
       if (hydratedStamp !== currentStamp) renderApp();
