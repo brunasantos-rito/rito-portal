@@ -93,27 +93,33 @@ function cacheStateLocally(nextState = state) {
 // AUTO SAVE
 // =======================
 
-let saveTimer = null;
+let pendingRemoteSave = Promise.resolve();
+let queuedSaveVersion = 0;
 
-function scheduleSave() {
-  clearTimeout(saveTimer);
+function clonePortalState(snapshot = state) {
+  return JSON.parse(JSON.stringify(snapshot));
+}
 
-  saveTimer = setTimeout(async () => {
-    try {
-      await saveSharedPortalState(state);
+function queueImmediateRemoteSave(snapshot = state) {
+  const payload = clonePortalState(snapshot);
+  const currentVersion = ++queuedSaveVersion;
+  pendingRemoteSave = pendingRemoteSave
+    .catch(() => null)
+    .then(async () => {
+      if (currentVersion !== queuedSaveVersion) return null;
+      const result = await saveSharedPortalState(payload);
       console.log("Portal salvo no banco.");
-    } catch (error) {
+      return result;
+    })
+    .catch((error) => {
       console.error("Erro ao salvar:", error);
-    }
-  }, 800);
+      return null;
+    });
+  return pendingRemoteSave;
 }
 
 function flushRemoteSave() {
-  clearTimeout(saveTimer);
-  saveTimer = null;
-  return saveSharedPortalState(state)
-    .then(() => console.log("Portal salvo no banco."))
-    .catch((error) => console.error("Erro ao salvar:", error));
+  return queueImmediateRemoteSave(state);
 }
 
 function persistTaskEditorDraft() {
@@ -149,7 +155,32 @@ function persistVisibleCardEdits(root = document) {
   });
 }
 
+function persistVisibleKanbanEdits(root = document) {
+  root.querySelectorAll("[data-inline-column]").forEach((node) => {
+    persistKanbanColumnDraft(node.dataset.inlineColumn, Number(node.dataset.columnIndex), node.textContent);
+  });
+  root.querySelectorAll("[data-inline-field]").forEach((node) => {
+    const taskId = node.dataset.id;
+    const isProject = node.dataset.project === "1";
+    const projectName = node.dataset.projectName || "";
+    const found = findKanbanTask(taskId, isProject, projectName);
+    if (!found) return;
+    const field = node.dataset.inlineField;
+    const nextValue = node.matches("input, select") ? node.value : node.textContent.trim();
+    found[field] = nextValue;
+    if (field === "dueDate") {
+      found.status = nextValue < todayISO() ? "Atrasado" : "Em andamento";
+    }
+  });
+}
+
 function flushOpenEditors() {
+  try {
+    persistVisibleKanbanEdits();
+  } catch (error) {
+    console.warn("Falha ao salvar edições do Kanban antes de sair.", error);
+  }
+
   try {
     const projectPage = document.querySelector(".project-detail-page");
     const selectedProject = getSelectedProject();
@@ -1455,7 +1486,7 @@ async function loadState() {
 function saveState() {
   state.lastSavedAt = new Date().toISOString();
   cacheStateLocally(state);
-  scheduleSave();
+  queueImmediateRemoteSave(state);
 }
 function workspaceTaskThemes(workspaceId = state.currentWorkspace) {
   const data = state.workspaces[workspaceId];
@@ -2130,10 +2161,18 @@ function ensureProjectShape(item) {
   item.tags = normalizeProjectTagList(item.tags || [], item);
   const normalizedStatus = normalizeRitoDealStatus(item.status, item.investmentStatus);
   const investedByStatus = ["Portfólio", "Aporte", "Exit"].includes(normalizedStatus);
+  const normalizedInvestmentKey = normalizeProjectTagKey(item.investmentStatus);
+  const hasExplicitInvestedState = normalizedInvestmentKey === normalizeProjectTagKey("Investido");
+  const hasExplicitNotInvestedState = normalizedInvestmentKey === normalizeProjectTagKey("Não investido");
+  const hasInvestedTag = (item.tags || []).some((tag) => normalizeProjectTagKey(tag) === normalizeProjectTagKey("Investido"));
   if (!item.temperature) item.temperature = item.tags.includes("Quente") ? "Quente" : item.tags.includes("Morno") ? "Morno" : "Frio";
-  item.investmentStatus = item.investmentStatus === "Investido" || item.tags.includes("Investido") || investedByStatus
-    ? "Investido"
-    : "Nao investido";
+  if (hasExplicitNotInvestedState) {
+    item.investmentStatus = "Nao investido";
+  } else if (hasExplicitInvestedState || hasInvestedTag || investedByStatus) {
+    item.investmentStatus = "Investido";
+  } else {
+    item.investmentStatus = "Nao investido";
+  }
   item.status = normalizeRitoDealStatus(item.status, item.investmentStatus);
   item.temperature = temperatureFromRitoDealStatus(item.status);
   if (!item.investmentAmount) item.investmentAmount = 0;
@@ -6013,12 +6052,8 @@ function openTaskEditor(taskId, isProject, projectName = "") {
     input.addEventListener("focus", openPicker);
     input.addEventListener("click", openPicker);
   });
-  let taskEditorAutosaveTimer = null;
   form.querySelectorAll("input, textarea, select").forEach((field) => {
-    field.addEventListener("input", () => {
-      clearTimeout(taskEditorAutosaveTimer);
-      taskEditorAutosaveTimer = setTimeout(() => persistTaskEditorDraft(), 180);
-    });
+    field.addEventListener("input", () => persistTaskEditorDraft());
     field.addEventListener("change", () => persistTaskEditorDraft());
     field.addEventListener("blur", () => persistTaskEditorDraft());
   });
@@ -6258,18 +6293,15 @@ function bindInlineEditing() {
       }
       saveState();
     };
+    node.addEventListener("input", commit);
     const eventName = node.matches("select,input[type='date'],input[type='text']") ? "change" : "blur";
     node.addEventListener(eventName, commit);
     if (eventName !== "blur") node.addEventListener("blur", commit);
   });
 
   document.querySelectorAll("[data-inline-column]").forEach((node) => {
-    let renameTimer = null;
     node.addEventListener("input", () => {
-      clearTimeout(renameTimer);
-      renameTimer = setTimeout(() => {
-        persistKanbanColumnDraft(node.dataset.inlineColumn, Number(node.dataset.columnIndex), node.textContent);
-      }, 180);
+      persistKanbanColumnDraft(node.dataset.inlineColumn, Number(node.dataset.columnIndex), node.textContent);
     });
     node.addEventListener("blur", () => renameKanbanColumn(node.dataset.inlineColumn, Number(node.dataset.columnIndex), node.textContent));
     node.addEventListener("keydown", (event) => {
