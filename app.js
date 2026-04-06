@@ -12,6 +12,10 @@ const supabaseClient = window.supabase.createClient(
   SUPABASE_PUBLISHABLE_KEY
 );
 
+let currentSessionAccessToken = "";
+const PORTAL_MEDIA_BUCKET = "portal-media";
+const PORTAL_DOCUMENTS_BUCKET = "portal-documents";
+
 // =======================
 // BANCO DE DADOS GLOBAL
 // =======================
@@ -44,50 +48,87 @@ async function saveSharedPortalState(state) {
   return data;
 }
 
-function loadStateFromLocalCache() {
+async function refreshSessionAccessToken() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? parsed : null;
+    const { data } = await supabaseClient.auth.getSession();
+    currentSessionAccessToken = data.session?.access_token || "";
   } catch (error) {
-    console.warn("Não foi possível ler o cache local do portal.", error);
-    return null;
+    currentSessionAccessToken = "";
+    console.warn("Não foi possível atualizar o token da sessão.", error);
   }
+  return currentSessionAccessToken;
 }
 
-function getStateTimestamp(candidate, fallback = "") {
-  return String(candidate?.lastSavedAt || candidate?.updated_at || fallback || "");
+function triggerKeepalivePortalSave(snapshot = state) {
+  if (typeof fetch !== "function") return;
+  if (!currentSessionAccessToken) return;
+  const payload = {
+    id: 1,
+    data: clonePortalState(snapshot),
+    updated_at: new Date().toISOString()
+  };
+  fetch(`${SUPABASE_URL}/rest/v1/shared_portal_state?on_conflict=id`, {
+    method: "POST",
+    keepalive: true,
+    headers: {
+      apikey: SUPABASE_PUBLISHABLE_KEY,
+      Authorization: `Bearer ${currentSessionAccessToken}`,
+      "Content-Type": "application/json",
+      Prefer: "resolution=merge-duplicates,return=minimal"
+    },
+    body: JSON.stringify(payload)
+  }).catch((error) => {
+    console.warn("Falha ao disparar o salvamento keepalive do portal.", error);
+  });
 }
 
-function getEmbeddedStateTimestamp(candidate) {
-  return String(candidate?.lastSavedAt || candidate?.updated_at || "");
+function slugifyStorageSegment(value, fallback = "arquivo") {
+  const normalized = String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return normalized || fallback;
 }
 
-function chooseMoreRecentState(localState, remoteState, remoteUpdatedAt = "") {
-  if (!localState && !remoteState) return null;
-  if (localState && !remoteState) return localState;
-  if (!localState && remoteState) return remoteState;
-  const localStamp = Date.parse(getEmbeddedStateTimestamp(localState));
-  const remoteEmbeddedStamp = Date.parse(getEmbeddedStateTimestamp(remoteState));
-  if (Number.isFinite(localStamp) && Number.isFinite(remoteEmbeddedStamp)) {
-    return localStamp >= remoteEmbeddedStamp ? localState : remoteState;
-  }
-  if (Number.isFinite(localStamp)) return localState;
-  if (Number.isFinite(remoteEmbeddedStamp)) return remoteState;
-  const remoteRowStamp = Date.parse(String(remoteUpdatedAt || ""));
-  if (Number.isFinite(remoteRowStamp) && !localState) return remoteState;
-  return localState || remoteState;
+function fileExtensionFromName(name = "", fallback = "bin") {
+  const match = String(name || "").match(/\.([a-z0-9]+)$/i);
+  return match ? match[1].toLowerCase() : fallback;
 }
 
-function cacheStateLocally(nextState = state) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
-  } catch (error) {
-    console.warn("Não foi possível atualizar o cache local do portal.", error);
-  }
+async function uploadFileToStorage(file, bucket, folder, options = {}) {
+  if (!file) return { path: "", publicUrl: "" };
+  const extension = fileExtensionFromName(file.name, options.defaultExtension || "bin");
+  const safeFolder = slugifyStorageSegment(folder, "workspace");
+  const safeName = slugifyStorageSegment(options.baseName || file.name.replace(/\.[^.]+$/, ""), options.prefix || "arquivo");
+  const filePath = `${safeFolder}/${safeName}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
+  const contentType = options.contentType || file.type || "application/octet-stream";
+  const { error } = await supabaseClient.storage
+    .from(bucket)
+    .upload(filePath, file, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType
+    });
+  if (error) throw error;
+  const { data } = supabaseClient.storage.from(bucket).getPublicUrl(filePath);
+  return {
+    path: filePath,
+    publicUrl: data?.publicUrl || ""
+  };
 }
 
+async function removeFileFromStorage(bucket, path) {
+  const target = String(path || "").trim();
+  if (!target) return;
+  const { error } = await supabaseClient.storage.from(bucket).remove([target]);
+  if (error) console.warn("Não foi possível remover o arquivo do storage.", error);
+}
+
+function resolveDocumentUrl(doc = {}) {
+  return String(doc.fileUrl || doc.publicUrl || doc.filePath || "").trim();
+}
 
 // =======================
 // AUTO SAVE
@@ -214,7 +255,7 @@ function flushOpenEditors() {
   }
 
   state.lastSavedAt = new Date().toISOString();
-  cacheStateLocally(state);
+  queueImmediateRemoteSave(state);
 }
 
 const ARTHUR_BUENO_PHOTO = "foto-arthur.jpg";
@@ -1377,8 +1418,8 @@ function seedData() {
           "Fast Massagem": []
         },
         documents: [
-          { id: uid("doc"), name: "SPA - Omni Internet.pdf", category: "Juridico", linkedTo: "Omni Internet", fileData: "", fileType: "application/pdf", uploadedAt: "2026-03-10" },
-          { id: uid("doc"), name: "Modelo Financeiro Fast Massagem.xlsx", category: "Financeiro", linkedTo: "Fast Massagem", fileData: "", fileType: "application/vnd.ms-excel", uploadedAt: "2026-03-14" }
+          { id: uid("doc"), name: "SPA - Omni Internet.pdf", category: "Juridico", linkedTo: "Omni Internet", fileUrl: "", filePath: "", fileType: "application/pdf", uploadedAt: "2026-03-10" },
+          { id: uid("doc"), name: "Modelo Financeiro Fast Massagem.xlsx", category: "Financeiro", linkedTo: "Fast Massagem", fileUrl: "", filePath: "", fileType: "application/vnd.ms-excel", uploadedAt: "2026-03-14" }
         ],
         members: [
           { name: "Bruna Cristina", role: "Sell Side", photo: "" },
@@ -1460,32 +1501,18 @@ function buildPortalState(snapshot = null) {
 }
 
 async function loadState() {
-  const localState = loadStateFromLocalCache();
   try {
-    const { data, error } = await supabaseClient
-      .from("shared_portal_state")
-      .select("id, data, updated_at")
-      .eq("id", 1)
-      .single();
-
-    if (error) throw error;
-
+    const data = await loadSharedPortalState();
     const remoteState = data?.data && Object.keys(data.data).length ? data.data : null;
-    const parsed = chooseMoreRecentState(localState, remoteState, data?.updated_at);
-    const merged = buildPortalState(parsed);
-    cacheStateLocally(merged);
-    return merged;
+    return buildPortalState(remoteState);
   } catch (error) {
     console.error("Falha ao carregar dados do banco", error);
-    const fallback = buildPortalState(localState);
-    cacheStateLocally(fallback);
-    return fallback;
+    return buildPortalState();
   }
 }
 
 function saveState() {
   state.lastSavedAt = new Date().toISOString();
-  cacheStateLocally(state);
   queueImmediateRemoteSave(state);
 }
 function workspaceTaskThemes(workspaceId = state.currentWorkspace) {
@@ -3150,7 +3177,7 @@ function renderRitoProjectDetailPage() {
         <button class="ghost-button" data-project-action="new-doc" type="button">Upload</button>
       </div>
       <div class="related-list">
-        ${relatedDocs.map((doc) => `<article class="related-item"><strong>${doc.name}</strong><span class="subtle">${doc.category} - ${doc.uploadedAt}</span><div class="inline-actions">${doc.fileData ? `<a class="ghost-button" href="${doc.fileData}" download="${doc.name}">Baixar</a>` : ""}<button class="ghost-button" data-delete-doc="${doc.id}" type="button">Excluir</button></div></article>`).join("") || "<div class='project-mini-empty'>Nenhum documento vinculado.</div>"}
+        ${relatedDocs.map((doc) => `<article class="related-item"><strong>${doc.name}</strong><span class="subtle">${doc.category} - ${doc.uploadedAt}</span><div class="inline-actions">${resolveDocumentUrl(doc) ? `<a class="ghost-button" href="${escapeAttr(resolveDocumentUrl(doc))}" target="_blank" rel="noreferrer">Abrir</a>` : ""}<button class="ghost-button" data-delete-doc="${doc.id}" type="button">Excluir</button></div></article>`).join("") || "<div class='project-mini-empty'>Nenhum documento vinculado.</div>"}
       </div>
     </section>
     <section class="project-detail-card">
@@ -3196,7 +3223,9 @@ function populateProjectDetailBoard(page, item) {
 function bindRitoProjectDetailPage(page, item) {
   const sourceView = state.projectReturnView[state.currentWorkspace] || "crm";
   page.querySelector("[data-project-action='back']").onclick = closeProjectDetail;
-  page.querySelector("[data-project-action='delete']").onclick = () => {
+  page.querySelector("[data-project-action='delete']").onclick = async () => {
+    const docsToRemove = workspaceData().documents.filter((doc) => (doc.linkedTo || "").toLowerCase() === item.name.toLowerCase());
+    await Promise.all(docsToRemove.map((doc) => removeFileFromStorage(PORTAL_DOCUMENTS_BUCKET, doc.filePath)));
     state.workspaces[state.currentWorkspace].crmItems = workspaceData().crmItems.filter((entry) => entry.id !== item.id);
     delete workspaceData().projectBoards[item.name];
     workspaceData().documents = workspaceData().documents.filter((doc) => (doc.linkedTo || "").toLowerCase() !== item.name.toLowerCase());
@@ -3345,8 +3374,10 @@ function bindRitoProjectDetailPage(page, item) {
     await applyProjectImageFile(item, target, file, sourceView);
   });
   page.querySelectorAll("[data-delete-doc]").forEach((button) => {
-    button.onclick = () => {
-      workspaceData().documents = workspaceData().documents.filter((doc) => doc.id !== button.dataset.deleteDoc);
+    button.onclick = async () => {
+      const doc = workspaceData().documents.find((entry) => entry.id === button.dataset.deleteDoc);
+      await removeFileFromStorage(PORTAL_DOCUMENTS_BUCKET, doc?.filePath);
+      workspaceData().documents = workspaceData().documents.filter((entry) => entry.id !== button.dataset.deleteDoc);
       item.updatedAt = todayISO();
       pushHistory(item, "Documento relacionado removido");
       saveState();
@@ -3525,7 +3556,7 @@ function renderRitoSettingsPage() {
     </section>
     <section class="settings-section">
       <h4>Backup & Exportação</h4>
-      <article class="panel"><p>Exporte todos os dados da plataforma. Os dados incluem portfólio, CRM, tarefas, projetos, documentos e membros de todos os workspaces.</p><div class="inline-actions"><button class="ghost-button" data-ref-action="connect-source" type="button">Importar backup JSON</button><button class="ghost-button" data-ref-action="save-html" type="button">Baixar HTML browser-ready</button><button class="action-button" data-ref-action="export-json" type="button">Exportar JSON (backup completo)</button><button class="ghost-button" data-ref-action="export-crm" type="button">CRM como CSV</button><button class="ghost-button" data-ref-action="export-tasks" type="button">Tarefas como CSV</button><button class="ghost-button" data-ref-action="export-portfolio" type="button">Portfólio como CSV</button></div></article>
+      <article class="panel"><p>Os dados do portal ficam centralizados no Supabase. Importações e exportações locais foram desativadas para evitar dependência de arquivos no navegador.</p><div class="inline-actions"><button class="ghost-button" data-ref-action="connect-source" type="button">Importação local desativada</button><button class="ghost-button" data-ref-action="save-html" type="button">HTML local desativado</button><button class="action-button" data-ref-action="export-json" type="button">Backup local desativado</button><button class="ghost-button" data-ref-action="export-crm" type="button">CSV local desativado</button><button class="ghost-button" data-ref-action="export-tasks" type="button">CSV local desativado</button><button class="ghost-button" data-ref-action="export-portfolio" type="button">CSV local desativado</button></div></article>
     </section>
     <section class="settings-section">
       <h4>Dados do Sistema</h4>
@@ -4057,7 +4088,7 @@ function renderCRM() {
         <p>Deals com visual editorial, filtros dinâmicos e ações rápidas</p>
       </div>
       <div class="inline-actions">
-        <button class="ghost-button" data-action="export-crm">Exportar CSV</button>
+        <button class="ghost-button" data-action="export-crm">Exportação local desativada</button>
       </div>
     </div>
     <div class="filters-row">
@@ -4252,7 +4283,7 @@ function renderTasksBoard() {
       </div>
       <div class="inline-actions">
         <button class="ghost-button" data-ref-action="edit-columns" type="button">Alterar colunas</button>
-        <button class="ghost-button" data-action="export-tasks">Exportar CSV</button>
+        <button class="ghost-button" data-action="export-tasks">Exportação local desativada</button>
         <button class="action-button" data-ref-action="new-task" type="button">+ Nova tarefa</button>
       </div>
     </section>
@@ -4495,7 +4526,7 @@ function renderDocuments() {
       <strong>${doc.name}</strong>
       <div class="chips"><span class="chip">${doc.category}</span><span class="chip">${doc.linkedTo || "Workspace"}</span></div>
       <div class="document-meta"><span>${doc.uploadedAt}</span><span>${doc.fileType.split("/").pop().toUpperCase()}</span></div>
-      <div class="inline-actions">${doc.fileData ? `<a class="ghost-button" href="${doc.fileData}" download="${doc.name}">Download</a>` : `<button class="ghost-button" disabled>Sem arquivo</button>`}</div>
+      <div class="inline-actions">${resolveDocumentUrl(doc) ? `<a class="ghost-button" href="${escapeAttr(resolveDocumentUrl(doc))}" target="_blank" rel="noreferrer">Abrir</a>` : `<button class="ghost-button" disabled>Sem arquivo</button>`}</div>
     `;
     grid.appendChild(item);
   });
@@ -4777,15 +4808,14 @@ function bindStaticActions() {
     else openTaskDialog();
   };
   document.getElementById("exportTopButton").onclick = () => {
-    if (["crm", "dashboard", "projectDetail"].includes(state.currentView[state.currentWorkspace])) exportCRM();
-    else exportTasks();
+    alert("Exportações locais foram desativadas. Use apenas os dados persistidos no banco.");
   };
   const hideTopSearch = landing || state.currentWorkspace === "rito";
   document.querySelector(".top-search")?.classList.toggle("hidden", hideTopSearch);
   document.getElementById("newItemButton")?.classList.toggle("hidden", landing || state.currentWorkspace === "rito");
   document.getElementById("exportTopButton")?.classList.toggle("hidden", landing);
-  document.querySelectorAll("[data-action='export-crm']").forEach((button) => { button.onclick = exportCRM; });
-  document.querySelectorAll("[data-action='export-tasks']").forEach((button) => { button.onclick = exportTasks; });
+  document.querySelectorAll("[data-action='export-crm']").forEach((button) => { button.onclick = () => alert("Exportações locais foram desativadas."); });
+  document.querySelectorAll("[data-action='export-tasks']").forEach((button) => { button.onclick = () => alert("Exportações locais foram desativadas."); });
   bindInlineEditing();
   bindReferenceActions();
   if (!window.__workspaceDropdownBound) {
@@ -4844,19 +4874,10 @@ function bindReferenceActions() {
       if (action === "workspace-edit" || action === "workspace-duplicate" || action === "new-workspace") {
         return alert("Acao preparada para a proxima iteracao.");
       }
-      if (action === "connect-source") return importStateBackup();
-      if (action === "save-html") return exportBrowserReadyHTML();
-      if (action === "export-json") {
-        const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = "rito-os-backup.json";
-        link.click();
+      if (["connect-source", "save-html", "export-json", "export-crm", "export-tasks", "export-portfolio"].includes(action)) {
+        alert("Importações e exportações locais foram desativadas. O portal agora depende do Supabase para persistência.");
         return;
       }
-      if (action === "export-crm") return exportCRM();
-      if (action === "export-tasks") return exportTasks();
-      if (action === "export-portfolio") return downloadPortfolioCSV();
       if (action === "cards-view" || action === "list-view") {
         const targetView = button.dataset.refView || state.currentView[state.currentWorkspace];
         state.referenceViewModes[state.currentWorkspace] ||= {};
@@ -5208,7 +5229,7 @@ function openProjectDrawer(projectId) {
 
       <section class="drawer-section">
         <h4>Documentos relacionados</h4>
-        <div class="related-list">${relatedDocs.map((doc) => `<article class="related-item"><strong>${doc.name}</strong><span class="subtle">${doc.category} - ${doc.uploadedAt}</span><div class="inline-actions">${doc.fileData ? `<a class="ghost-button" href="${doc.fileData}" download="${doc.name}">Baixar</a>` : ""}<button class="ghost-button" data-delete-doc="${doc.id}">Excluir</button></div></article>`).join("") || "<div class='subtle'>Nenhum documento vinculado.</div>"}</div>
+        <div class="related-list">${relatedDocs.map((doc) => `<article class="related-item"><strong>${doc.name}</strong><span class="subtle">${doc.category} - ${doc.uploadedAt}</span><div class="inline-actions">${resolveDocumentUrl(doc) ? `<a class="ghost-button" href="${escapeAttr(resolveDocumentUrl(doc))}" target="_blank" rel="noreferrer">Abrir</a>` : ""}<button class="ghost-button" data-delete-doc="${doc.id}">Excluir</button></div></article>`).join("") || "<div class='subtle'>Nenhum documento vinculado.</div>"}</div>
         <button class="ghost-button" id="drawerUploadDoc">Upload de arquivo</button>
       </section>
 
@@ -5278,7 +5299,9 @@ function bindProjectDrawer(item) {
     closeProjectDrawer();
     renderApp();
   };
-  document.getElementById("deleteDrawerCard").onclick = () => {
+  document.getElementById("deleteDrawerCard").onclick = async () => {
+    const docsToRemove = workspaceData().documents.filter((doc) => (doc.linkedTo || "").toLowerCase() === item.name.toLowerCase());
+    await Promise.all(docsToRemove.map((doc) => removeFileFromStorage(PORTAL_DOCUMENTS_BUCKET, doc.filePath)));
     state.workspaces[state.currentWorkspace].crmItems = workspaceData().crmItems.filter((entry) => entry.id !== item.id);
     saveState();
     closeProjectDrawer();
@@ -5305,8 +5328,10 @@ function bindProjectDrawer(item) {
     };
   });
   document.querySelectorAll("[data-delete-doc]").forEach((button) => {
-    button.onclick = () => {
-      workspaceData().documents = workspaceData().documents.filter((doc) => doc.id !== button.dataset.deleteDoc);
+    button.onclick = async () => {
+      const doc = workspaceData().documents.find((entry) => entry.id === button.dataset.deleteDoc);
+      await removeFileFromStorage(PORTAL_DOCUMENTS_BUCKET, doc?.filePath);
+      workspaceData().documents = workspaceData().documents.filter((entry) => entry.id !== button.dataset.deleteDoc);
       pushHistory(item, "Documento relacionado removido");
       saveState();
       openProjectDrawer(item.id);
@@ -5807,8 +5832,8 @@ function escapeAttr(value) {
 function toFileHref(path) {
   const value = String(path || "").trim();
   if (!value) return "";
-  if (/^[a-z]:[\\/]/i.test(value)) return "";
   if (/^(https?:|data:|blob:)/i.test(value)) return value;
+  if (/^[a-z]:[\\/]/i.test(value)) return "";
   return encodeURI(value.replace(/\\/g, "/"));
 }
 
@@ -6074,7 +6099,7 @@ function openDocumentDialog(linkedToPreset = "") {
   dialog.classList.remove("hidden");
   dialog.innerHTML = `
       <form method="dialog" id="documentForm" class="compact-dialog-form">
-        <div class="panel-header dialog-header"><div><h3>Novo documento</h3><p>Upload com download local e categorização por área</p></div><button class="dialog-close-button" data-dialog-close type="button" aria-label="Fechar">X</button></div>
+        <div class="panel-header dialog-header"><div><h3>Novo documento</h3><p>Upload para o Supabase Storage com categorização por área</p></div><button class="dialog-close-button" data-dialog-close type="button" aria-label="Fechar">X</button></div>
       <div class="dialog-grid compact-dialog-grid">
         <label class="field"><span>Nome</span><input name="name"></label>
         <label class="field"><span>Categoria</span><select name="category"><option>Jurídico</option><option>Financeiro</option><option>Comercial</option></select></label>
@@ -6099,13 +6124,24 @@ function openDocumentDialog(linkedToPreset = "") {
     event.preventDefault();
     const formData = new FormData(form);
     const file = form.querySelector("input[name='file']").files[0];
+    if (!file) {
+      alert("Selecione um arquivo para enviar ao banco.");
+      return;
+    }
+    const uploaded = await uploadFileToStorage(
+      file,
+      PORTAL_DOCUMENTS_BUCKET,
+      `${state.currentWorkspace}/documents`,
+      { prefix: "documento" }
+    );
     workspaceData().documents.unshift({
       id: uid("doc"),
       name: formData.get("name") || (file && file.name) || "Documento",
       category: formData.get("category"),
       linkedTo: formData.get("linkedTo"),
       fileType: (file && file.type) || "application/octet-stream",
-      fileData: await fileToDataURL(file, ""),
+      filePath: uploaded.path,
+      fileUrl: uploaded.publicUrl,
       uploadedAt: todayISO()
     });
     saveState();
@@ -6198,6 +6234,15 @@ function loadImageFromFile(file) {
   });
 }
 
+function canvasToBlob(canvas, mimeType, quality) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error("Falha ao converter a imagem para upload."));
+    }, mimeType, quality);
+  });
+}
+
 function estimateDataURLBytes(dataUrl) {
   if (!dataUrl || typeof dataUrl !== "string") return 0;
   const base64 = dataUrl.split(",")[1] || "";
@@ -6206,8 +6251,13 @@ function estimateDataURLBytes(dataUrl) {
 
 async function imageFileToProjectDataURL(file, target, fallback) {
   if (!file) return fallback;
+  const workspaceFolder = `${state.currentWorkspace}/${target === "logo" ? "logos" : "covers"}`;
   if (!file.type || !file.type.startsWith("image/") || file.type === "image/svg+xml") {
-    return fileToDataURL(file, fallback);
+    const uploaded = await uploadFileToStorage(file, PORTAL_MEDIA_BUCKET, workspaceFolder, {
+      prefix: target,
+      defaultExtension: target === "logo" ? "svg" : "bin"
+    });
+    return uploaded.publicUrl || fallback;
   }
 
   const image = await loadImageFromFile(file);
@@ -6223,7 +6273,12 @@ async function imageFileToProjectDataURL(file, target, fallback) {
   canvas.height = height;
 
   const context = canvas.getContext("2d");
-  if (!context) return fileToDataURL(file, fallback);
+  if (!context) {
+    const uploaded = await uploadFileToStorage(file, PORTAL_MEDIA_BUCKET, workspaceFolder, {
+      prefix: target
+    });
+    return uploaded.publicUrl || fallback;
+  }
 
   if (isLogo) {
     context.clearRect(0, 0, width, height);
@@ -6239,19 +6294,28 @@ async function imageFileToProjectDataURL(file, target, fallback) {
   const qualitySteps = isLogo ? [0.86, 0.74, 0.62, 0.52, 0.44] : [0.82, 0.72, 0.62, 0.54, 0.46, 0.38];
 
   try {
-    let best = "";
+    let chosenBlob = null;
     for (const quality of qualitySteps) {
-      const candidate = canvas.toDataURL(mimeType, quality);
-      best = candidate;
-      if (estimateDataURLBytes(candidate) <= targetBytes) return candidate;
+      const candidateBlob = await canvasToBlob(canvas, mimeType, quality);
+      chosenBlob = candidateBlob;
+      if (candidateBlob.size <= targetBytes) break;
     }
-    return best || fileToDataURL(file, fallback);
+    if (!chosenBlob) {
+      chosenBlob = await canvasToBlob(canvas, "image/jpeg", isLogo ? 0.62 : 0.54);
+    }
+    const optimizedFile = new File([chosenBlob], `${target}.${chosenBlob.type.includes("png") ? "png" : chosenBlob.type.includes("jpeg") ? "jpg" : "webp"}`, {
+      type: chosenBlob.type || mimeType
+    });
+    const uploaded = await uploadFileToStorage(optimizedFile, PORTAL_MEDIA_BUCKET, workspaceFolder, {
+      prefix: target,
+      contentType: optimizedFile.type
+    });
+    return uploaded.publicUrl || fallback;
   } catch {
-    try {
-      return canvas.toDataURL("image/jpeg", isLogo ? 0.62 : 0.54);
-    } catch {
-      return fileToDataURL(file, fallback);
-    }
+    const uploaded = await uploadFileToStorage(file, PORTAL_MEDIA_BUCKET, workspaceFolder, {
+      prefix: target
+    });
+    return uploaded.publicUrl || fallback;
   }
 }
 
@@ -6711,11 +6775,10 @@ async function showLoginScreen() {
 async function persistPortalBeforeSessionChange() {
   flushOpenEditors();
   state.lastSavedAt = new Date().toISOString();
-  cacheStateLocally(state);
   try {
     await flushRemoteSave();
   } catch (error) {
-    console.warn("Falha ao sincronizar antes da troca de sessão. Mantendo cache local.", error);
+    console.warn("Falha ao sincronizar antes da troca de sessão.", error);
   }
 }
 
@@ -6755,45 +6818,36 @@ async function protectApp() {
     return;
   }
 
+  await refreshSessionAccessToken();
   history.replaceState({}, "", location.pathname);
   document.getElementById("loginOverlay")?.remove();
   setPortalVisibility(true);
-  state = buildPortalState(loadStateFromLocalCache());
+  state = await loadState();
   bootstrapFromURL();
   renderApp();
   addLogoutButton();
-
-  setTimeout(async () => {
-    try {
-      const hydratedState = await loadState();
-      const currentStamp = Date.parse(getEmbeddedStateTimestamp(state));
-      const hydratedStamp = Date.parse(getEmbeddedStateTimestamp(hydratedState));
-      if (Number.isFinite(currentStamp) && Number.isFinite(hydratedStamp) && hydratedStamp < currentStamp) {
-        return;
-      }
-      state = hydratedState;
-      bootstrapFromURL();
-      if (hydratedStamp !== currentStamp) renderApp();
-      addLogoutButton();
-    } catch (error) {
-      console.error("Falha ao hidratar o portal em segundo plano.", error);
-    }
-  }, 0);
 }
 
 window.addEventListener("beforeunload", () => {
   flushOpenEditors();
+  triggerKeepalivePortalSave();
 });
 
 window.addEventListener("pagehide", () => {
   flushOpenEditors();
   flushRemoteSave();
+  triggerKeepalivePortalSave();
 });
 
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState !== "hidden") return;
   flushOpenEditors();
   flushRemoteSave();
+  triggerKeepalivePortalSave();
+});
+
+supabaseClient.auth.onAuthStateChange((_event, session) => {
+  currentSessionAccessToken = session?.access_token || "";
 });
 
 window.addEventListener("load", protectApp);
