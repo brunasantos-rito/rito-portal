@@ -21,31 +21,97 @@ const PORTAL_DOCUMENTS_BUCKET = "portal-documents";
 // =======================
 
 async function loadSharedPortalState() {
+  console.info("[portal-db] GET /workspace_configs", {
+    method: "SELECT",
+    table: "workspace_configs",
+    id: "default"
+  });
   const { data, error } = await supabaseClient
-    .from("shared_portal_state")
-    .select("id, data, updated_at")
-    .eq("id", 1)
+    .from("workspace_configs")
+    .select("id, payload, updated_by")
+    .eq("id", "default")
     .single();
 
-  if (error) throw error;
-  return data;
+  if (error) {
+    console.error("[portal-db] Falha ao carregar workspace_configs", {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code
+    });
+    throw error;
+  }
+
+  return {
+    id: data?.id || "default",
+    data: data?.payload && typeof data.payload === "object" ? data.payload : {},
+    updated_at: null,
+    updated_by: data?.updated_by || null
+  };
+}
+
+async function getAuthenticatedUserId() {
+  try {
+    const { data, error } = await supabaseClient.auth.getUser();
+    if (error) {
+      console.warn("[portal-db] Não foi possível resolver o usuário autenticado para updated_by.", {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      });
+      return null;
+    }
+    return data?.user?.id || null;
+  } catch (error) {
+    console.warn("[portal-db] Exceção ao resolver o usuário autenticado para updated_by.", error);
+    return null;
+  }
 }
 
 async function saveSharedPortalState(state) {
+  const updatedBy = await getAuthenticatedUserId();
   const payload = {
-    id: 1,
-    data: state,
-    updated_at: new Date().toISOString()
+    id: "default",
+    payload: state,
+    updated_by: updatedBy
   };
 
+  console.info("[portal-db] POST /workspace_configs?on_conflict=id", {
+    method: "UPSERT",
+    table: "workspace_configs",
+    id: payload.id,
+    updatedBy,
+    lastSavedAt: state?.lastSavedAt || null
+  });
+
   const { data, error } = await supabaseClient
-    .from("shared_portal_state")
+    .from("workspace_configs")
     .upsert(payload, { onConflict: "id" })
-    .select()
+    .select("id, payload, updated_by")
     .single();
 
-  if (error) throw error;
-  return data;
+  if (error) {
+    console.error("[portal-db] Falha ao salvar workspace_configs", {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+      payloadSummary: {
+        id: payload.id,
+        updatedBy,
+        lastSavedAt: state?.lastSavedAt || null
+      }
+    });
+    throw error;
+  }
+
+  return {
+    id: data?.id || "default",
+    data: data?.payload && typeof data.payload === "object" ? data.payload : {},
+    updated_at: null,
+    updated_by: data?.updated_by || null
+  };
 }
 
 async function refreshSessionAccessToken() {
@@ -63,11 +129,10 @@ function triggerKeepalivePortalSave(snapshot = state) {
   if (typeof fetch !== "function") return;
   if (!currentSessionAccessToken) return;
   const payload = {
-    id: 1,
-    data: clonePortalState(snapshot),
-    updated_at: new Date().toISOString()
+    id: "default",
+    payload: clonePortalState(snapshot)
   };
-  fetch(`${SUPABASE_URL}/rest/v1/shared_portal_state?on_conflict=id`, {
+  fetch(`${SUPABASE_URL}/rest/v1/workspace_configs?on_conflict=id`, {
     method: "POST",
     keepalive: true,
     headers: {
@@ -302,6 +367,14 @@ async function persistCRMItemToDatabase(item, { workspaceId = state.currentWorks
   let lastError = null;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
+      console.info("[crm-save] Iniciando persistencia real do deal", {
+        attempt: attempt + 1,
+        workspaceId,
+        remove,
+        dealId: item?.id || null,
+        dealName: item?.name || null,
+        status: item?.status || null
+      });
       const nextState = await loadPortalStateForDatabaseWrite();
       if (remove) {
         removeCRMItemFromSnapshot(nextState, workspaceId, item);
@@ -321,6 +394,17 @@ async function persistCRMItemToDatabase(item, { workspaceId = state.currentWorks
         ? "O banco retornou sucesso, mas o deal removido ainda apareceu no snapshot salvo."
         : "O banco retornou sucesso, mas o novo deal não apareceu no snapshot salvo.");
     } catch (error) {
+      console.error("[crm-save] Falha na persistencia do deal", {
+        attempt: attempt + 1,
+        workspaceId,
+        remove,
+        dealId: item?.id || null,
+        dealName: item?.name || null,
+        message: error?.message || String(error),
+        details: error?.details || null,
+        hint: error?.hint || null,
+        code: error?.code || null
+      });
       lastError = error;
     }
     await delay(180 * (attempt + 1));
@@ -5321,41 +5405,64 @@ function openOpportunityDialog() {
       dialog.close();
       dialog.classList.add("hidden");
     } catch (error) {
-      if (submitButton) {
+      console.error("[crm-save] Erro no submit do modal de novo deal", {
+        message: error?.message || String(error),
+        details: error?.details || null,
+        hint: error?.hint || null,
+        code: error?.code || null,
+        dealId: newItem?.id || null,
+        dealName: newItem?.name || null
+      });
+      throw error;
+    } finally {
+      if (submitButton && dialog.open) {
         submitButton.disabled = false;
         submitButton.textContent = "Salvar";
       }
-      throw error;
     }
   });
 }
 
 async function upsertCRMItem(item, options = {}) {
-  const previousState = clonePortalState(state);
   const workspaceId = state.currentWorkspace;
-  item.updatedAt = new Date().toISOString();
-  item.createdAt = item.createdAt || item.updatedAt;
-  ensureProjectShape(item);
-  const items = workspaceData().crmItems;
-  const index = items.findIndex((entry) => entry.id === item.id);
-  if (index >= 0) items[index] = item;
-  else items.unshift(item);
-  if (item.tags.includes("Investido") && !workspaceData().projectBoards[item.name]) {
-    workspaceData().projectBoards[item.name] = [];
-  }
-  if (!item.tags.includes("Investido") && workspaceData().projectBoards[item.name] && item.investmentStatus !== "Investido") {
-    delete workspaceData().projectBoards[item.name];
-  }
-  renderApp();
+  const nextItem = clonePortalState(item);
+  nextItem.updatedAt = new Date().toISOString();
+  nextItem.createdAt = nextItem.createdAt || nextItem.updatedAt;
+  ensureProjectShape(nextItem);
   try {
     if (options.instant === false) {
-      await saveState({ instant: false });
+      const previousState = clonePortalState(state);
+      const items = workspaceData().crmItems;
+      const index = items.findIndex((entry) => entry.id === nextItem.id);
+      if (index >= 0) items[index] = nextItem;
+      else items.unshift(nextItem);
+      if (nextItem.tags.includes("Investido") && !workspaceData().projectBoards[nextItem.name]) {
+        workspaceData().projectBoards[nextItem.name] = [];
+      }
+      if (!nextItem.tags.includes("Investido") && workspaceData().projectBoards[nextItem.name] && nextItem.investmentStatus !== "Investido") {
+        delete workspaceData().projectBoards[nextItem.name];
+      }
+      renderApp();
+      try {
+        await saveState({ instant: false });
+      } catch (error) {
+        state = buildPortalState(previousState);
+        renderApp();
+        throw error;
+      }
     } else {
-      await persistCRMItemToDatabase(item, { workspaceId });
+      await persistCRMItemToDatabase(nextItem, { workspaceId });
     }
   } catch (error) {
-    state = buildPortalState(previousState);
-    renderApp();
+    console.error("[crm-save] upsertCRMItem falhou", {
+      workspaceId,
+      dealId: nextItem?.id || null,
+      dealName: nextItem?.name || null,
+      message: error?.message || String(error),
+      details: error?.details || null,
+      hint: error?.hint || null,
+      code: error?.code || null
+    });
     alert("Não foi possível salvar este card na nuvem. A alteração foi desfeita para evitar perda de consistência.");
     throw error;
   }
@@ -5363,21 +5470,34 @@ async function upsertCRMItem(item, options = {}) {
 
 async function removeCRMItem(item, options = {}) {
   if (!item) return;
-  const previousState = clonePortalState(state);
   const workspaceId = state.currentWorkspace;
-  state.workspaces[state.currentWorkspace].crmItems = workspaceData().crmItems.filter((entry) => entry.id !== item.id);
-  delete workspaceData().projectBoards[item.name];
-  workspaceData().documents = workspaceData().documents.filter((doc) => (doc.linkedTo || "").toLowerCase() !== item.name.toLowerCase());
-  renderApp();
   try {
     if (options.instant === false) {
-      await saveState({ instant: false });
+      const previousState = clonePortalState(state);
+      state.workspaces[state.currentWorkspace].crmItems = workspaceData().crmItems.filter((entry) => entry.id !== item.id);
+      delete workspaceData().projectBoards[item.name];
+      workspaceData().documents = workspaceData().documents.filter((doc) => (doc.linkedTo || "").toLowerCase() !== item.name.toLowerCase());
+      renderApp();
+      try {
+        await saveState({ instant: false });
+      } catch (error) {
+        state = buildPortalState(previousState);
+        renderApp();
+        throw error;
+      }
     } else {
       await persistCRMItemToDatabase(item, { workspaceId, remove: true });
     }
   } catch (error) {
-    state = buildPortalState(previousState);
-    renderApp();
+    console.error("[crm-save] removeCRMItem falhou", {
+      workspaceId,
+      dealId: item?.id || null,
+      dealName: item?.name || null,
+      message: error?.message || String(error),
+      details: error?.details || null,
+      hint: error?.hint || null,
+      code: error?.code || null
+    });
     alert("Não foi possível excluir este card na nuvem. A alteração foi desfeita para manter os dados consistentes.");
     throw error;
   }
