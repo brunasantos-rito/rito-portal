@@ -242,6 +242,92 @@ async function persistPortalStateImmediately(snapshot = state) {
   }
 }
 
+function workspaceStateSnapshot(rootState, workspaceId) {
+  const snapshot = rootState || buildPortalState();
+  if (!snapshot.workspaces?.[workspaceId]) {
+    const seeded = seedData();
+    snapshot.workspaces = snapshot.workspaces || {};
+    snapshot.workspaces[workspaceId] = clonePortalState(seeded.workspaces?.[workspaceId] || {});
+  }
+  const workspace = snapshot.workspaces[workspaceId];
+  workspace.crmItems = Array.isArray(workspace.crmItems) ? workspace.crmItems : [];
+  workspace.projectBoards = workspace.projectBoards && typeof workspace.projectBoards === "object" ? workspace.projectBoards : {};
+  workspace.documents = Array.isArray(workspace.documents) ? workspace.documents : [];
+  return workspace;
+}
+
+function upsertCRMItemInSnapshot(rootState, workspaceId, item) {
+  const workspace = workspaceStateSnapshot(rootState, workspaceId);
+  const nextItem = clonePortalState(item);
+  ensureProjectShape(nextItem);
+  const index = workspace.crmItems.findIndex((entry) => entry.id === nextItem.id);
+  if (index >= 0) workspace.crmItems[index] = nextItem;
+  else workspace.crmItems.unshift(nextItem);
+  if (nextItem.tags.includes("Investido") && !workspace.projectBoards[nextItem.name]) {
+    workspace.projectBoards[nextItem.name] = [];
+  }
+  if (!nextItem.tags.includes("Investido") && workspace.projectBoards[nextItem.name] && nextItem.investmentStatus !== "Investido") {
+    delete workspace.projectBoards[nextItem.name];
+  }
+  return nextItem;
+}
+
+function removeCRMItemFromSnapshot(rootState, workspaceId, item) {
+  const workspace = workspaceStateSnapshot(rootState, workspaceId);
+  workspace.crmItems = workspace.crmItems.filter((entry) => entry.id !== item.id);
+  delete workspace.projectBoards[item.name];
+  workspace.documents = workspace.documents.filter((doc) => (doc.linkedTo || "").toLowerCase() !== item.name.toLowerCase());
+}
+
+async function loadPortalStateForDatabaseWrite() {
+  try {
+    const remote = await loadSharedPortalState();
+    const remoteState = remote?.data && typeof remote.data === "object" ? remote.data : null;
+    return buildPortalState(remoteState);
+  } catch (error) {
+    const code = String(error?.code || "").trim();
+    const details = String(error?.details || error?.message || "").toLowerCase();
+    if (code === "PGRST116" || details.includes("0 rows") || details.includes("no rows")) {
+      return buildPortalState();
+    }
+    throw error;
+  }
+}
+
+async function persistCRMItemToDatabase(item, { workspaceId = state.currentWorkspace, remove = false, attempts = 3 } = {}) {
+  queuedSaveVersion += 1;
+  await pendingRemoteSave.catch(() => null);
+  pendingRemoteSave = Promise.resolve();
+
+  let lastError = null;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const nextState = await loadPortalStateForDatabaseWrite();
+      if (remove) {
+        removeCRMItemFromSnapshot(nextState, workspaceId, item);
+      } else {
+        upsertCRMItemInSnapshot(nextState, workspaceId, item);
+      }
+      nextState.lastSavedAt = new Date().toISOString();
+      const savedRow = await saveSharedPortalState(nextState);
+      const savedState = buildPortalState(savedRow?.data && typeof savedRow.data === "object" ? savedRow.data : nextState);
+      const persistedItem = savedState.workspaces?.[workspaceId]?.crmItems?.find((entry) => entry.id === item.id) || null;
+      if ((remove && !persistedItem) || (!remove && persistedItem)) {
+        state = savedState;
+        renderApp();
+        return savedState;
+      }
+      lastError = new Error(remove
+        ? "O banco retornou sucesso, mas o deal removido ainda apareceu no snapshot salvo."
+        : "O banco retornou sucesso, mas o novo deal não apareceu no snapshot salvo.");
+    } catch (error) {
+      lastError = error;
+    }
+    await delay(180 * (attempt + 1));
+  }
+  throw lastError || new Error("Não foi possível persistir o deal no banco de dados.");
+}
+
 function flushRemoteSave() {
   return queueImmediateRemoteSave(state);
 }
@@ -5163,7 +5249,7 @@ function openOpportunityDialog() {
         <label class="field"><span>Website</span><input name="website"></label>
         <label class="field"><span>Valor estimado (R$)</span><input name="estimatedValue" type="number" value="0"></label>
         <label class="field"><span>Valor da operação (R$)</span><input name="investmentAmount" type="number" value="0"></label>
-        <label class="field"><span>Estágio</span><select name="status">${["Lead", "Pipeline", "Due Diligence", "LOI", "Investidos", "Declinados"].map((stage) => `<option ${stage === current.status ? "selected" : ""}>${displayText(stage)}</option>`).join("")}</select></label>
+        <label class="field"><span>Estágio</span><select name="status">${ritoStatusOptionsMarkup(current.status)}</select></label>
         <label class="field"><span>Temperatura</span><select name="temperature">${["Frio", "Morno", "Quente"].map((temp) => `<option ${temp === current.temperature ? "selected" : ""}>${temp}</option>`).join("")}</select></label>
         <label class="field"><span>Responsável Rito</span><select name="owner">${workspaceConfig[state.currentWorkspace].memberOptions.map((owner) => `<option ${owner === current.owner ? "selected" : ""}>${displayText(owner)}</option>`).join("")}</select></label>
         <label class="field"><span>Contato principal</span><input name="mainContact"></label>
@@ -5231,10 +5317,9 @@ function openOpportunityDialog() {
     try {
       newItem.cover = await imageFileToProjectDataURL(form.querySelector("input[name='cover']").files[0], "cover", newItem.cover);
       newItem.logo = await imageFileToProjectDataURL(form.querySelector("input[name='logo']").files[0], "logo", newItem.logo);
-      const savePromise = upsertCRMItem(newItem);
+      await upsertCRMItem(newItem);
       dialog.close();
       dialog.classList.add("hidden");
-      savePromise.catch(() => null);
     } catch (error) {
       if (submitButton) {
         submitButton.disabled = false;
@@ -5247,6 +5332,7 @@ function openOpportunityDialog() {
 
 async function upsertCRMItem(item, options = {}) {
   const previousState = clonePortalState(state);
+  const workspaceId = state.currentWorkspace;
   item.updatedAt = new Date().toISOString();
   item.createdAt = item.createdAt || item.updatedAt;
   ensureProjectShape(item);
@@ -5262,7 +5348,11 @@ async function upsertCRMItem(item, options = {}) {
   }
   renderApp();
   try {
-    await saveState({ instant: options.instant !== false });
+    if (options.instant === false) {
+      await saveState({ instant: false });
+    } else {
+      await persistCRMItemToDatabase(item, { workspaceId });
+    }
   } catch (error) {
     state = buildPortalState(previousState);
     renderApp();
@@ -5274,12 +5364,17 @@ async function upsertCRMItem(item, options = {}) {
 async function removeCRMItem(item, options = {}) {
   if (!item) return;
   const previousState = clonePortalState(state);
+  const workspaceId = state.currentWorkspace;
   state.workspaces[state.currentWorkspace].crmItems = workspaceData().crmItems.filter((entry) => entry.id !== item.id);
   delete workspaceData().projectBoards[item.name];
   workspaceData().documents = workspaceData().documents.filter((doc) => (doc.linkedTo || "").toLowerCase() !== item.name.toLowerCase());
   renderApp();
   try {
-    await saveState({ instant: options.instant !== false });
+    if (options.instant === false) {
+      await saveState({ instant: false });
+    } else {
+      await persistCRMItemToDatabase(item, { workspaceId, remove: true });
+    }
   } catch (error) {
     state = buildPortalState(previousState);
     renderApp();
