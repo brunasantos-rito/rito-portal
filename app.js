@@ -141,6 +141,25 @@ function clonePortalState(snapshot = state) {
   return JSON.parse(JSON.stringify(snapshot));
 }
 
+function delay(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function confirmRemotePortalState(expectedState, attempts = 3) {
+  const expectedLastSavedAt = String(expectedState?.lastSavedAt || "").trim();
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const remote = await loadSharedPortalState();
+    const remoteState = buildPortalState(remote?.data && Object.keys(remote.data).length ? remote.data : null);
+    if (!expectedLastSavedAt || remoteState.lastSavedAt === expectedLastSavedAt) {
+      return remoteState;
+    }
+    if (attempt < attempts - 1) {
+      await delay(200 * (attempt + 1));
+    }
+  }
+  throw new Error("O estado salvo não retornou da nuvem com a versão esperada.");
+}
+
 function queueImmediateRemoteSave(snapshot = state) {
   const payload = clonePortalState(snapshot);
   const currentVersion = ++queuedSaveVersion;
@@ -165,6 +184,7 @@ async function persistPortalStateImmediately(snapshot = state) {
   try {
     await pendingRemoteSave.catch(() => null);
     const result = await saveSharedPortalState(payload);
+    state = await confirmRemotePortalState(payload);
     pendingRemoteSave = Promise.resolve(result);
     console.log("Portal salvo imediatamente no banco.");
     triggerKeepalivePortalSave(payload);
