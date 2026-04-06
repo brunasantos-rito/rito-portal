@@ -6783,15 +6783,46 @@ function estimateDataURLBytes(dataUrl) {
   return Math.ceil((base64.length * 3) / 4);
 }
 
+function fileToDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+    reader.onerror = () => reject(new Error("Falha ao ler a imagem localmente."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function isStorageBucketMissingError(error) {
+  const message = String(error?.message || "").toLowerCase();
+  return message.includes("bucket not found") || message.includes("bucket") && message.includes("not found");
+}
+
+async function uploadProjectImageWithFallback(file, bucket, folder, options = {}) {
+  try {
+    const uploaded = await uploadFileToStorage(file, bucket, folder, options);
+    return uploaded.publicUrl || "";
+  } catch (error) {
+    if (isStorageBucketMissingError(error)) {
+      console.warn("[portal-media] Bucket de storage indisponivel. Usando fallback local em data URL.", {
+        bucket,
+        folder
+      });
+    } else {
+      console.warn("[portal-media] Upload remoto falhou. Usando fallback local em data URL.", error);
+    }
+    return fileToDataURL(file);
+  }
+}
+
 async function imageFileToProjectDataURL(file, target, fallback) {
   if (!file) return fallback;
   const workspaceFolder = `${state.currentWorkspace}/${target === "logo" ? "logos" : "covers"}`;
   if (!file.type || !file.type.startsWith("image/") || file.type === "image/svg+xml") {
-    const uploaded = await uploadFileToStorage(file, PORTAL_MEDIA_BUCKET, workspaceFolder, {
+    const uploadedUrl = await uploadProjectImageWithFallback(file, PORTAL_MEDIA_BUCKET, workspaceFolder, {
       prefix: target,
       defaultExtension: target === "logo" ? "svg" : "bin"
     });
-    return uploaded.publicUrl || fallback;
+    return uploadedUrl || fallback;
   }
 
   const image = await loadImageFromFile(file);
@@ -6808,10 +6839,10 @@ async function imageFileToProjectDataURL(file, target, fallback) {
 
   const context = canvas.getContext("2d");
   if (!context) {
-    const uploaded = await uploadFileToStorage(file, PORTAL_MEDIA_BUCKET, workspaceFolder, {
+    const uploadedUrl = await uploadProjectImageWithFallback(file, PORTAL_MEDIA_BUCKET, workspaceFolder, {
       prefix: target
     });
-    return uploaded.publicUrl || fallback;
+    return uploadedUrl || fallback;
   }
 
   if (isLogo) {
@@ -6840,16 +6871,16 @@ async function imageFileToProjectDataURL(file, target, fallback) {
     const optimizedFile = new File([chosenBlob], `${target}.${chosenBlob.type.includes("png") ? "png" : chosenBlob.type.includes("jpeg") ? "jpg" : "webp"}`, {
       type: chosenBlob.type || mimeType
     });
-    const uploaded = await uploadFileToStorage(optimizedFile, PORTAL_MEDIA_BUCKET, workspaceFolder, {
+    const uploadedUrl = await uploadProjectImageWithFallback(optimizedFile, PORTAL_MEDIA_BUCKET, workspaceFolder, {
       prefix: target,
       contentType: optimizedFile.type
     });
-    return uploaded.publicUrl || fallback;
+    return uploadedUrl || fallback;
   } catch {
-    const uploaded = await uploadFileToStorage(file, PORTAL_MEDIA_BUCKET, workspaceFolder, {
+    const uploadedUrl = await uploadProjectImageWithFallback(file, PORTAL_MEDIA_BUCKET, workspaceFolder, {
       prefix: target
     });
-    return uploaded.publicUrl || fallback;
+    return uploadedUrl || fallback;
   }
 }
 
