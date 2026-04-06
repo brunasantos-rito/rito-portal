@@ -145,6 +145,33 @@ function delay(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+function portalStateVersion(snapshot = null) {
+  const timestamp = Date.parse(String(snapshot?.lastSavedAt || "").trim());
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+async function saveSharedPortalStateSafely(snapshot) {
+  const payload = clonePortalState(snapshot);
+  let remoteRow = null;
+  try {
+    remoteRow = await loadSharedPortalState();
+  } catch (error) {
+    console.warn("Não foi possível ler o estado remoto antes do save. Seguindo com a gravação.", error);
+  }
+
+  const remoteState = remoteRow?.data && typeof remoteRow.data === "object" ? remoteRow.data : null;
+  if (remoteState && portalStateVersion(remoteState) > portalStateVersion(payload)) {
+    console.warn("Save ignorado para evitar sobrescrever uma versão mais nova do portal.");
+    return {
+      skipped: true,
+      data: remoteState,
+      updated_at: remoteRow?.updated_at || null
+    };
+  }
+
+  return saveSharedPortalState(payload);
+}
+
 async function confirmRemotePortalState(expectedState, attempts = 3) {
   const expectedLastSavedAt = String(expectedState?.lastSavedAt || "").trim();
   for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -160,6 +187,20 @@ async function confirmRemotePortalState(expectedState, attempts = 3) {
   throw new Error("O estado salvo não retornou da nuvem com a versão esperada.");
 }
 
+function schedulePortalStateVerification(expectedState) {
+  const expectedSnapshot = clonePortalState(expectedState);
+  window.setTimeout(async () => {
+    try {
+      const remoteState = await confirmRemotePortalState(expectedSnapshot, 2);
+      if (portalStateVersion(remoteState) >= portalStateVersion(state)) {
+        state = remoteState;
+      }
+    } catch (error) {
+      console.warn("A confirmação assíncrona do save não retornou a versão esperada.", error);
+    }
+  }, 0);
+}
+
 function queueImmediateRemoteSave(snapshot = state) {
   const payload = clonePortalState(snapshot);
   const currentVersion = ++queuedSaveVersion;
@@ -167,7 +208,8 @@ function queueImmediateRemoteSave(snapshot = state) {
     .catch(() => null)
     .then(async () => {
       if (currentVersion !== queuedSaveVersion) return null;
-      const result = await saveSharedPortalState(payload);
+      const result = await saveSharedPortalStateSafely(payload);
+      if (currentVersion !== queuedSaveVersion) return null;
       console.log("Portal salvo no banco.");
       return result;
     })
@@ -183,11 +225,15 @@ async function persistPortalStateImmediately(snapshot = state) {
   queuedSaveVersion += 1;
   try {
     await pendingRemoteSave.catch(() => null);
-    const result = await saveSharedPortalState(payload);
-    state = await confirmRemotePortalState(payload);
+    const result = await saveSharedPortalStateSafely(payload);
+    const resolvedState = result?.data && typeof result.data === "object"
+      ? result.data
+      : payload;
+    state = buildPortalState(resolvedState);
     pendingRemoteSave = Promise.resolve(result);
     console.log("Portal salvo imediatamente no banco.");
     triggerKeepalivePortalSave(payload);
+    schedulePortalStateVerification(payload);
     return result;
   } catch (error) {
     pendingRemoteSave = Promise.resolve();
@@ -1548,14 +1594,20 @@ function buildPortalState(snapshot = null) {
 }
 
 async function loadState() {
-  try {
-    const data = await loadSharedPortalState();
-    const remoteState = data?.data && Object.keys(data.data).length ? data.data : null;
-    return buildPortalState(remoteState);
-  } catch (error) {
-    console.error("Falha ao carregar dados do banco", error);
-    return buildPortalState();
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const data = await loadSharedPortalState();
+      const remoteState = data?.data && Object.keys(data.data).length ? data.data : null;
+      return buildPortalState(remoteState);
+    } catch (error) {
+      if (attempt === 2) {
+        console.error("Falha ao carregar dados do banco", error);
+        return buildPortalState();
+      }
+      await delay(250 * (attempt + 1));
+    }
   }
+  return buildPortalState();
 }
 
 function saveState(options = {}) {
@@ -2037,18 +2089,26 @@ function declinedDealReasonStats(items) {
   (items || [])
     .filter((item) => normalizeReferenceDashboardStage(item) === "Declined")
     .forEach((item) => {
+      const projectName = displayText(item?.name || item?.projectName || "").trim();
       const summary = dealStatusSummary(item);
       const reasons = summary
         ? summary.split(/\n|;/).map((entry) => entry.trim()).filter(Boolean)
         : ["Sem motivo preenchido"];
       reasons.forEach((reason) => {
         const normalized = reason.toLowerCase();
-        const current = buckets.get(normalized) || { label: reason, count: 0 };
+        const current = buckets.get(normalized) || { label: reason, count: 0, projects: new Set() };
         current.count += 1;
+        if (projectName) current.projects.add(projectName);
         buckets.set(normalized, current);
       });
     });
-  return [...buckets.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "pt-BR"));
+  return [...buckets.values()]
+    .map((entry) => ({
+      label: entry.label,
+      count: entry.count,
+      projects: Array.from(entry.projects).sort((a, b) => a.localeCompare(b, "pt-BR"))
+    }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "pt-BR"));
 }
 
 function referenceCardSubtle(card) {
@@ -3017,6 +3077,7 @@ function renderDeclinedReasonsPanel(items) {
           <strong>${displayText(entry.label)}</strong>
           <span>${entry.count}</span>
         </div>
+        ${entry.projects?.length ? `<p class="declined-reason-projects">${entry.projects.map((project) => escapeHTML(displayText(project))).join(" • ")}</p>` : ""}
         <div class="declined-reason-bar"><span style="width:${Math.max((entry.count / maxCount) * 100, 12)}%"></span></div>
       `;
       list.appendChild(row);
@@ -5137,6 +5198,11 @@ function openOpportunityDialog() {
   const form = document.getElementById("opportunityForm");
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    const submitButton = form.querySelector('button[type="submit"]');
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.textContent = "Salvando...";
+    }
     const formData = new FormData(form);
     const newItem = {
       ...current,
@@ -5162,16 +5228,27 @@ function openOpportunityDialog() {
       advantages: formData.get("advantages"),
       tags: String(formData.get("tags") || "").split(",").map((tag) => tag.trim()).filter(Boolean)
     };
-    newItem.cover = await imageFileToProjectDataURL(form.querySelector("input[name='cover']").files[0], "cover", newItem.cover);
-    newItem.logo = await imageFileToProjectDataURL(form.querySelector("input[name='logo']").files[0], "logo", newItem.logo);
-    await upsertCRMItem(newItem);
-    dialog.close();
-    dialog.classList.add("hidden");
+    try {
+      newItem.cover = await imageFileToProjectDataURL(form.querySelector("input[name='cover']").files[0], "cover", newItem.cover);
+      newItem.logo = await imageFileToProjectDataURL(form.querySelector("input[name='logo']").files[0], "logo", newItem.logo);
+      const savePromise = upsertCRMItem(newItem);
+      dialog.close();
+      dialog.classList.add("hidden");
+      savePromise.catch(() => null);
+    } catch (error) {
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.textContent = "Salvar";
+      }
+      throw error;
+    }
   });
 }
 
 async function upsertCRMItem(item, options = {}) {
   const previousState = clonePortalState(state);
+  item.updatedAt = new Date().toISOString();
+  item.createdAt = item.createdAt || item.updatedAt;
   ensureProjectShape(item);
   const items = workspaceData().crmItems;
   const index = items.findIndex((entry) => entry.id === item.id);
