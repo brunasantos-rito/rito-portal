@@ -2183,7 +2183,12 @@ function prioritizedRitoPipelineItems(items = []) {
 }
 
 function investedProjects(items) {
-  return (items || []).filter((item) => item.investmentStatus === "Investido" || (item.tags || []).includes("Investido"));
+  return (items || []).filter((item) =>
+    item &&
+    !Array.isArray(item) &&
+    typeof item === "object" &&
+    (item.investmentStatus === "Investido" || (item.tags || []).includes("Investido"))
+  );
 }
 
 function projectAllocationValue(item) {
@@ -2216,7 +2221,12 @@ function activeProjectBoardEntries(data = workspaceData()) {
 }
 
 function getSelectedProject() {
-  return workspaceData().crmItems.find((item) => item.id === state.selectedProjectId[state.currentWorkspace]);
+  return (workspaceData().crmItems || []).find((item) =>
+    item &&
+    !Array.isArray(item) &&
+    typeof item === "object" &&
+    item.id === state.selectedProjectId[state.currentWorkspace]
+  );
 }
 
 function dashboardFilterState() {
@@ -2462,8 +2472,10 @@ function usingReferenceDashboard() {
 }
 
 function normalizeReferenceDashboardStage(item) {
+  if (!item || Array.isArray(item) || typeof item !== "object") return "Lead";
+  const tags = Array.isArray(item.tags) ? item.tags : [];
   const normalized = normalizeRitoDealStatus(item.status, item.investmentStatus);
-  if (["Aporte", "Portfólio", "Exit"].includes(normalized) || item.investmentStatus === "Investido" || (item.tags || []).includes("Investido")) return "Portfolio";
+  if (["Aporte", "Portfólio", "Exit"].includes(normalized) || item.investmentStatus === "Investido" || tags.includes("Investido")) return "Portfolio";
   if (normalized === "Declinado") return "Declined";
   if (["LOI", "NBO", "Proposta"].includes(normalized)) return "LOI";
   if (["Due Diligence", "Signing", "Closing"].includes(normalized)) return "Due Diligence";
@@ -2473,23 +2485,28 @@ function normalizeReferenceDashboardStage(item) {
 
 function referenceDashboardRows() {
   return prioritizedRitoPipelineItems(workspaceData().crmItems || [])
-    .filter((item) => item && typeof item === "object")
+    .filter((item) => item && !Array.isArray(item) && typeof item === "object")
     .map((item) => {
     ensureProjectShape(item);
+    const normalizedStage = normalizeReferenceDashboardStage(item);
+    const normalizedTemperature = ["Quente", "Morno", "Frio", "Investida", "Declinada", "Exit"].includes(String(item.temperature || "").trim())
+      ? String(item.temperature).trim()
+      : temperatureFromRitoDealStatus(item.status);
+    const companyName = displayText(item.name || item.company || "Deal sem nome").trim() || "Deal sem nome";
     return {
-      company: item.name,
+      company: companyName,
       segment: item.email || item.sector || item.subtitle || "-",
       contact: item.contact || item.mainContact || item.email || "-",
       statusSummary: dealStatusSummaryPreview(item, 180),
       projectStrengths: displayText(item.projectStrengths || ""),
       projectWeaknesses: displayText(item.projectWeaknesses || ""),
-      stage: normalizeReferenceDashboardStage(item),
-      temp: item.temperature || "Frio",
-      owner: item.owner || "-",
+      stage: normalizedStage,
+      temp: normalizedTemperature,
+      owner: displayText(item.owner || "-") || "-",
       close: item.deadline || item.closeDate || "-",
-      initials: item.logoText || initials(item.name),
+      initials: item.logoText || initials(companyName),
       logo: item.logo || "",
-      logoText: item.logoText || initials(item.name),
+      logoText: item.logoText || initials(companyName),
       logoBg: item.logoBg || "transparent"
     };
     });
@@ -2554,7 +2571,7 @@ function updateRitoDashboardView() {
 }
 
 function ensureProjectShape(item) {
-  if (!item || typeof item !== "object") return item;
+  if (!item || Array.isArray(item) || typeof item !== "object") return item;
   reconcileProjectInvestmentState(item);
   item.tags = normalizeProjectTagList(item.tags || [], item);
   const normalizedStatus = normalizeRitoDealStatus(item.status, item.investmentStatus);
@@ -3058,7 +3075,7 @@ function renderRitoFunnel() {
 function renderRitoDashboardSide() {
   const filters = dashboardFilterState();
   const filteredRows = getFilteredRitoDashboardRows();
-  const crmItems = (workspaceData().crmItems || []).filter((item) => item && typeof item === "object");
+  const crmItems = (workspaceData().crmItems || []).filter((item) => item && !Array.isArray(item) && typeof item === "object");
   const visibleCompanies = new Set(filteredRows.map((row) => row.company));
   const visibleItems = crmItems.filter((item) => visibleCompanies.has(item.name));
   const allocatedValue = allocatedPortfolioValue(visibleItems);
@@ -3180,16 +3197,16 @@ function renderRitoDashboardSide() {
   });
   side.appendChild(controls);
 
-  side.appendChild(renderRitoDashboardTable(filteredRows));
-  side.appendChild(renderProjectConfidencePanel(filteredRows));
-  side.appendChild(renderDeclinedReasonsPanel(crmItems));
+  side.appendChild(renderDashboardSectionSafely("Tabela do pipeline", () => renderRitoDashboardTable(filteredRows)));
+  side.appendChild(renderDashboardSectionSafely("Seguranças e inseguranças", () => renderProjectConfidencePanel(filteredRows)));
+  side.appendChild(renderDashboardSectionSafely("Motivos dos declinados", () => renderDeclinedReasonsPanel(crmItems)));
   return side;
 }
 
 function renderRitoDashboardTable(rows = referenceDashboardRows()) {
   const table = document.createElement("section");
   table.className = "panel dashboard-table rito-dashboard-table";
-  const crmItems = (workspaceData().crmItems || []).filter((item) => item && typeof item === "object");
+  const crmItems = (workspaceData().crmItems || []).filter((item) => item && !Array.isArray(item) && typeof item === "object");
   const head = document.createElement("div");
   head.className = "table-head";
   head.innerHTML = "<div>Empresa</div><div>Resumo do status</div><div>Estágio</div><div>Temp.</div><div>Responsável</div>";
@@ -3206,8 +3223,8 @@ function renderRitoDashboardTable(rows = referenceDashboardRows()) {
         <div><strong>${displayText(rowData.company)}</strong><div class="subtle">${displayText(rowData.segment)}</div></div>
       </div>
       <div class="table-summary-cell">${shouldShowDeclinedReason ? (rowData.statusSummary || "-") : ""}</div>
-      <div class="stage-select-cell">${linked ? `<select class="deal-status-select deal-status-select-table" data-dashboard-status="${linked.id}">${ritoStatusOptionsMarkup(linked.status)}</select>` : `<span class="chip chip-${rowData.stage.toLowerCase().replace(/\s+/g, "-")}">${rowData.stage}</span>`}</div>
-      <div><span class="chip chip-${rowData.temp.toLowerCase()}">${rowData.temp}</span></div>
+      <div class="stage-select-cell">${linked ? `<select class="deal-status-select deal-status-select-table" data-dashboard-status="${linked.id}">${ritoStatusOptionsMarkup(linked.status)}</select>` : `<span class="chip chip-${String(rowData.stage || "lead").toLowerCase().replace(/\s+/g, "-")}">${displayText(rowData.stage || "Lead")}</span>`}</div>
+      <div><span class="chip chip-${String(rowData.temp || "frio").toLowerCase()}">${displayText(rowData.temp || "Frio")}</span></div>
       <div class="owner-cell">${renderOwnerAvatar(rowData.owner)}<span>${displayText(rowData.owner)}</span></div>
     `;
     if (linked) {
