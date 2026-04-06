@@ -2472,7 +2472,9 @@ function normalizeReferenceDashboardStage(item) {
 }
 
 function referenceDashboardRows() {
-  return prioritizedRitoPipelineItems(workspaceData().crmItems || []).map((item) => {
+  return prioritizedRitoPipelineItems(workspaceData().crmItems || [])
+    .filter((item) => item && typeof item === "object")
+    .map((item) => {
     ensureProjectShape(item);
     return {
       company: item.name,
@@ -2490,7 +2492,7 @@ function referenceDashboardRows() {
       logoText: item.logoText || initials(item.name),
       logoBg: item.logoBg || "transparent"
     };
-  });
+    });
 }
 
 function referenceDashboardStages() {
@@ -2552,6 +2554,7 @@ function updateRitoDashboardView() {
 }
 
 function ensureProjectShape(item) {
+  if (!item || typeof item !== "object") return item;
   reconcileProjectInvestmentState(item);
   item.tags = normalizeProjectTagList(item.tags || [], item);
   const normalizedStatus = normalizeRitoDealStatus(item.status, item.investmentStatus);
@@ -2930,6 +2933,28 @@ function renderDashboard() {
   return panel;
 }
 
+function renderDashboardSectionFallback(sectionName, error) {
+  console.error(`[dashboard:${sectionName}] Falha ao renderizar bloco`, error);
+  const section = document.createElement("section");
+  section.className = "panel";
+  section.style.display = "grid";
+  section.style.gap = "8px";
+  section.style.padding = "18px";
+  section.innerHTML = `
+    <h3>${displayText(sectionName)}</h3>
+    <p>Esse bloco do dashboard não pôde ser carregado com os dados atuais.</p>
+  `;
+  return section;
+}
+
+function renderDashboardSectionSafely(sectionName, renderFn) {
+  try {
+    return renderFn();
+  } catch (error) {
+    return renderDashboardSectionFallback(sectionName, error);
+  }
+}
+
 function renderRitoReferenceDashboard() {
   const panel = document.createElement("section");
   panel.className = "content-grid";
@@ -2948,8 +2973,8 @@ function renderRitoReferenceDashboard() {
 
   const grid = document.createElement("div");
   grid.className = "dashboard-grid rito-dashboard-grid";
-  grid.appendChild(renderRitoFunnel());
-  grid.appendChild(renderRitoDashboardSide());
+  grid.appendChild(renderDashboardSectionSafely("Funil do pipeline", () => renderRitoFunnel()));
+  grid.appendChild(renderDashboardSectionSafely("Resumo do dashboard", () => renderRitoDashboardSide()));
   panel.appendChild(grid);
   return panel;
 }
@@ -3033,7 +3058,7 @@ function renderRitoFunnel() {
 function renderRitoDashboardSide() {
   const filters = dashboardFilterState();
   const filteredRows = getFilteredRitoDashboardRows();
-  const crmItems = workspaceData().crmItems || [];
+  const crmItems = (workspaceData().crmItems || []).filter((item) => item && typeof item === "object");
   const visibleCompanies = new Set(filteredRows.map((row) => row.company));
   const visibleItems = crmItems.filter((item) => visibleCompanies.has(item.name));
   const allocatedValue = allocatedPortfolioValue(visibleItems);
@@ -3164,6 +3189,7 @@ function renderRitoDashboardSide() {
 function renderRitoDashboardTable(rows = referenceDashboardRows()) {
   const table = document.createElement("section");
   table.className = "panel dashboard-table rito-dashboard-table";
+  const crmItems = (workspaceData().crmItems || []).filter((item) => item && typeof item === "object");
   const head = document.createElement("div");
   head.className = "table-head";
   head.innerHTML = "<div>Empresa</div><div>Resumo do status</div><div>Estágio</div><div>Temp.</div><div>Responsável</div>";
@@ -3172,7 +3198,7 @@ function renderRitoDashboardTable(rows = referenceDashboardRows()) {
   rows.forEach((rowData) => {
     const row = document.createElement("div");
     row.className = "table-row rito-table-row";
-    const linked = workspaceData().crmItems.find((item) => item.name === rowData.company);
+    const linked = crmItems.find((item) => item.name === rowData.company);
     const shouldShowDeclinedReason = normalizeReferenceDashboardStage(linked || rowData) === "Declined";
     row.innerHTML = `
       <div class="company-cell">
