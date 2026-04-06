@@ -1592,16 +1592,18 @@ function migrateRitoReferenceProjects(rootState) {
       existingByReference.set(key, seededItem);
     }
   });
-  const popIndex = rito.crmItems.findIndex((item) => item.name === "Pop Move");
-  const braslarIndex = rito.crmItems.findIndex((item) => item.name === "Geral / Braslar");
-  if (popIndex > -1 && braslarIndex > -1 && popIndex > braslarIndex) {
-    const [popMove] = rito.crmItems.splice(popIndex, 1);
-    rito.crmItems.splice(braslarIndex, 0, popMove);
-  }
-  const adoreiIndex = rito.crmItems.findIndex((item) => item.name === "Adorei");
-  if (adoreiIndex > 0) {
-    const [adorei] = rito.crmItems.splice(adoreiIndex, 1);
-    rito.crmItems.unshift(adorei);
+  if (!hadExistingItems) {
+    const popIndex = rito.crmItems.findIndex((item) => item.name === "Pop Move");
+    const braslarIndex = rito.crmItems.findIndex((item) => item.name === "Geral / Braslar");
+    if (popIndex > -1 && braslarIndex > -1 && popIndex > braslarIndex) {
+      const [popMove] = rito.crmItems.splice(popIndex, 1);
+      rito.crmItems.splice(braslarIndex, 0, popMove);
+    }
+    const adoreiIndex = rito.crmItems.findIndex((item) => item.name === "Adorei");
+    if (adoreiIndex > 0) {
+      const [adorei] = rito.crmItems.splice(adoreiIndex, 1);
+      rito.crmItems.unshift(adorei);
+    }
   }
 }
 
@@ -2386,32 +2388,34 @@ function declinedReasonPreview(item, maxLength = 150) {
   return dealStatusSummaryPreview(item, maxLength);
 }
 
-function declinedDealReasonStats(items) {
-  const buckets = new Map();
+function capitalizeSentenceStart(value) {
+  const text = displayText(value).trim();
+  if (!text) return "";
+  return `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
+}
+
+function splitProjectInsightList(value) {
+  return String(value || "")
+    .split(/\n|;|,/)
+    .map((entry) => capitalizeSentenceStart(entry))
+    .filter(Boolean);
+}
+
+function declinedDealReasonGroups(items) {
+  const groups = [];
   (Array.isArray(items) ? items : [])
     .filter((item) => item && !Array.isArray(item) && typeof item === "object")
     .filter((item) => normalizeReferenceDashboardStage(item) === "Declined")
     .forEach((item) => {
-      const projectName = displayText(item?.name || item?.projectName || item?.company || "").trim();
+      const projectName = displayText(item?.name || item?.projectName || item?.company || "").trim() || "Deal sem nome";
       const summary = dealStatusSummary(item);
-      const reasons = summary
-        ? summary.split(/\n|;|,/).map((entry) => entry.trim()).filter(Boolean)
-        : ["Sem motivo preenchido"];
-      reasons.forEach((reason) => {
-        const normalized = reason.toLowerCase();
-        const current = buckets.get(normalized) || { label: reason, count: 0, projects: new Set() };
-        current.count += 1;
-        if (projectName) current.projects.add(projectName);
-        buckets.set(normalized, current);
+      const reasons = splitProjectInsightList(summary);
+      groups.push({
+        projectName,
+        reasons: Array.from(new Set(reasons.length ? reasons : ["Sem motivo preenchido"]))
       });
     });
-  return [...buckets.values()]
-    .map((entry) => ({
-      label: entry.label,
-      count: entry.count,
-      projects: Array.from(entry.projects).sort((a, b) => a.localeCompare(b, "pt-BR"))
-    }))
-    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "pt-BR"));
+  return groups.sort((a, b) => a.projectName.localeCompare(b.projectName, "pt-BR"));
 }
 
 function referenceCardSubtle(card) {
@@ -3333,28 +3337,15 @@ function renderRitoDashboardTable(rows = referenceDashboardRows()) {
 }
 
 function summarizeProjectField(items, key) {
-  const stats = new Map();
+  const grouped = [];
   (Array.isArray(items) ? items : []).forEach((item) => {
     if (!item || Array.isArray(item) || typeof item !== "object") return;
     const projectName = displayText(item?.name || item?.projectName || item?.company || "").trim();
-    String(item?.[key] || "")
-      .split(/\n|;|,/)
-      .map((part) => displayText(part).trim())
-      .filter(Boolean)
-      .forEach((label) => {
-        const current = stats.get(label) || { label, count: 0, projects: new Set() };
-        current.count += 1;
-        if (projectName) current.projects.add(projectName);
-        stats.set(label, current);
-      });
+    const entries = Array.from(new Set(splitProjectInsightList(item?.[key])));
+    if (!projectName || !entries.length) return;
+    grouped.push({ projectName, entries });
   });
-  return Array.from(stats.values())
-    .map((entry) => ({
-      label: entry.label,
-      count: entry.count,
-      projects: Array.from(entry.projects).sort((a, b) => a.localeCompare(b, "pt-BR"))
-    }))
-    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "pt-BR"));
+  return grouped.sort((a, b) => a.projectName.localeCompare(b.projectName, "pt-BR"));
 }
 
 function renderConfidenceBucket(title, subtitle, entries, toneClass) {
@@ -3373,17 +3364,14 @@ function renderConfidenceBucket(title, subtitle, entries, toneClass) {
   if (!entries.length) {
     list.innerHTML = `<div class="subtle">Nenhum item preenchido ainda.</div>`;
   } else {
-    const maxCount = Math.max(...entries.map((entry) => entry.count), 1);
     entries.forEach((entry) => {
       const row = document.createElement("article");
       row.className = "project-confidence-row";
       row.innerHTML = `
         <div class="project-confidence-head">
-          <strong>${displayText(entry.label)}</strong>
-          <span>${entry.count}</span>
+          <strong>${escapeHTML(displayText(entry.projectName))}</strong>
         </div>
-        ${entry.projects?.length ? `<p class="project-confidence-projects">${entry.projects.map((project) => escapeHTML(displayText(project))).join(" • ")}</p>` : ""}
-        <div class="project-confidence-bar"><span style="width:${Math.max((entry.count / maxCount) * 100, 10)}%"></span></div>
+        <p class="project-confidence-projects">${escapeHTML(title)}: ${entry.entries.map((item) => escapeHTML(displayText(item))).join(", ")}.</p>
       `;
       list.appendChild(row);
     });
@@ -3415,7 +3403,7 @@ function renderProjectConfidencePanel(rows = referenceDashboardRows()) {
 function renderDeclinedReasonsPanel(items) {
   const panel = document.createElement("section");
   panel.className = "panel declined-reasons-panel";
-  const reasons = declinedDealReasonStats((Array.isArray(items) ? items : []).filter((item) => item && !Array.isArray(item) && typeof item === "object"));
+  const reasons = declinedDealReasonGroups((Array.isArray(items) ? items : []).filter((item) => item && !Array.isArray(item) && typeof item === "object"));
   panel.innerHTML = `
     <div class="panel-header">
       <div>
@@ -3429,17 +3417,14 @@ function renderDeclinedReasonsPanel(items) {
   if (!reasons.length) {
     list.innerHTML = `<div class="subtle">Nenhum motivo preenchido nos deals declinados.</div>`;
   } else {
-    const maxCount = Math.max(...reasons.map((entry) => entry.count), 1);
     reasons.forEach((entry) => {
       const row = document.createElement("article");
       row.className = "declined-reason-row";
       row.innerHTML = `
         <div class="declined-reason-head">
-          <strong>${displayText(entry.label)}</strong>
-          <span>${entry.count}</span>
+          <strong>${escapeHTML(displayText(entry.projectName))}</strong>
         </div>
-        ${entry.projects?.length ? `<p class="declined-reason-projects">${entry.projects.map((project) => escapeHTML(displayText(project))).join(" • ")}</p>` : ""}
-        <div class="declined-reason-bar"><span style="width:${Math.max((entry.count / maxCount) * 100, 12)}%"></span></div>
+        <p class="declined-reason-projects">Motivos do declínio: ${entry.reasons.map((item) => escapeHTML(displayText(item))).join(", ")}.</p>
       `;
       list.appendChild(row);
     });
