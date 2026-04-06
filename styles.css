@@ -2077,6 +2077,13 @@ body[data-theme="dark"] .card-cover::after {
   overflow: hidden;
 }
 
+.declined-reason-projects {
+  margin: -2px 0 0;
+  color: var(--text-soft);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
 .declined-reason-bar span {
   display: block;
   height: 100%;
