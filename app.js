@@ -2,6 +2,8 @@ const STORAGE_KEY = "rito-os-v1";
 
 const SUPABASE_URL = "https://soarinrvuvnqabtyyrta.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_qsbL0lRuMR1eZAKp0vcscg_5PfVxGHo";
+const RECOVERED_PORTAL_STATE_URL = "./recovered-portal-state.json";
+const FORCE_PORTAL_RECOVERY = false;
 
 if (!window.supabase) {
   throw new Error("SDK do Supabase não carregou.");
@@ -13,6 +15,7 @@ const supabaseClient = window.supabase.createClient(
 );
 
 let currentSessionAccessToken = "";
+let didAttemptRecoveredStateRepublish = false;
 const PORTAL_MEDIA_BUCKET = "portal-media";
 const PORTAL_DOCUMENTS_BUCKET = "portal-documents";
 
@@ -21,19 +24,19 @@ const PORTAL_DOCUMENTS_BUCKET = "portal-documents";
 // =======================
 
 async function loadSharedPortalState() {
-  console.info("[portal-db] GET /workspace_configs", {
+  console.info("[portal-db] GET /shared_portal_state", {
     method: "SELECT",
-    table: "workspace_configs",
-    id: "default"
+    table: "shared_portal_state",
+    id: 1
   });
   const { data, error } = await supabaseClient
-    .from("workspace_configs")
-    .select("id, payload, updated_by")
-    .eq("id", "default")
+    .from("shared_portal_state")
+    .select("id, data, updated_at")
+    .eq("id", 1)
     .single();
 
   if (error) {
-    console.error("[portal-db] Falha ao carregar workspace_configs", {
+    console.error("[portal-db] Falha ao carregar shared_portal_state", {
       message: error.message,
       details: error.details,
       hint: error.hint,
@@ -43,63 +46,54 @@ async function loadSharedPortalState() {
   }
 
   return {
-    id: data?.id || "default",
-    data: data?.payload && typeof data.payload === "object" ? data.payload : {},
-    updated_at: null,
-    updated_by: data?.updated_by || null
+    id: data?.id ?? 1,
+    data: data?.data && typeof data.data === "object" ? data.data : {},
+    updated_at: data?.updated_at || null
   };
 }
 
-async function getAuthenticatedUserId() {
-  try {
-    const { data, error } = await supabaseClient.auth.getUser();
-    if (error) {
-      console.warn("[portal-db] Não foi possível resolver o usuário autenticado para updated_by.", {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code
-      });
-      return null;
-    }
-    return data?.user?.id || null;
-  } catch (error) {
-    console.warn("[portal-db] Exceção ao resolver o usuário autenticado para updated_by.", error);
-    return null;
+async function loadRecoveredPortalState() {
+  const response = await fetch(RECOVERED_PORTAL_STATE_URL, {
+    cache: "no-store"
+  });
+  if (!response.ok) {
+    throw new Error(`Falha ao carregar snapshot recuperado (${response.status})`);
   }
+  const snapshot = await response.json();
+  console.info("[portal-recovery] Snapshot local recuperado carregado.", {
+    lastSavedAt: snapshot?.lastSavedAt || null
+  });
+  return buildPortalState(snapshot);
 }
 
 async function saveSharedPortalState(state) {
-  const updatedBy = await getAuthenticatedUserId();
   const payload = {
-    id: "default",
-    payload: state,
-    updated_by: updatedBy
+    id: 1,
+    data: state,
+    updated_at: new Date().toISOString()
   };
 
-  console.info("[portal-db] POST /workspace_configs?on_conflict=id", {
+  console.info("[portal-db] POST /shared_portal_state?on_conflict=id", {
     method: "UPSERT",
-    table: "workspace_configs",
+    table: "shared_portal_state",
     id: payload.id,
-    updatedBy,
     lastSavedAt: state?.lastSavedAt || null
   });
 
   const { data, error } = await supabaseClient
-    .from("workspace_configs")
+    .from("shared_portal_state")
     .upsert(payload, { onConflict: "id" })
-    .select("id, payload, updated_by")
+    .select("id, data, updated_at")
     .single();
 
   if (error) {
-    console.error("[portal-db] Falha ao salvar workspace_configs", {
+    console.error("[portal-db] Falha ao salvar shared_portal_state", {
       message: error.message,
       details: error.details,
       hint: error.hint,
       code: error.code,
       payloadSummary: {
         id: payload.id,
-        updatedBy,
         lastSavedAt: state?.lastSavedAt || null
       }
     });
@@ -107,10 +101,9 @@ async function saveSharedPortalState(state) {
   }
 
   return {
-    id: data?.id || "default",
-    data: data?.payload && typeof data.payload === "object" ? data.payload : {},
-    updated_at: null,
-    updated_by: data?.updated_by || null
+    id: data?.id ?? 1,
+    data: data?.data && typeof data.data === "object" ? data.data : {},
+    updated_at: data?.updated_at || null
   };
 }
 
@@ -125,14 +118,32 @@ async function refreshSessionAccessToken() {
   return currentSessionAccessToken;
 }
 
+async function republishRecoveredPortalState(snapshot) {
+  if (didAttemptRecoveredStateRepublish) return;
+  didAttemptRecoveredStateRepublish = true;
+  if (!currentSessionAccessToken) {
+    console.warn("[portal-recovery] Sessao sem token. Snapshot recuperado nao foi republicado para a nuvem.");
+    return;
+  }
+  try {
+    const savedRow = await saveSharedPortalState(clonePortalState(snapshot));
+    console.info("[portal-recovery] Snapshot recuperado republicado para shared_portal_state.", {
+      updatedAt: savedRow?.updated_at || null
+    });
+  } catch (error) {
+    console.error("[portal-recovery] Falha ao republicar snapshot recuperado.", error);
+  }
+}
+
 function triggerKeepalivePortalSave(snapshot = state) {
   if (typeof fetch !== "function") return;
   if (!currentSessionAccessToken) return;
   const payload = {
-    id: "default",
-    payload: clonePortalState(snapshot)
+    id: 1,
+    data: clonePortalState(snapshot),
+    updated_at: new Date().toISOString()
   };
-  fetch(`${SUPABASE_URL}/rest/v1/workspace_configs?on_conflict=id`, {
+  fetch(`${SUPABASE_URL}/rest/v1/shared_portal_state?on_conflict=id`, {
     method: "POST",
     keepalive: true,
     headers: {
@@ -1740,17 +1751,73 @@ function buildPortalState(snapshot = null) {
   }
 
   const base = seedData();
-  const merged = { ...base, ...snapshot };
+  const rawSnapshot = snapshot && typeof snapshot.data === "object" && !snapshot.workspaces && snapshot.data.workspaces
+    ? snapshot.data
+    : snapshot;
+  const merged = { ...base, ...rawSnapshot };
+
+  merged.currentView = {
+    ...base.currentView,
+    ...((rawSnapshot.currentView && typeof rawSnapshot.currentView === "object") ? rawSnapshot.currentView : {})
+  };
+
+  merged.selectedProjectId = {
+    ...base.selectedProjectId,
+    ...((rawSnapshot.selectedProjectId && typeof rawSnapshot.selectedProjectId === "object") ? rawSnapshot.selectedProjectId : {})
+  };
+
+  merged.projectReturnView = {
+    ...base.projectReturnView,
+    ...((rawSnapshot.projectReturnView && typeof rawSnapshot.projectReturnView === "object") ? rawSnapshot.projectReturnView : {})
+  };
+
+  merged.dashboardFilters = {
+    ...base.dashboardFilters,
+    ...((rawSnapshot.dashboardFilters && typeof rawSnapshot.dashboardFilters === "object") ? rawSnapshot.dashboardFilters : {})
+  };
+
+  merged.pipelineFilters = {
+    ...base.pipelineFilters,
+    ...((rawSnapshot.pipelineFilters && typeof rawSnapshot.pipelineFilters === "object") ? rawSnapshot.pipelineFilters : {})
+  };
+
+  merged.kanbanCompletedVisibility = {
+    ...base.kanbanCompletedVisibility,
+    ...((rawSnapshot.kanbanCompletedVisibility && typeof rawSnapshot.kanbanCompletedVisibility === "object") ? rawSnapshot.kanbanCompletedVisibility : {})
+  };
+
+  merged.workspaces = {
+    ...base.workspaces,
+    ...((rawSnapshot.workspaces && typeof rawSnapshot.workspaces === "object") ? rawSnapshot.workspaces : {})
+  };
 
   merged.referenceViewModes = {
     ...base.referenceViewModes,
-    ...(snapshot.referenceViewModes || {})
+    ...((rawSnapshot.referenceViewModes && typeof rawSnapshot.referenceViewModes === "object") ? rawSnapshot.referenceViewModes : {})
   };
 
   Object.keys(base.referenceViewModes).forEach((workspace) => {
     merged.referenceViewModes[workspace] = {
       ...base.referenceViewModes[workspace],
-      ...((snapshot.referenceViewModes || {})[workspace] || {})
+      ...(((rawSnapshot.referenceViewModes && typeof rawSnapshot.referenceViewModes === "object") ? rawSnapshot.referenceViewModes : {})[workspace] || {})
+    };
+  });
+
+  Object.keys(base.workspaces).forEach((workspaceId) => {
+    const baseWorkspace = base.workspaces[workspaceId] || {};
+    const snapshotWorkspace = (merged.workspaces && typeof merged.workspaces === "object" && merged.workspaces[workspaceId] && typeof merged.workspaces[workspaceId] === "object")
+      ? merged.workspaces[workspaceId]
+      : {};
+    merged.workspaces[workspaceId] = {
+      ...baseWorkspace,
+      ...snapshotWorkspace,
+      crmItems: Array.isArray(snapshotWorkspace.crmItems) ? snapshotWorkspace.crmItems : (baseWorkspace.crmItems || []),
+      taskItems: Array.isArray(snapshotWorkspace.taskItems) ? snapshotWorkspace.taskItems : (baseWorkspace.taskItems || []),
+      taskThemes: Array.isArray(snapshotWorkspace.taskThemes) ? snapshotWorkspace.taskThemes : (baseWorkspace.taskThemes || []),
+      projectThemes: Array.isArray(snapshotWorkspace.projectThemes) ? snapshotWorkspace.projectThemes : (baseWorkspace.projectThemes || []),
+      documents: Array.isArray(snapshotWorkspace.documents) ? snapshotWorkspace.documents : (baseWorkspace.documents || []),
+      members: Array.isArray(snapshotWorkspace.members) ? snapshotWorkspace.members : (baseWorkspace.members || []),
+      projectBoards: snapshotWorkspace.projectBoards && typeof snapshotWorkspace.projectBoards === "object" ? snapshotWorkspace.projectBoards : (baseWorkspace.projectBoards || {})
     };
   });
 
@@ -1764,6 +1831,15 @@ function buildPortalState(snapshot = null) {
 }
 
 async function loadState() {
+  if (FORCE_PORTAL_RECOVERY) {
+    try {
+      const recoveredState = await loadRecoveredPortalState();
+      return recoveredState;
+    } catch (error) {
+      console.error("[portal-recovery] Nao foi possivel usar o snapshot recuperado. Voltando ao fluxo padrao.", error);
+    }
+  }
+
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       const data = await loadSharedPortalState();
@@ -1772,10 +1848,22 @@ async function loadState() {
     } catch (error) {
       if (attempt === 2) {
         console.error("Falha ao carregar dados do banco", error);
+        try {
+          const recoveredState = await loadRecoveredPortalState();
+          return recoveredState;
+        } catch (recoveryError) {
+          console.error("[portal-recovery] Fallback recuperado tambem falhou.", recoveryError);
+        }
         return buildPortalState();
       }
       await delay(250 * (attempt + 1));
     }
+  }
+  try {
+    const recoveredState = await loadRecoveredPortalState();
+    return recoveredState;
+  } catch (error) {
+    console.error("[portal-recovery] Snapshot recuperado indisponivel no fallback final.", error);
   }
   return buildPortalState();
 }
@@ -2649,38 +2737,53 @@ function renderCurrentView() {
     target.appendChild(renderWorkspaceLandingPage());
     return;
   }
-  const currentView = state.currentView[state.currentWorkspace];
-  target.innerHTML = "";
-  if (usingReferenceDashboard()) {
-    if (currentView === "projectDetail") target.appendChild(renderRitoProjectDetailPage());
-    if (currentView === "dashboard") target.appendChild(renderRitoReferenceDashboard());
-    if (state.currentWorkspace === "rito") {
-      if (currentView === "crm") target.appendChild(renderRitoPipelinePage());
-      if (currentView === "invested") target.appendChild(renderRitoInvestedPage());
-      if (currentView === "tasks") target.appendChild(renderTasksBoard());
-      if (currentView === "projectBoards") target.appendChild(renderProjectBoards());
-      if (currentView === "documents") target.appendChild(renderRitoDocumentsPage());
-      if (currentView === "members") target.appendChild(renderRitoMembersPage());
-      if (currentView === "settings") target.appendChild(renderRitoSettingsPage());
-    } else {
-      if (currentView === "crm") target.appendChild(renderCRM());
-      if (currentView === "invested") target.appendChild(renderInvestedProjects());
-      if (currentView === "tasks") target.appendChild(renderTasksBoard());
-      if (currentView === "projectBoards") target.appendChild(renderProjectBoards());
-      if (currentView === "documents") target.appendChild(renderDocuments());
-      if (currentView === "members") target.appendChild(renderMembers());
-      if (currentView === "calendar") target.appendChild(renderCalendar());
+  try {
+    const currentView = state.currentView[state.currentWorkspace];
+    target.innerHTML = "";
+    if (usingReferenceDashboard()) {
+      if (currentView === "projectDetail") target.appendChild(renderRitoProjectDetailPage());
+      if (currentView === "dashboard") target.appendChild(renderRitoReferenceDashboard());
+      if (state.currentWorkspace === "rito") {
+        if (currentView === "crm") target.appendChild(renderRitoPipelinePage());
+        if (currentView === "invested") target.appendChild(renderRitoInvestedPage());
+        if (currentView === "tasks") target.appendChild(renderTasksBoard());
+        if (currentView === "projectBoards") target.appendChild(renderProjectBoards());
+        if (currentView === "documents") target.appendChild(renderRitoDocumentsPage());
+        if (currentView === "members") target.appendChild(renderRitoMembersPage());
+        if (currentView === "settings") target.appendChild(renderRitoSettingsPage());
+      } else {
+        if (currentView === "crm") target.appendChild(renderCRM());
+        if (currentView === "invested") target.appendChild(renderInvestedProjects());
+        if (currentView === "tasks") target.appendChild(renderTasksBoard());
+        if (currentView === "projectBoards") target.appendChild(renderProjectBoards());
+        if (currentView === "documents") target.appendChild(renderDocuments());
+        if (currentView === "members") target.appendChild(renderMembers());
+        if (currentView === "calendar") target.appendChild(renderCalendar());
+      }
+      return;
     }
-    return;
+    if (currentView === "dashboard") target.appendChild(renderDashboard());
+    if (currentView === "crm") target.appendChild(renderCRM());
+    if (currentView === "invested") target.appendChild(renderInvestedProjects());
+    if (currentView === "tasks") target.appendChild(renderTasksBoard());
+    if (currentView === "projectBoards") target.appendChild(renderProjectBoards());
+    if (currentView === "documents") target.appendChild(renderDocuments());
+    if (currentView === "members") target.appendChild(renderMembers());
+    if (currentView === "calendar") target.appendChild(renderCalendar());
+  } catch (error) {
+    console.error("[render] Falha ao montar a view atual", {
+      workspace: state.currentWorkspace,
+      view: state.currentView?.[state.currentWorkspace] || null,
+      message: error?.message || String(error),
+      stack: error?.stack || null
+    });
+    target.innerHTML = `
+      <section class="panel" style="display:grid;gap:8px;padding:20px;">
+        <h3>Não foi possível renderizar esta tela</h3>
+        <p>O console do navegador agora mostra o erro exato para diagnóstico.</p>
+      </section>
+    `;
   }
-  if (currentView === "dashboard") target.appendChild(renderDashboard());
-  if (currentView === "crm") target.appendChild(renderCRM());
-  if (currentView === "invested") target.appendChild(renderInvestedProjects());
-  if (currentView === "tasks") target.appendChild(renderTasksBoard());
-  if (currentView === "projectBoards") target.appendChild(renderProjectBoards());
-  if (currentView === "documents") target.appendChild(renderDocuments());
-  if (currentView === "members") target.appendChild(renderMembers());
-  if (currentView === "calendar") target.appendChild(renderCalendar());
 }
 
 function renderWorkspaceLandingPage() {
