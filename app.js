@@ -159,15 +159,29 @@ function queueImmediateRemoteSave(snapshot = state) {
   return pendingRemoteSave;
 }
 
+async function persistPortalStateImmediately(snapshot = state) {
+  const payload = clonePortalState(snapshot);
+  queuedSaveVersion += 1;
+  try {
+    await pendingRemoteSave.catch(() => null);
+    const result = await saveSharedPortalState(payload);
+    pendingRemoteSave = Promise.resolve(result);
+    console.log("Portal salvo imediatamente no banco.");
+    triggerKeepalivePortalSave(payload);
+    return result;
+  } catch (error) {
+    pendingRemoteSave = Promise.resolve();
+    console.error("Erro ao salvar imediatamente:", error);
+    throw error;
+  }
+}
+
 function flushRemoteSave() {
   return queueImmediateRemoteSave(state);
 }
 
 function triggerInstantRemoteSave(snapshot = state) {
-  const payload = clonePortalState(snapshot);
-  const queued = queueImmediateRemoteSave(payload);
-  triggerKeepalivePortalSave(payload);
-  return queued;
+  return persistPortalStateImmediately(snapshot);
 }
 
 function persistTaskEditorDraft() {
@@ -2882,16 +2896,24 @@ function renderRitoDashboardTable(rows = referenceDashboardRows()) {
 function summarizeProjectField(items, key) {
   const stats = new Map();
   items.forEach((item) => {
+    const projectName = displayText(item?.name || item?.projectName || "").trim();
     String(item?.[key] || "")
       .split(/\n|;/)
       .map((part) => displayText(part).trim())
       .filter(Boolean)
       .forEach((label) => {
-        stats.set(label, (stats.get(label) || 0) + 1);
+        const current = stats.get(label) || { label, count: 0, projects: new Set() };
+        current.count += 1;
+        if (projectName) current.projects.add(projectName);
+        stats.set(label, current);
       });
   });
-  return Array.from(stats.entries())
-    .map(([label, count]) => ({ label, count }))
+  return Array.from(stats.values())
+    .map((entry) => ({
+      label: entry.label,
+      count: entry.count,
+      projects: Array.from(entry.projects).sort((a, b) => a.localeCompare(b, "pt-BR"))
+    }))
     .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "pt-BR"));
 }
 
@@ -2920,6 +2942,7 @@ function renderConfidenceBucket(title, subtitle, entries, toneClass) {
           <strong>${displayText(entry.label)}</strong>
           <span>${entry.count}</span>
         </div>
+        ${entry.projects?.length ? `<p class="project-confidence-projects">${entry.projects.map((project) => escapeHTML(displayText(project))).join(" • ")}</p>` : ""}
         <div class="project-confidence-bar"><span style="width:${Math.max((entry.count / maxCount) * 100, 10)}%"></span></div>
       `;
       list.appendChild(row);
@@ -4909,15 +4932,14 @@ function handleOutsideWorkspaceDropdown(event) {
   document.getElementById("workspaceDropdown")?.classList.add("hidden");
 }
 
-function handleCRMCardAction(action, id) {
+async function handleCRMCardAction(action, id) {
   const item = workspaceData().crmItems.find((entry) => entry.id === id);
   if (!item) return;
   if (action === "edit" || action === "menu") openProjectDetail(item.id, state.currentView[state.currentWorkspace]);
   if (action === "duplicate") {
     const copy = { ...JSON.parse(JSON.stringify(item)), id: uid("deal"), name: `${item.name} Copy` };
     delete copy.referenceKey;
-    workspaceData().crmItems.unshift(copy);
-    saveState({ instant: true }).then(() => renderApp());
+    await upsertCRMItem(copy);
   }
 }
 
@@ -5129,6 +5151,7 @@ function openOpportunityDialog() {
 }
 
 async function upsertCRMItem(item, options = {}) {
+  const previousState = clonePortalState(state);
   ensureProjectShape(item);
   const items = workspaceData().crmItems;
   const index = items.findIndex((entry) => entry.id === item.id);
@@ -5140,16 +5163,31 @@ async function upsertCRMItem(item, options = {}) {
   if (!item.tags.includes("Investido") && workspaceData().projectBoards[item.name] && item.investmentStatus !== "Investido") {
     delete workspaceData().projectBoards[item.name];
   }
-  await saveState({ instant: options.instant !== false });
+  try {
+    await saveState({ instant: options.instant !== false });
+  } catch (error) {
+    state = buildPortalState(previousState);
+    renderApp();
+    alert("Não foi possível salvar este card na nuvem. A alteração foi desfeita para evitar perda de consistência.");
+    throw error;
+  }
   renderApp();
 }
 
 async function removeCRMItem(item, options = {}) {
   if (!item) return;
+  const previousState = clonePortalState(state);
   state.workspaces[state.currentWorkspace].crmItems = workspaceData().crmItems.filter((entry) => entry.id !== item.id);
   delete workspaceData().projectBoards[item.name];
   workspaceData().documents = workspaceData().documents.filter((doc) => (doc.linkedTo || "").toLowerCase() !== item.name.toLowerCase());
-  await saveState({ instant: options.instant !== false });
+  try {
+    await saveState({ instant: options.instant !== false });
+  } catch (error) {
+    state = buildPortalState(previousState);
+    renderApp();
+    alert("Não foi possível excluir este card na nuvem. A alteração foi desfeita para manter os dados consistentes.");
+    throw error;
+  }
 }
 
 function openProjectDrawer(projectId) {
@@ -5280,12 +5318,11 @@ function bindProjectDrawer(item) {
     renderApp();
     openProjectDrawer(item.id);
   };
-  document.getElementById("duplicateDrawerCard").onclick = () => {
+  document.getElementById("duplicateDrawerCard").onclick = async () => {
     const copy = { ...JSON.parse(JSON.stringify(item)), id: uid("deal"), name: `${item.name} Copy` };
     delete copy.referenceKey;
     pushHistory(copy, "Card duplicado");
-    workspaceData().crmItems.unshift(copy);
-    saveState({ instant: true }).then(() => renderApp());
+    await upsertCRMItem(copy);
   };
   document.getElementById("moveDrawerStage").onclick = async () => {
     await persistDrawerProject(item);
