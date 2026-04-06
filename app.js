@@ -165,8 +165,9 @@ function flushRemoteSave() {
 
 function triggerInstantRemoteSave(snapshot = state) {
   const payload = clonePortalState(snapshot);
-  queueImmediateRemoteSave(payload);
+  const queued = queueImmediateRemoteSave(payload);
   triggerKeepalivePortalSave(payload);
+  return queued;
 }
 
 function persistTaskEditorDraft() {
@@ -1526,10 +1527,9 @@ async function loadState() {
 function saveState(options = {}) {
   state.lastSavedAt = new Date().toISOString();
   if (options.instant) {
-    triggerInstantRemoteSave(state);
-    return;
+    return triggerInstantRemoteSave(state);
   }
-  queueImmediateRemoteSave(state);
+  return queueImmediateRemoteSave(state);
 }
 function workspaceTaskThemes(workspaceId = state.currentWorkspace) {
   const data = state.workspaces[workspaceId];
@@ -3242,10 +3242,7 @@ function bindRitoProjectDetailPage(page, item) {
   page.querySelector("[data-project-action='delete']").onclick = async () => {
     const docsToRemove = workspaceData().documents.filter((doc) => (doc.linkedTo || "").toLowerCase() === item.name.toLowerCase());
     await Promise.all(docsToRemove.map((doc) => removeFileFromStorage(PORTAL_DOCUMENTS_BUCKET, doc.filePath)));
-    state.workspaces[state.currentWorkspace].crmItems = workspaceData().crmItems.filter((entry) => entry.id !== item.id);
-    delete workspaceData().projectBoards[item.name];
-    workspaceData().documents = workspaceData().documents.filter((doc) => (doc.linkedTo || "").toLowerCase() !== item.name.toLowerCase());
-    saveState();
+    await removeCRMItem(item);
     closeProjectDetail();
   };
   page.querySelector("[data-project-action='toggle-invested']").onclick = async () => {
@@ -3254,7 +3251,7 @@ function bindRitoProjectDetailPage(page, item) {
     syncInvestmentTag(item);
     item.updatedAt = todayISO();
     pushHistory(item, item.investmentStatus === "Investido" ? "Projeto marcado como investido" : "Projeto removido de investidos");
-    upsertCRMItem(item);
+    await upsertCRMItem(item);
     openProjectDetail(item.id, sourceView);
   };
   page.querySelector("[data-project-action='edit-focus']").onclick = () => {
@@ -4906,12 +4903,6 @@ function bindReferenceActions() {
   });
 }
 
-function downloadPortfolioCSV() {
-  const headers = ["Nome", "Setor", "Status", "Responsável", "Ano"];
-  const rows = workspaceData().crmItems.map((item) => [item.name, item.sector, item.status, item.owner, item.year]);
-  downloadCSV(`${state.currentWorkspace}-portfolio.csv`, headers, rows);
-}
-
 function handleOutsideWorkspaceDropdown(event) {
   const switcher = document.querySelector(".workspace-switcher");
   if (!switcher || switcher.contains(event.target)) return;
@@ -4926,8 +4917,7 @@ function handleCRMCardAction(action, id) {
     const copy = { ...JSON.parse(JSON.stringify(item)), id: uid("deal"), name: `${item.name} Copy` };
     delete copy.referenceKey;
     workspaceData().crmItems.unshift(copy);
-    saveState();
-    renderApp();
+    saveState({ instant: true }).then(() => renderApp());
   }
 }
 
@@ -4964,7 +4954,7 @@ function openCRMDialog(item) {
   };
   dialog.innerHTML = `
     <form method="dialog" id="crmForm" class="crm-dialog-form">
-      <div class="panel-header dialog-header"><div><h3>${item ? "Editar deal" : "Novo deal"}</h3><p>Salvamento local no navegador e card premium no CRM.</p></div><button class="dialog-close-button" data-dialog-close type="button" aria-label="Fechar">X</button></div>
+      <div class="panel-header dialog-header"><div><h3>${item ? "Editar deal" : "Novo deal"}</h3><p>Persistência imediata em nuvem via Supabase para o CRM.</p></div><button class="dialog-close-button" data-dialog-close type="button" aria-label="Fechar">X</button></div>
       <div class="dialog-grid crm-dialog-grid">
         <label class="field"><span>Nome do projeto</span><input name="name" value="${current.name}"></label>
         <label class="field"><span>Status</span><select name="status">${workspaceConfig[state.currentWorkspace].pipelineStages.map((stage) => `<option ${stage === current.status ? "selected" : ""}>${stage}</option>`).join("")}</select></label>
@@ -5015,7 +5005,7 @@ function openCRMDialog(item) {
     current.tags = String(formData.get("tags")).split(",").map((tag) => tag.trim()).filter(Boolean);
     current.cover = await imageFileToProjectDataURL(form.querySelector("input[name='cover']").files[0], "cover", current.cover);
     current.logo = await imageFileToProjectDataURL(form.querySelector("input[name='logo']").files[0], "logo", current.logo);
-    upsertCRMItem(current);
+    await upsertCRMItem(current);
     dialog.close();
     dialog.classList.add("hidden");
   });
@@ -5132,13 +5122,13 @@ function openOpportunityDialog() {
     };
     newItem.cover = await imageFileToProjectDataURL(form.querySelector("input[name='cover']").files[0], "cover", newItem.cover);
     newItem.logo = await imageFileToProjectDataURL(form.querySelector("input[name='logo']").files[0], "logo", newItem.logo);
-    upsertCRMItem(newItem);
+    await upsertCRMItem(newItem);
     dialog.close();
     dialog.classList.add("hidden");
   });
 }
 
-function upsertCRMItem(item) {
+async function upsertCRMItem(item, options = {}) {
   ensureProjectShape(item);
   const items = workspaceData().crmItems;
   const index = items.findIndex((entry) => entry.id === item.id);
@@ -5150,8 +5140,16 @@ function upsertCRMItem(item) {
   if (!item.tags.includes("Investido") && workspaceData().projectBoards[item.name] && item.investmentStatus !== "Investido") {
     delete workspaceData().projectBoards[item.name];
   }
-  saveState();
+  await saveState({ instant: options.instant !== false });
   renderApp();
+}
+
+async function removeCRMItem(item, options = {}) {
+  if (!item) return;
+  state.workspaces[state.currentWorkspace].crmItems = workspaceData().crmItems.filter((entry) => entry.id !== item.id);
+  delete workspaceData().projectBoards[item.name];
+  workspaceData().documents = workspaceData().documents.filter((doc) => (doc.linkedTo || "").toLowerCase() !== item.name.toLowerCase());
+  await saveState({ instant: options.instant !== false });
 }
 
 function openProjectDrawer(projectId) {
@@ -5287,8 +5285,7 @@ function bindProjectDrawer(item) {
     delete copy.referenceKey;
     pushHistory(copy, "Card duplicado");
     workspaceData().crmItems.unshift(copy);
-    saveState();
-    renderApp();
+    saveState({ instant: true }).then(() => renderApp());
   };
   document.getElementById("moveDrawerStage").onclick = async () => {
     await persistDrawerProject(item);
@@ -5305,7 +5302,7 @@ function bindProjectDrawer(item) {
     item.investmentStatus = "Investido";
     syncInvestmentTag(item);
     pushHistory(item, "Projeto marcado como investido");
-    upsertCRMItem(item);
+    await upsertCRMItem(item);
     openProjectDrawer(item.id);
   };
   document.getElementById("archiveDrawerCard").onclick = () => {
@@ -5318,8 +5315,7 @@ function bindProjectDrawer(item) {
   document.getElementById("deleteDrawerCard").onclick = async () => {
     const docsToRemove = workspaceData().documents.filter((doc) => (doc.linkedTo || "").toLowerCase() === item.name.toLowerCase());
     await Promise.all(docsToRemove.map((doc) => removeFileFromStorage(PORTAL_DOCUMENTS_BUCKET, doc.filePath)));
-    state.workspaces[state.currentWorkspace].crmItems = workspaceData().crmItems.filter((entry) => entry.id !== item.id);
-    saveState();
+    await removeCRMItem(item);
     closeProjectDrawer();
     renderApp();
   };
@@ -5612,16 +5608,13 @@ function openProjectEditDialog(item, sourceView) {
   `;
   dialog.showModal();
 
-  document.getElementById("projectEditDelete").onclick = () => {
-    state.workspaces[state.currentWorkspace].crmItems = workspaceData().crmItems.filter((entry) => entry.id !== item.id);
-    delete workspaceData().projectBoards[item.name];
-    workspaceData().documents = workspaceData().documents.filter((doc) => (doc.linkedTo || "").toLowerCase() !== item.name.toLowerCase());
-    saveState();
+  document.getElementById("projectEditDelete").onclick = async () => {
+    await removeCRMItem(item);
     dialog.close();
     closeProjectDetail();
   };
 
-  document.getElementById("projectEditForm").addEventListener("submit", (event) => {
+  document.getElementById("projectEditForm").addEventListener("submit", async (event) => {
     const submitter = event.submitter;
     if (submitter && submitter.value === "cancel") return;
     event.preventDefault();
@@ -5664,8 +5657,7 @@ function openProjectEditDialog(item, sourceView) {
     ensureProjectShape(item);
     syncInvestmentTag(item);
     pushHistory(item, "Projeto editado na tela secundaria");
-    upsertCRMItem(item);
-    saveState();
+    await upsertCRMItem(item);
     dialog.close();
     openProjectDetail(item.id, sourceView);
   });
@@ -6223,17 +6215,6 @@ function persistKanbanColumnDraft(kind, index, nextName) {
   saveState({ instant: true });
 }
 
-function fileToDataURL(file, fallback) {
-  if (!file) return Promise.resolve(fallback);
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(reader.error || new Error("Falha ao ler imagem"));
-    reader.onabort = () => reject(new Error("Leitura da imagem cancelada"));
-    reader.readAsDataURL(file);
-  });
-}
-
 function loadImageFromFile(file) {
   return new Promise((resolve, reject) => {
     const objectUrl = URL.createObjectURL(file);
@@ -6391,151 +6372,6 @@ function bindInlineEditing() {
       }
     });
   });
-}
-
-function exportCRM() {
-  const headers = ["Nome", "Status", "Setor", "Responsável", "Valor", "Tags"];
-  const rows = workspaceData().crmItems.map((item) => [item.name, item.status, item.sector, item.owner, item.estimatedValue, item.tags.join(" | ")]);
-  downloadCSV(`${state.currentWorkspace}-crm.csv`, headers, rows);
-}
-
-function exportTasks() {
-  const headers = ["Título", "Coluna", "Responsável", "Prazo", "Prioridade", "Tags"];
-  const rows = workspaceData().taskItems.map((item) => [item.title, item.stage, item.owner, item.dueDate, item.priority, item.tags.join(" | ")]);
-  downloadCSV(`${state.currentWorkspace}-tasks.csv`, headers, rows);
-}
-
-function downloadCSV(filename, headers, rows) {
-  const csv = [headers, ...rows].map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(",")).join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = filename;
-  link.click();
-}
-
-function downloadBlob(filename, content, type) {
-  const blob = new Blob([content], { type });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = filename;
-  link.click();
-}
-
-function buildBrowserReadyHTML() {
-  const stylesHref = new URL("./styles.css", location.href).href;
-  const scriptHref = new URL("./app.js", location.href).href;
-  const supabaseHref = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js";
-  return `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="color-scheme" content="light dark">
-<title>Portal Rito</title>
-  <link rel="icon" type="image/png" href="./Logo_Branca_Reduzida.png">
-  <link rel="stylesheet" href="${stylesHref}">
-</head>
-<body>
-  <div class="app-shell">
-    <aside class="sidebar">
-      <div class="workspace-switcher">
-        <button class="brand-block workspace-trigger" id="workspaceTrigger" type="button">
-          <div class="brand-mark">Rito</div>
-          <div>
-            <h1 id="sidebarWorkspaceTitle">Rito Ventures</h1>
-            <p class="eyebrow">Portfolio</p>
-          </div>
-        </button>
-        <div class="workspace-dropdown hidden" id="workspaceDropdown">
-          <div class="workspace-dropdown-list" id="workspaceList"></div>
-          <button class="workspace-create" type="button">+ Novo Workspace</button>
-        </div>
-      </div>
-      <div class="nav-tabs" id="viewTabs"></div>
-      <div class="sidebar-footer">
-        <div class="sidebar-footer-controls">
-          <button class="theme-switch" id="themeToggle" type="button" aria-label="Alternar tema">
-            <span class="theme-switch-track">
-              <span class="theme-switch-thumb"></span>
-            </span>
-          </button>
-          <button class="footer-icon-button" id="themeAccentButton" type="button" aria-label="Modo atual">Light</button>
-        </div>
-      </div>
-    </aside>
-    <main class="main-panel">
-      <header class="topbar">
-        <div>
-          <div class="breadcrumb-line">
-            <span id="workspaceEyebrow">Workspace</span>
-            <span class="breadcrumb-sep">></span>
-            <span id="pageCrumb">Dashboard</span>
-          </div>
-          <h2 id="pageTitle">Dashboard</h2>
-        </div>
-        <div class="topbar-actions">
-          <button class="ghost-button subtle-chip" id="yearChip">2026</button>
-          <button class="ghost-button" id="exportTopButton">Export</button>
-          <button class="ghost-button" id="newItemButton">Novo item</button>
-        </div>
-      </header>
-      <section class="content-grid">
-        <div class="page-stack">
-          <label class="search-field top-search">
-            <span>Busca global</span>
-            <input id="globalSearch" type="search" placeholder="Projetos, tarefas, tags, documentos...">
-          </label>
-          <div id="globalResults" class="global-results hidden"></div>
-          <div id="appContent"></div>
-        </div>
-      </section>
-    </main>
-  </div>
-  <div id="drawerBackdrop" class="drawer-backdrop hidden"></div>
-  <aside id="entityDrawer" class="entity-drawer hidden"></aside>
-  <dialog id="entityDialog" class="entity-dialog hidden"></dialog>
-  <template id="metricCardTemplate">
-    <article class="metric-card">
-      <p class="metric-label"></p>
-      <strong class="metric-value"></strong>
-      <span class="metric-footnote"></span>
-    </article>
-  </template>
-  <noscript>Ative o JavaScript para usar o Portal Rito.</noscript>
-  <script src="${supabaseHref}"></script>
-  <script src="${scriptHref}"></script>
-</body>
-</html>`;
-}
-
-function exportBrowserReadyHTML() {
-  downloadBlob("rito-os-browser-ready.html", buildBrowserReadyHTML(), "text/html;charset=utf-8");
-}
-
-function importStateBackup() {
-  const input = document.createElement("input");
-  input.type = "file";
-  input.accept = ".json,application/json";
-  input.onchange = async () => {
-    const file = input.files && input.files[0];
-    if (!file) return;
-    try {
-      const text = await file.text();
-      const parsed = JSON.parse(text);
-      state = { ...seedData(), ...parsed };
-      migrateRitoReferenceProjects(state);
-      migrateRitoKanbanTasks(state);
-      saveState();
-      renderApp();
-      alert("Backup importado com sucesso.");
-    } catch (error) {
-      console.error(error);
-      alert("Não foi possível importar o backup selecionado.");
-    }
-  };
-  input.click();
 }
 
 function bootstrapFromURL() {
