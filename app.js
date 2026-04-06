@@ -5183,6 +5183,7 @@ async function upsertCRMItem(item, options = {}) {
   if (!item.tags.includes("Investido") && workspaceData().projectBoards[item.name] && item.investmentStatus !== "Investido") {
     delete workspaceData().projectBoards[item.name];
   }
+  renderApp();
   try {
     await saveState({ instant: options.instant !== false });
   } catch (error) {
@@ -5191,7 +5192,6 @@ async function upsertCRMItem(item, options = {}) {
     alert("Não foi possível salvar este card na nuvem. A alteração foi desfeita para evitar perda de consistência.");
     throw error;
   }
-  renderApp();
 }
 
 async function removeCRMItem(item, options = {}) {
@@ -5200,6 +5200,7 @@ async function removeCRMItem(item, options = {}) {
   state.workspaces[state.currentWorkspace].crmItems = workspaceData().crmItems.filter((entry) => entry.id !== item.id);
   delete workspaceData().projectBoards[item.name];
   workspaceData().documents = workspaceData().documents.filter((doc) => (doc.linkedTo || "").toLowerCase() !== item.name.toLowerCase());
+  renderApp();
   try {
     await saveState({ instant: options.instant !== false });
   } catch (error) {
