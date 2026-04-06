@@ -4,6 +4,7 @@ const SUPABASE_URL = "https://soarinrvuvnqabtyyrta.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_qsbL0lRuMR1eZAKp0vcscg_5PfVxGHo";
 const RECOVERED_PORTAL_STATE_URL = "./recovered-portal-state.json";
 const FORCE_PORTAL_RECOVERY = false;
+const REMOTE_REQUEST_TIMEOUT_MS = 12000;
 
 if (!window.supabase) {
   throw new Error("SDK do Supabase não carregou.");
@@ -19,6 +20,23 @@ let didAttemptRecoveredStateRepublish = false;
 const PORTAL_MEDIA_BUCKET = "portal-media";
 const PORTAL_DOCUMENTS_BUCKET = "portal-documents";
 
+function withTimeout(promise, ms, label = "Operacao remota") {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      reject(new Error(`${label} excedeu ${Math.round(ms / 1000)}s.`));
+    }, ms);
+    Promise.resolve(promise)
+      .then((value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((error) => {
+        window.clearTimeout(timer);
+        reject(error);
+      });
+  });
+}
+
 // =======================
 // BANCO DE DADOS GLOBAL
 // =======================
@@ -29,11 +47,15 @@ async function loadSharedPortalState() {
     table: "shared_portal_state",
     id: 1
   });
-  const { data, error } = await supabaseClient
-    .from("shared_portal_state")
-    .select("id, data, updated_at")
-    .eq("id", 1)
-    .single();
+  const { data, error } = await withTimeout(
+    supabaseClient
+      .from("shared_portal_state")
+      .select("id, data, updated_at")
+      .eq("id", 1)
+      .single(),
+    REMOTE_REQUEST_TIMEOUT_MS,
+    "Leitura do estado remoto do portal"
+  );
 
   if (error) {
     console.error("[portal-db] Falha ao carregar shared_portal_state", {
@@ -80,11 +102,15 @@ async function saveSharedPortalState(state) {
     lastSavedAt: state?.lastSavedAt || null
   });
 
-  const { data, error } = await supabaseClient
-    .from("shared_portal_state")
-    .upsert(payload, { onConflict: "id" })
-    .select("id, data, updated_at")
-    .single();
+  const { data, error } = await withTimeout(
+    supabaseClient
+      .from("shared_portal_state")
+      .upsert(payload, { onConflict: "id" })
+      .select("id, data, updated_at")
+      .single(),
+    REMOTE_REQUEST_TIMEOUT_MS,
+    "Gravacao do estado remoto do portal"
+  );
 
   if (error) {
     console.error("[portal-db] Falha ao salvar shared_portal_state", {
@@ -180,13 +206,17 @@ async function uploadFileToStorage(file, bucket, folder, options = {}) {
   const safeName = slugifyStorageSegment(options.baseName || file.name.replace(/\.[^.]+$/, ""), options.prefix || "arquivo");
   const filePath = `${safeFolder}/${safeName}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
   const contentType = options.contentType || file.type || "application/octet-stream";
-  const { error } = await supabaseClient.storage
-    .from(bucket)
-    .upload(filePath, file, {
-      cacheControl: "3600",
-      upsert: false,
-      contentType
-    });
+  const { error } = await withTimeout(
+    supabaseClient.storage
+      .from(bucket)
+      .upload(filePath, file, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType
+      }),
+    REMOTE_REQUEST_TIMEOUT_MS,
+    "Upload de arquivo"
+  );
   if (error) throw error;
   const { data } = supabaseClient.storage.from(bucket).getPublicUrl(filePath);
   return {
@@ -198,7 +228,11 @@ async function uploadFileToStorage(file, bucket, folder, options = {}) {
 async function removeFileFromStorage(bucket, path) {
   const target = String(path || "").trim();
   if (!target) return;
-  const { error } = await supabaseClient.storage.from(bucket).remove([target]);
+  const { error } = await withTimeout(
+    supabaseClient.storage.from(bucket).remove([target]),
+    REMOTE_REQUEST_TIMEOUT_MS,
+    "Remocao de arquivo"
+  );
   if (error) console.warn("Não foi possível remover o arquivo do storage.", error);
 }
 
@@ -2354,13 +2388,14 @@ function declinedReasonPreview(item, maxLength = 150) {
 
 function declinedDealReasonStats(items) {
   const buckets = new Map();
-  (items || [])
+  (Array.isArray(items) ? items : [])
+    .filter((item) => item && !Array.isArray(item) && typeof item === "object")
     .filter((item) => normalizeReferenceDashboardStage(item) === "Declined")
     .forEach((item) => {
-      const projectName = displayText(item?.name || item?.projectName || "").trim();
+      const projectName = displayText(item?.name || item?.projectName || item?.company || "").trim();
       const summary = dealStatusSummary(item);
       const reasons = summary
-        ? summary.split(/\n|;/).map((entry) => entry.trim()).filter(Boolean)
+        ? summary.split(/\n|;|,/).map((entry) => entry.trim()).filter(Boolean)
         : ["Sem motivo preenchido"];
       reasons.forEach((reason) => {
         const normalized = reason.toLowerCase();
@@ -2954,12 +2989,18 @@ function renderDashboardSectionFallback(sectionName, error) {
   console.error(`[dashboard:${sectionName}] Falha ao renderizar bloco`, error);
   const section = document.createElement("section");
   section.className = "panel";
+  section.style.gridColumn = "1 / -1";
+  section.style.width = "100%";
   section.style.display = "grid";
   section.style.gap = "8px";
   section.style.padding = "18px";
   section.innerHTML = `
-    <h3>${displayText(sectionName)}</h3>
-    <p>Esse bloco do dashboard não pôde ser carregado com os dados atuais.</p>
+    <div class="panel-header">
+      <div>
+        <h3>${displayText(sectionName)}</h3>
+        <p>Esse bloco do dashboard não pôde ser carregado com os dados atuais.</p>
+      </div>
+    </div>
   `;
   return section;
 }
@@ -3207,22 +3248,24 @@ function renderRitoDashboardTable(rows = referenceDashboardRows()) {
   const table = document.createElement("section");
   table.className = "panel dashboard-table rito-dashboard-table";
   const crmItems = (workspaceData().crmItems || []).filter((item) => item && !Array.isArray(item) && typeof item === "object");
+  const safeRows = (Array.isArray(rows) ? rows : []).filter((row) => row && !Array.isArray(row) && typeof row === "object");
   const head = document.createElement("div");
   head.className = "table-head";
   head.innerHTML = "<div>Empresa</div><div>Resumo do status</div><div>Estágio</div><div>Temp.</div><div>Responsável</div>";
   table.appendChild(head);
 
-  rows.forEach((rowData) => {
+  safeRows.forEach((rowData) => {
     const row = document.createElement("div");
     row.className = "table-row rito-table-row";
-    const linked = crmItems.find((item) => item.name === rowData.company);
+    const companyName = displayText(rowData.company || "Deal sem nome").trim() || "Deal sem nome";
+    const linked = crmItems.find((item) => displayText(item?.name || "").trim() === companyName);
     const shouldShowDeclinedReason = normalizeReferenceDashboardStage(linked || rowData) === "Declined";
     row.innerHTML = `
       <div class="company-cell">
         ${renderCompanyBadge(rowData)}
-        <div><strong>${displayText(rowData.company)}</strong><div class="subtle">${displayText(rowData.segment)}</div></div>
+        <div><strong>${companyName}</strong><div class="subtle">${displayText(rowData.segment || "-")}</div></div>
       </div>
-      <div class="table-summary-cell">${shouldShowDeclinedReason ? (rowData.statusSummary || "-") : ""}</div>
+      <div class="table-summary-cell">${shouldShowDeclinedReason ? escapeHTML(displayText(rowData.statusSummary || "-")) : ""}</div>
       <div class="stage-select-cell">${linked ? `<select class="deal-status-select deal-status-select-table" data-dashboard-status="${linked.id}">${ritoStatusOptionsMarkup(linked.status)}</select>` : `<span class="chip chip-${String(rowData.stage || "lead").toLowerCase().replace(/\s+/g, "-")}">${displayText(rowData.stage || "Lead")}</span>`}</div>
       <div><span class="chip chip-${String(rowData.temp || "frio").toLowerCase()}">${displayText(rowData.temp || "Frio")}</span></div>
       <div class="owner-cell">${renderOwnerAvatar(rowData.owner)}<span>${displayText(rowData.owner)}</span></div>
@@ -3279,7 +3322,7 @@ function renderRitoDashboardTable(rows = referenceDashboardRows()) {
     table.appendChild(row);
   });
 
-  if (!rows.length) {
+  if (!safeRows.length) {
     const empty = document.createElement("div");
     empty.className = "rito-dashboard-empty";
     empty.textContent = "Nenhum deal encontrado com os filtros atuais.";
@@ -3291,10 +3334,11 @@ function renderRitoDashboardTable(rows = referenceDashboardRows()) {
 
 function summarizeProjectField(items, key) {
   const stats = new Map();
-  items.forEach((item) => {
-    const projectName = displayText(item?.name || item?.projectName || "").trim();
+  (Array.isArray(items) ? items : []).forEach((item) => {
+    if (!item || Array.isArray(item) || typeof item !== "object") return;
+    const projectName = displayText(item?.name || item?.projectName || item?.company || "").trim();
     String(item?.[key] || "")
-      .split(/\n|;/)
+      .split(/\n|;|,/)
       .map((part) => displayText(part).trim())
       .filter(Boolean)
       .forEach((label) => {
@@ -3349,6 +3393,7 @@ function renderConfidenceBucket(title, subtitle, entries, toneClass) {
 }
 
 function renderProjectConfidencePanel(rows = referenceDashboardRows()) {
+  const safeRows = (Array.isArray(rows) ? rows : []).filter((row) => row && !Array.isArray(row) && typeof row === "object");
   const panel = document.createElement("section");
   panel.className = "panel project-confidence-panel";
   panel.innerHTML = `
@@ -3361,8 +3406,8 @@ function renderProjectConfidencePanel(rows = referenceDashboardRows()) {
   `;
   const grid = document.createElement("div");
   grid.className = "project-confidence-grid";
-  grid.appendChild(renderConfidenceBucket("Seguranças", "Pontos positivos mais recorrentes", summarizeProjectField(rows, "projectStrengths"), "is-strength"));
-  grid.appendChild(renderConfidenceBucket("Inseguranças", "Pontos de atenção mais recorrentes", summarizeProjectField(rows, "projectWeaknesses"), "is-weakness"));
+  grid.appendChild(renderConfidenceBucket("Seguranças", "Pontos positivos mais recorrentes", summarizeProjectField(safeRows, "projectStrengths"), "is-strength"));
+  grid.appendChild(renderConfidenceBucket("Inseguranças", "Pontos de atenção mais recorrentes", summarizeProjectField(safeRows, "projectWeaknesses"), "is-weakness"));
   panel.appendChild(grid);
   return panel;
 }
@@ -3370,7 +3415,7 @@ function renderProjectConfidencePanel(rows = referenceDashboardRows()) {
 function renderDeclinedReasonsPanel(items) {
   const panel = document.createElement("section");
   panel.className = "panel declined-reasons-panel";
-  const reasons = declinedDealReasonStats(items);
+  const reasons = declinedDealReasonStats((Array.isArray(items) ? items : []).filter((item) => item && !Array.isArray(item) && typeof item === "object"));
   panel.innerHTML = `
     <div class="panel-header">
       <div>
@@ -5547,7 +5592,7 @@ function openOpportunityDialog() {
     try {
       newItem.cover = await imageFileToProjectDataURL(form.querySelector("input[name='cover']").files[0], "cover", newItem.cover);
       newItem.logo = await imageFileToProjectDataURL(form.querySelector("input[name='logo']").files[0], "logo", newItem.logo);
-      await upsertCRMItem(newItem);
+      await upsertCRMItem(newItem, { instant: false, silentError: true });
       dialog.close();
       dialog.classList.add("hidden");
     } catch (error) {
@@ -5559,7 +5604,7 @@ function openOpportunityDialog() {
         dealId: newItem?.id || null,
         dealName: newItem?.name || null
       });
-      throw error;
+      alert(error?.message || "Nao foi possivel criar o deal agora. Revise os dados e tente novamente.");
     } finally {
       if (submitButton && dialog.open) {
         submitButton.disabled = false;
@@ -5609,7 +5654,9 @@ async function upsertCRMItem(item, options = {}) {
       hint: error?.hint || null,
       code: error?.code || null
     });
-    alert("Não foi possível salvar este card na nuvem. A alteração foi desfeita para evitar perda de consistência.");
+    if (!options.silentError) {
+      alert("Não foi possível salvar este card na nuvem. A alteração foi desfeita para evitar perda de consistência.");
+    }
     throw error;
   }
 }
