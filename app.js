@@ -163,6 +163,12 @@ function flushRemoteSave() {
   return queueImmediateRemoteSave(state);
 }
 
+function triggerInstantRemoteSave(snapshot = state) {
+  const payload = clonePortalState(snapshot);
+  queueImmediateRemoteSave(payload);
+  triggerKeepalivePortalSave(payload);
+}
+
 function persistTaskEditorDraft() {
   const form = document.getElementById("taskEditorForm");
   if (!form) return;
@@ -1353,8 +1359,14 @@ function migrateFastWorkspace(rootState) {
     }
   });
   fast.taskItems = nextTasks;
-  const preservedThemes = currentThemes.length ? currentThemes : [...DEFAULT_TASK_THEMES.fast];
-  const nextThemes = [...new Set([...FAST_DAILY_THEMES, ...preservedThemes])].filter(Boolean);
+  const inferredThemes = [...new Set(
+    nextTasks
+      .map((task) => String(normalizeFastTaskThemeName(task.stage) || "").trim())
+      .filter(Boolean)
+  )];
+  const nextThemes = currentThemes.length
+    ? [...new Set([...currentThemes, ...inferredThemes])]
+    : [...new Set([...FAST_DAILY_THEMES, ...DEFAULT_TASK_THEMES.fast, ...inferredThemes])];
   fast.taskThemes = nextThemes.length ? nextThemes : [...DEFAULT_TASK_THEMES.fast];
   fast.members = fast.members || [];
   ["Bruna Cristina", "Arthur Bueno", "Ciro Ribeiro", "Mayra", "Eduardo", "Rodrigo", "Grace", "Samuel", "Moisés"].forEach((name) => {
@@ -1511,8 +1523,12 @@ async function loadState() {
   }
 }
 
-function saveState() {
+function saveState(options = {}) {
   state.lastSavedAt = new Date().toISOString();
+  if (options.instant) {
+    triggerInstantRemoteSave(state);
+    return;
+  }
   queueImmediateRemoteSave(state);
 }
 function workspaceTaskThemes(workspaceId = state.currentWorkspace) {
@@ -6172,7 +6188,7 @@ function renameKanbanColumn(kind, index, nextName) {
   const previous = list[index];
   if (!previous || normalizeColumnKey(previous) === normalizeColumnKey(cleanName)) {
     list[index] = cleanName;
-    saveState();
+    saveState({ instant: true });
     renderApp();
     return;
   }
@@ -6194,7 +6210,7 @@ function renameKanbanColumn(kind, index, nextName) {
     list[index] = cleanName;
   }
   ensureWorkspaceKanbans(state.currentWorkspace);
-  saveState();
+  saveState({ instant: true });
   renderApp();
 }
 
@@ -6204,7 +6220,7 @@ function persistKanbanColumnDraft(kind, index, nextName) {
   const list = kind === "project" ? workspaceProjectThemes(state.currentWorkspace) : workspaceTaskThemes(state.currentWorkspace);
   if (!list[index]) return;
   list[index] = cleanName;
-  saveState();
+  saveState({ instant: true });
 }
 
 function fileToDataURL(file, fallback) {
