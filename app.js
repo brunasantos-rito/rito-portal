@@ -1663,7 +1663,7 @@ function migrateFastWorkspace(rootState) {
       .filter(Boolean)
   )];
   const nextThemes = currentThemes.length
-    ? [...new Set([...currentThemes, ...inferredThemes])]
+    ? [...new Set(currentThemes)]
     : [...new Set([...FAST_DAILY_THEMES, ...DEFAULT_TASK_THEMES.fast, ...inferredThemes])];
   fast.taskThemes = nextThemes.length ? nextThemes : [...DEFAULT_TASK_THEMES.fast];
   fast.members = fast.members || [];
@@ -5577,7 +5577,7 @@ function openOpportunityDialog() {
     try {
       newItem.cover = await imageFileToProjectDataURL(form.querySelector("input[name='cover']").files[0], "cover", newItem.cover);
       newItem.logo = await imageFileToProjectDataURL(form.querySelector("input[name='logo']").files[0], "logo", newItem.logo);
-      await upsertCRMItem(newItem, { instant: false, silentError: true });
+      await upsertCRMItem(newItem, { silentError: true });
       dialog.close();
       dialog.classList.add("hidden");
     } catch (error) {
