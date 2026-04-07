@@ -1896,12 +1896,20 @@ body[data-theme="dark"] .card-cover::after {
 
 .declined-reasons-panel {
   display: grid;
-  gap: 18px;
+  gap: 12px;
   background: #ffffff;
-  padding: 18px 20px 20px;
-  border-radius: 22px;
+  padding: 14px 16px 16px;
+  border-radius: 18px;
   border: 1px solid rgba(32, 29, 26, 0.08);
-  box-shadow: 0 14px 34px rgba(20, 24, 34, 0.04);
+  box-shadow: 0 10px 24px rgba(20, 24, 34, 0.035);
+}
+
+.declined-reasons-panel-compact {
+  gap: 10px;
+  padding: 12px;
+  border-radius: 16px;
+  box-shadow: none;
+  margin-top: 12px;
 }
 
 .project-confidence-panel {
@@ -1917,14 +1925,14 @@ body[data-theme="dark"] .card-cover::after {
 .project-confidence-panel .panel-header,
 .declined-reasons-panel .panel-header {
   margin-bottom: 0;
-  padding-bottom: 14px;
+  padding-bottom: 10px;
   border-bottom: 1px solid rgba(32, 29, 26, 0.08);
 }
 
 .project-confidence-panel .panel-header h3,
 .declined-reasons-panel .panel-header h3 {
   font-family: "Segoe UI", Calibri, sans-serif;
-  font-size: 0.98rem;
+  font-size: 0.88rem;
   font-weight: 600;
   letter-spacing: -0.01em;
   color: #1a1d24;
@@ -1932,10 +1940,10 @@ body[data-theme="dark"] .card-cover::after {
 
 .project-confidence-panel .panel-header p,
 .declined-reasons-panel .panel-header p {
-  margin-top: 5px;
-  max-width: 760px;
-  font-size: 0.72rem;
-  line-height: 1.5;
+  margin-top: 4px;
+  max-width: 640px;
+  font-size: 0.64rem;
+  line-height: 1.4;
   color: #7f8895;
 }
 
@@ -2026,13 +2034,13 @@ body[data-theme="dark"] .card-cover::after {
 
 .declined-reasons-list {
   display: grid;
-  gap: 10px;
+  gap: 6px;
 }
 
 .declined-reason-row {
   display: grid;
-  gap: 8px;
-  padding: 12px 0;
+  gap: 4px;
+  padding: 8px 0;
   border-bottom: 1px solid rgba(32, 29, 26, 0.06);
 }
 
@@ -2049,11 +2057,11 @@ body[data-theme="dark"] .card-cover::after {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
 }
 
 .declined-reason-head strong {
-  font-size: 0.8rem;
+  font-size: 0.72rem;
   font-weight: 600;
   color: #20242d;
 }
@@ -2078,10 +2086,10 @@ body[data-theme="dark"] .card-cover::after {
 }
 
 .declined-reason-projects {
-  margin: -2px 0 0;
+  margin: 0;
   color: var(--text-soft);
-  font-size: 0.72rem;
-  line-height: 1.45;
+  font-size: 0.62rem;
+  line-height: 1.35;
 }
 
 .declined-reason-bar span {
@@ -2094,8 +2102,34 @@ body[data-theme="dark"] .card-cover::after {
 .project-confidence-panel .subtle,
 .declined-reasons-panel .subtle {
   color: #838c98;
-  font-size: 0.78rem;
-  line-height: 1.55;
+  font-size: 0.66rem;
+  line-height: 1.4;
+}
+
+.declined-reasons-panel-compact .panel-header {
+  padding-bottom: 8px;
+}
+
+.declined-reasons-panel-compact .panel-header h3 {
+  font-size: 0.8rem;
+}
+
+.declined-reasons-panel-compact .panel-header p {
+  font-size: 0.6rem;
+}
+
+.declined-reasons-panel-compact .declined-reason-row {
+  gap: 3px;
+  padding: 7px 0;
+}
+
+.declined-reasons-panel-compact .declined-reason-head strong {
+  font-size: 0.68rem;
+}
+
+.declined-reasons-panel-compact .declined-reason-projects {
+  font-size: 0.58rem;
+  line-height: 1.3;
 }
 
 .table-head,
@@ -2340,9 +2374,13 @@ body[data-theme="dark"] .card-cover::after {
 }
 
 .kanban-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 3px 9px;
   font-size: 0.55rem;
   border-radius: 999px;
+  text-align: center;
 }
 
 .task-card-footer {
@@ -2802,7 +2840,7 @@ body[data-theme="dark"] .card-cover::after {
 }
 
 .task-editor-actions {
-  justify-content: flex-start;
+  justify-content: flex-end;
 }
 
 .theme-editor-grid {
