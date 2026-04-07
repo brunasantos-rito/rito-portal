@@ -428,8 +428,25 @@ async function persistCRMItemToDatabase(item, { workspaceId = state.currentWorks
       }
       nextState.lastSavedAt = new Date().toISOString();
       const savedRow = await saveSharedPortalState(nextState);
-      const savedState = buildPortalState(savedRow?.data && typeof savedRow.data === "object" ? savedRow.data : nextState);
-      const persistedItem = savedState.workspaces?.[workspaceId]?.crmItems?.find((entry) => entry.id === item.id) || null;
+      let savedState = buildPortalState(savedRow?.data && typeof savedRow.data === "object" ? savedRow.data : nextState);
+      let persistedItem = savedState.workspaces?.[workspaceId]?.crmItems?.find((entry) => entry.id === item.id) || null;
+      if ((remove && persistedItem) || (!remove && !persistedItem)) {
+        try {
+          savedState = await confirmRemotePortalState(nextState, 3);
+          persistedItem = savedState.workspaces?.[workspaceId]?.crmItems?.find((entry) => entry.id === item.id) || null;
+        } catch (confirmError) {
+          console.warn("[crm-save] Confirmacao pos-save nao retornou a versao esperada; usando snapshot remoto mais recente disponivel.", {
+            workspaceId,
+            remove,
+            dealId: item?.id || null,
+            dealName: item?.name || null,
+            message: confirmError?.message || String(confirmError)
+          });
+          const refreshedRemote = await loadPortalStateForDatabaseWrite();
+          savedState = buildPortalState(refreshedRemote);
+          persistedItem = savedState.workspaces?.[workspaceId]?.crmItems?.find((entry) => entry.id === item.id) || null;
+        }
+      }
       if ((remove && !persistedItem) || (!remove && persistedItem)) {
         state = savedState;
         renderApp();
