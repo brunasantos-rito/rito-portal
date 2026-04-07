@@ -102,12 +102,10 @@ async function saveSharedPortalState(state) {
     lastSavedAt: state?.lastSavedAt || null
   });
 
-  const { data, error } = await withTimeout(
+  const { error } = await withTimeout(
     supabaseClient
       .from("shared_portal_state")
-      .upsert(payload, { onConflict: "id" })
-      .select("id, data, updated_at")
-      .single(),
+      .upsert(payload, { onConflict: "id" }),
     REMOTE_REQUEST_TIMEOUT_MS,
     "Gravacao do estado remoto do portal"
   );
@@ -126,11 +124,7 @@ async function saveSharedPortalState(state) {
     throw error;
   }
 
-  return {
-    id: data?.id ?? 1,
-    data: data?.data && typeof data.data === "object" ? data.data : {},
-    updated_at: data?.updated_at || null
-  };
+  return loadSharedPortalState();
 }
 
 async function refreshSessionAccessToken() {
@@ -2694,6 +2688,125 @@ function pushHistory(item, text) {
   item.history = item.history.slice(0, 20);
 }
 
+function normalizeExcelValue(value) {
+  if (value == null) return "";
+  if (Array.isArray(value)) return value.map((entry) => normalizeExcelValue(entry)).filter(Boolean).join(" | ");
+  if (typeof value === "object") return JSON.stringify(value, null, 2);
+  return String(value);
+}
+
+function escapeExcelHtml(value) {
+  return normalizeExcelValue(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function buildDealExportRows(items) {
+  return (items || []).map((item) => {
+    ensureProjectShape(item);
+    return {
+      "ID": item.id || "",
+      "Nome": item.name || "",
+      "Subtitulo": item.subtitle || "",
+      "Status": item.status || "",
+      "Status do investimento": item.investmentStatus || "",
+      "Temperatura": item.temperature || "",
+      "Prioridade": item.priority || "",
+      "Responsavel": item.owner || "",
+      "Setor": item.sector || "",
+      "Localizacao": item.location || "",
+      "Ano": item.year || "",
+      "Origem": item.origin || "",
+      "Valor estimado": item.estimatedValue || 0,
+      "Valor investido": item.investmentAmount || 0,
+      "Progresso": item.progress || 0,
+      "Prazo": item.deadline || "",
+      "Website": item.website || "",
+      "Contato": item.contact || "",
+      "Email": item.email || "",
+      "Descricao": item.description || "",
+      "Framework": item.framework || "",
+      "Resumo do deal": item.dealHistory || item.statusSummary || "",
+      "Segurancas": item.projectStrengths || "",
+      "Insegurancas": item.projectWeaknesses || "",
+      "Modelo de negocio": item.businessModel || "",
+      "Time de gestao": item.managementTeam || "",
+      "Fundadores": item.founders || "",
+      "Receitas": item.revenues || "",
+      "Historico de captacao": item.fundraisingHistory || "",
+      "VC ou PE investido": item.vcPeBacked || "",
+      "Competidores": item.competitors || "",
+      "Vantagens": item.advantages || "",
+      "Observacoes": item.notes || "",
+      "Tags": item.tags || [],
+      "Tese": item.frameworkDetails?.tese || "",
+      "Oportunidade": item.frameworkDetails?.oportunidade || "",
+      "Riscos": item.frameworkDetails?.riscos || "",
+      "Proximos passos": item.frameworkDetails?.proximosPassos || "",
+      "Status da diligencia": item.frameworkDetails?.statusDiligencia || "",
+      "Observacoes estrategicas": item.frameworkDetails?.observacoes || "",
+      "Historico": (item.history || []).map((entry) => `${entry.at || ""}: ${entry.text || ""}`),
+      "Criado em": item.createdAt || "",
+      "Atualizado em": item.updatedAt || "",
+      "Cover": item.cover || "",
+      "Logo": item.logo || "",
+      "Logo texto": item.logoText || "",
+      "Logo fundo": item.logoBg || "",
+      "Posicao do cover": item.media?.coverPosition || "",
+      "Zoom do cover": item.media?.coverZoom || "",
+      "Escala da logo": item.media?.logoScale || "",
+      "Registro JSON completo": item
+    };
+  });
+}
+
+function downloadDealsExcel(workspaceId = state.currentWorkspace) {
+  const workspace = state.workspaces[workspaceId];
+  if (!workspace) {
+    alert("Nao encontrei o workspace para exportacao.");
+    return;
+  }
+  const rows = buildDealExportRows(workspace.crmItems || []);
+  if (!rows.length) {
+    alert("Nao ha deals cadastrados para exportar neste workspace.");
+    return;
+  }
+  const headers = Object.keys(rows[0]);
+  const headerHtml = headers.map((header) => `<th>${escapeExcelHtml(header)}</th>`).join("");
+  const bodyHtml = rows.map((row) => `<tr>${headers.map((header) => `<td>${escapeExcelHtml(row[header])}</td>`).join("")}</tr>`).join("");
+  const workbook = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    table { border-collapse: collapse; width: 100%; font-family: Calibri, Arial, sans-serif; }
+    th, td { border: 1px solid #d1d5db; padding: 8px; vertical-align: top; text-align: left; }
+    th { background: #f3f4f6; font-weight: 700; }
+    td { white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <table>
+    <thead><tr>${headerHtml}</tr></thead>
+    <tbody>${bodyHtml}</tbody>
+  </table>
+</body>
+</html>`;
+  const blob = new Blob([`\ufeff${workbook}`], { type: "application/vnd.ms-excel;charset=utf-8;" });
+  const link = document.createElement("a");
+  const safeWorkspace = String(workspaceId || "workspace").replace(/[^a-z0-9_-]+/gi, "-").toLowerCase();
+  link.href = URL.createObjectURL(blob);
+  link.download = `deals-${safeWorkspace}-${todayISO()}.xls`;
+  document.body.appendChild(link);
+  link.click();
+  setTimeout(() => {
+    URL.revokeObjectURL(link.href);
+    link.remove();
+  }, 0);
+}
+
 function isLandingScreen() {
   const params = new URLSearchParams(location.search);
   return !params.get("workspace");
@@ -2716,6 +2829,45 @@ function navigateToWorkspace(workspaceId, view = "") {
 function navigateToWorkspaceLanding() {
   history.pushState({}, "", location.pathname);
   renderApp();
+}
+
+function captureAppScrollSnapshot() {
+  const selectors = [".page-stack", ".main-panel", ".kanban-reference-board"];
+  return {
+    windowX: window.scrollX,
+    windowY: window.scrollY,
+    containers: selectors.map((selector) => {
+      const element = document.querySelector(selector);
+      return {
+        selector,
+        left: element ? element.scrollLeft : 0,
+        top: element ? element.scrollTop : 0
+      };
+    })
+  };
+}
+
+function restoreAppScrollSnapshot(snapshot) {
+  if (!snapshot) return;
+  const apply = () => {
+    snapshot.containers.forEach(({ selector, left, top }) => {
+      const element = document.querySelector(selector);
+      if (!element) return;
+      element.scrollLeft = left;
+      element.scrollTop = top;
+    });
+    window.scrollTo(snapshot.windowX, snapshot.windowY);
+  };
+  requestAnimationFrame(() => {
+    apply();
+    requestAnimationFrame(apply);
+  });
+}
+
+function renderAppPreservingScroll() {
+  const snapshot = captureAppScrollSnapshot();
+  renderApp();
+  restoreAppScrollSnapshot(snapshot);
 }
 
 function renderApp() {
@@ -3060,6 +3212,7 @@ function renderRitoReferenceDashboard() {
 
 function renderRitoFunnel() {
   const filters = dashboardFilterState();
+  const crmItems = (workspaceData().crmItems || []).filter((item) => item && !Array.isArray(item) && typeof item === "object");
   const panel = document.createElement("section");
   panel.className = "panel funnel-card rito-funnel-panel";
   panel.innerHTML = `<div class="panel-header"><div><h3>Etapas do Pipeline</h3></div></div>`;
@@ -3130,7 +3283,7 @@ function renderRitoFunnel() {
     summary.appendChild(button);
   });
 
-  panel.append(stack, summary);
+  panel.append(stack, summary, renderDeclinedReasonsPanel(crmItems, { compact: true }));
   return panel;
 }
 
@@ -3261,7 +3414,6 @@ function renderRitoDashboardSide() {
 
   side.appendChild(renderDashboardSectionSafely("Tabela do pipeline", () => renderRitoDashboardTable(filteredRows)));
   side.appendChild(renderDashboardSectionSafely("Seguranças e inseguranças", () => renderProjectConfidencePanel(filteredRows)));
-  side.appendChild(renderDashboardSectionSafely("Motivos dos declinados", () => renderDeclinedReasonsPanel(crmItems)));
   return side;
 }
 
@@ -3417,9 +3569,9 @@ function renderProjectConfidencePanel(rows = referenceDashboardRows()) {
   return panel;
 }
 
-function renderDeclinedReasonsPanel(items) {
+function renderDeclinedReasonsPanel(items, { compact = false } = {}) {
   const panel = document.createElement("section");
-  panel.className = "panel declined-reasons-panel";
+  panel.className = `panel declined-reasons-panel${compact ? " declined-reasons-panel-compact" : ""}`;
   const reasons = declinedDealReasonGroups((Array.isArray(items) ? items : []).filter((item) => item && !Array.isArray(item) && typeof item === "object"));
   panel.innerHTML = `
     <div class="panel-header">
@@ -3941,11 +4093,12 @@ function renderRitoProjectBoardsPage() {
 }
 
 function renderRitoDocumentsPage() {
+  const documents = Array.isArray(workspaceData().documents) ? workspaceData().documents : [];
   const page = document.createElement("section");
   page.className = "content-grid ref-page";
   page.innerHTML = `
     <section class="page-head">
-      <div><h3>Documentos</h3><p>Biblioteca de documentos - 5 arquivos</p></div>
+      <div><h3>Documentos</h3><p>Biblioteca de documentos - ${documents.length} arquivos</p></div>
       <div class="page-head-actions"><button class="action-button" data-ref-action="upload-doc" type="button">Upload</button></div>
     </section>
   `;
@@ -3960,27 +4113,41 @@ function renderRitoDocumentsPage() {
   page.appendChild(toolbar);
   const grid = document.createElement("section");
   grid.className = "reference-doc-grid";
-  ritoDocumentCards.forEach((doc) => {
+  documents.forEach((doc) => {
     const card = document.createElement("article");
     card.className = "reference-doc-card";
-    const fileUrl = toFileHref(doc.filePath);
+    const documentName = String(doc.name || doc.title || "Documento").trim();
+    const rawUrl = resolveDocumentUrl(doc);
+    const fileUrl = toFileHref(rawUrl);
+    const fileType = String(doc.fileType || documentName.split(".").pop() || "arquivo").replace(/^\./, "").trim();
+    const category = String(doc.category || "Geral").trim();
+    const linkedTo = String(doc.linkedTo || "").trim();
+    const icon = fileType ? fileType.slice(0, 4).toUpperCase() : "DOC";
+    const tags = [category, linkedTo, fileType.toLowerCase()].filter(Boolean);
+    const description = linkedTo
+      ? `Documento vinculado a ${linkedTo}.`
+      : "Documento armazenado na biblioteca do workspace.";
+    const meta = [doc.uploadedAt, fileType.toUpperCase()].filter(Boolean).join(" - ") || "Arquivo sem metadados";
     card.innerHTML = `
-      <div class="doc-icon">${doc.icon}</div>
-      <strong>${doc.title}</strong>
-      <div class="chips">${doc.tags.map((tag) => `<span class="chip">${tag}</span>`).join("")}</div>
-      <p class="subtle">${doc.description}</p>
-      <div class="subtle">${doc.meta}</div>
+      <div class="doc-icon">${icon}</div>
+      <strong>${escapeHTML(documentName)}</strong>
+      <div class="chips">${tags.map((tag) => `<span class="chip">${escapeHTML(tag)}</span>`).join("")}</div>
+      <p class="subtle">${escapeHTML(description)}</p>
+      <div class="subtle">${escapeHTML(meta)}</div>
       <div class="inline-actions">
         ${fileUrl
-          ? `<a class="action-button" href="${escapeAttr(fileUrl)}" download="${escapeAttr(doc.title)}" target="_blank" rel="noreferrer">Download</a>
-             <a class="ghost-button" href="${escapeAttr(fileUrl)}" target="_blank" rel="noreferrer">Editar</a>`
+          ? `<a class="action-button" href="${escapeAttr(fileUrl)}" download="${escapeAttr(documentName)}" target="_blank" rel="noreferrer">Download</a>
+             <a class="ghost-button" href="${escapeAttr(fileUrl)}" target="_blank" rel="noreferrer">Abrir</a>`
           : `<button class="action-button" disabled>Download</button>
-             <button class="ghost-button" disabled>Editar</button>`}
-        <button class="ghost-button" data-ref-action="delete-doc" data-doc-title="${escapeAttr(doc.title)}" type="button">Excluir</button>
+             <button class="ghost-button" disabled>Abrir</button>`}
+        <button class="ghost-button" data-ref-action="delete-doc" data-doc-id="${escapeAttr(doc.id)}" data-doc-title="${escapeAttr(documentName)}" type="button">Excluir</button>
       </div>
     `;
     grid.appendChild(card);
   });
+  if (!documents.length) {
+    grid.innerHTML = "<article class='reference-doc-card'><strong>Nenhum documento enviado ainda.</strong><p class='subtle'>Use Upload para adicionar arquivos a esta biblioteca.</p></article>";
+  }
   page.appendChild(grid);
   return page;
 }
@@ -4036,7 +4203,7 @@ function renderRitoSettingsPage() {
     </section>
     <section class="settings-section">
       <h4>Backup & Exportação</h4>
-      <article class="panel"><p>Os dados do portal ficam centralizados no Supabase. Importações e exportações locais foram desativadas para evitar dependência de arquivos no navegador.</p><div class="inline-actions"><button class="ghost-button" data-ref-action="connect-source" type="button">Importação local desativada</button><button class="ghost-button" data-ref-action="save-html" type="button">HTML local desativado</button><button class="action-button" data-ref-action="export-json" type="button">Backup local desativado</button><button class="ghost-button" data-ref-action="export-crm" type="button">CSV local desativado</button><button class="ghost-button" data-ref-action="export-tasks" type="button">CSV local desativado</button><button class="ghost-button" data-ref-action="export-portfolio" type="button">CSV local desativado</button></div></article>
+      <article class="panel"><p>Os dados do portal ficam centralizados no Supabase. Se precisar analisar fora do sistema, você pode exportar os deals do workspace atual em uma planilha compatível com Excel, com status, responsáveis, seguranças, inseguranças e demais campos preenchidos.</p><div class="inline-actions"><button class="ghost-button" data-ref-action="connect-source" type="button">Importação local desativada</button><button class="ghost-button" data-ref-action="save-html" type="button">HTML local desativado</button><button class="action-button" data-ref-action="export-crm" type="button">Exportar deals em Excel</button><button class="ghost-button" data-ref-action="export-tasks" type="button">CSV local desativado</button><button class="ghost-button" data-ref-action="export-portfolio" type="button">CSV local desativado</button></div></article>
     </section>
     <section class="settings-section">
       <h4>Dados do Sistema</h4>
@@ -4567,9 +4734,7 @@ function renderCRM() {
         <h3>CRM premium</h3>
         <p>Deals com visual editorial, filtros dinâmicos e ações rápidas</p>
       </div>
-      <div class="inline-actions">
-        <button class="ghost-button" data-action="export-crm">Exportação local desativada</button>
-      </div>
+      <div class="inline-actions"></div>
     </div>
     <div class="filters-row">
       <label class="field"><span>Status</span><select id="crmFilterStatus"><option value="">Todos</option>${workspaceConfig[state.currentWorkspace].pipelineStages.map((stage) => `<option>${stage}</option>`).join("")}</select></label>
@@ -4763,7 +4928,6 @@ function renderTasksBoard() {
       </div>
       <div class="inline-actions">
         <button class="ghost-button" data-ref-action="edit-columns" type="button">Alterar colunas</button>
-        <button class="ghost-button" data-action="export-tasks">Exportação local desativada</button>
         <button class="action-button" data-ref-action="new-task" type="button">+ Nova tarefa</button>
       </div>
     </section>
@@ -4901,7 +5065,7 @@ function updateTaskStage(id, stage) {
   task.stage = stage;
   task.status = task.dueDate < todayISO() ? "Atrasado" : "Em andamento";
   saveState();
-  renderApp();
+  renderAppPreservingScroll();
 }
 
 function renderProjectBoards() {
@@ -5287,14 +5451,10 @@ function bindStaticActions() {
     else if (view === "documents") openDocumentDialog();
     else openTaskDialog();
   };
-  document.getElementById("exportTopButton").onclick = () => {
-    alert("Exportações locais foram desativadas. Use apenas os dados persistidos no banco.");
-  };
   const hideTopSearch = landing || state.currentWorkspace === "rito";
   document.querySelector(".top-search")?.classList.toggle("hidden", hideTopSearch);
   document.getElementById("newItemButton")?.classList.toggle("hidden", landing || state.currentWorkspace === "rito");
-  document.getElementById("exportTopButton")?.classList.toggle("hidden", landing);
-  document.querySelectorAll("[data-action='export-crm']").forEach((button) => { button.onclick = () => alert("Exportações locais foram desativadas."); });
+  document.querySelectorAll("[data-action='export-crm']").forEach((button) => { button.onclick = () => downloadDealsExcel(state.currentWorkspace); });
   document.querySelectorAll("[data-action='export-tasks']").forEach((button) => { button.onclick = () => alert("Exportações locais foram desativadas."); });
   bindInlineEditing();
   bindReferenceActions();
@@ -5317,7 +5477,22 @@ function bindReferenceActions() {
       if (action === "upload-doc") return openDocumentDialog();
       if (action === "download-doc") return alert(`Download preparado para ${button.dataset.docTitle}.`);
       if (action === "edit-doc") return alert(`Edicao de ${button.dataset.docTitle} pode ser ligada ao drawer em seguida.`);
-      if (action === "delete-doc") return alert(`Use o gerenciamento completo de documentos para excluir ${button.dataset.docTitle}.`);
+      if (action === "delete-doc") {
+        const docId = String(button.dataset.docId || "").trim();
+        const docTitle = button.dataset.docTitle || "este documento";
+        const documentItem = workspaceData().documents.find((doc) => doc.id === docId);
+        if (!documentItem) {
+          alert(`Nao encontrei ${docTitle} na biblioteca atual.`);
+          return;
+        }
+        if (!confirm(`Deseja excluir ${docTitle}?`)) return;
+        if (documentItem.filePath) {
+          await removeFileFromStorage(PORTAL_DOCUMENTS_BUCKET, documentItem.filePath);
+        }
+        state.workspaces[state.currentWorkspace].documents = workspaceData().documents.filter((doc) => doc.id !== docId);
+        saveState();
+        return renderApp();
+      }
       if (action === "new-member") return openMemberDialog();
       if (action === "edit-member") return openMemberDialog(button.dataset.member);
       if (action === "delete-member") {
@@ -5354,7 +5529,11 @@ function bindReferenceActions() {
       if (action === "workspace-edit" || action === "workspace-duplicate" || action === "new-workspace") {
         return alert("Acao preparada para a proxima iteracao.");
       }
-      if (["connect-source", "save-html", "export-json", "export-crm", "export-tasks", "export-portfolio"].includes(action)) {
+      if (action === "export-crm") {
+        downloadDealsExcel(state.currentWorkspace);
+        return;
+      }
+      if (["connect-source", "save-html", "export-json", "export-tasks", "export-portfolio"].includes(action)) {
         alert("Importações e exportações locais foram desativadas. O portal agora depende do Supabase para persistência.");
         return;
       }
@@ -5618,34 +5797,24 @@ function openOpportunityDialog() {
 
 async function upsertCRMItem(item, options = {}) {
   const workspaceId = state.currentWorkspace;
+  const previousState = clonePortalState(state);
   const nextItem = clonePortalState(item);
   nextItem.updatedAt = new Date().toISOString();
   nextItem.createdAt = nextItem.createdAt || nextItem.updatedAt;
   ensureProjectShape(nextItem);
+  const items = workspaceData().crmItems;
+  const index = items.findIndex((entry) => entry.id === nextItem.id);
+  if (index >= 0) items[index] = nextItem;
+  else items.unshift(nextItem);
+  if (nextItem.tags.includes("Investido") && !workspaceData().projectBoards[nextItem.name]) {
+    workspaceData().projectBoards[nextItem.name] = [];
+  }
+  if (!nextItem.tags.includes("Investido") && workspaceData().projectBoards[nextItem.name] && nextItem.investmentStatus !== "Investido") {
+    delete workspaceData().projectBoards[nextItem.name];
+  }
+  renderApp();
   try {
-    if (options.instant === false) {
-      const previousState = clonePortalState(state);
-      const items = workspaceData().crmItems;
-      const index = items.findIndex((entry) => entry.id === nextItem.id);
-      if (index >= 0) items[index] = nextItem;
-      else items.unshift(nextItem);
-      if (nextItem.tags.includes("Investido") && !workspaceData().projectBoards[nextItem.name]) {
-        workspaceData().projectBoards[nextItem.name] = [];
-      }
-      if (!nextItem.tags.includes("Investido") && workspaceData().projectBoards[nextItem.name] && nextItem.investmentStatus !== "Investido") {
-        delete workspaceData().projectBoards[nextItem.name];
-      }
-      renderApp();
-      try {
-        await saveState({ instant: false });
-      } catch (error) {
-        state = buildPortalState(previousState);
-        renderApp();
-        throw error;
-      }
-    } else {
-      await persistCRMItemToDatabase(nextItem, { workspaceId });
-    }
+    await persistCRMItemToDatabase(nextItem, { workspaceId });
   } catch (error) {
     console.error("[crm-save] upsertCRMItem falhou", {
       workspaceId,
@@ -5656,8 +5825,10 @@ async function upsertCRMItem(item, options = {}) {
       hint: error?.hint || null,
       code: error?.code || null
     });
+    state = buildPortalState(previousState);
+    renderApp();
     if (!options.silentError) {
-      alert("Não foi possível salvar este card na nuvem. A alteração foi desfeita para evitar perda de consistência.");
+      alert("Não foi possível salvar este card no banco de dados. A alteração foi desfeita.");
     }
     throw error;
   }
@@ -5666,23 +5837,13 @@ async function upsertCRMItem(item, options = {}) {
 async function removeCRMItem(item, options = {}) {
   if (!item) return;
   const workspaceId = state.currentWorkspace;
+  const previousState = clonePortalState(state);
+  state.workspaces[state.currentWorkspace].crmItems = workspaceData().crmItems.filter((entry) => entry.id !== item.id);
+  delete workspaceData().projectBoards[item.name];
+  workspaceData().documents = workspaceData().documents.filter((doc) => (doc.linkedTo || "").toLowerCase() !== item.name.toLowerCase());
+  renderApp();
   try {
-    if (options.instant === false) {
-      const previousState = clonePortalState(state);
-      state.workspaces[state.currentWorkspace].crmItems = workspaceData().crmItems.filter((entry) => entry.id !== item.id);
-      delete workspaceData().projectBoards[item.name];
-      workspaceData().documents = workspaceData().documents.filter((doc) => (doc.linkedTo || "").toLowerCase() !== item.name.toLowerCase());
-      renderApp();
-      try {
-        await saveState({ instant: false });
-      } catch (error) {
-        state = buildPortalState(previousState);
-        renderApp();
-        throw error;
-      }
-    } else {
-      await persistCRMItemToDatabase(item, { workspaceId, remove: true });
-    }
+    await persistCRMItemToDatabase(item, { workspaceId, remove: true });
   } catch (error) {
     console.error("[crm-save] removeCRMItem falhou", {
       workspaceId,
@@ -5693,7 +5854,9 @@ async function removeCRMItem(item, options = {}) {
       hint: error?.hint || null,
       code: error?.code || null
     });
-    alert("Não foi possível excluir este card na nuvem. A alteração foi desfeita para manter os dados consistentes.");
+    state = buildPortalState(previousState);
+    renderApp();
+    alert("Não foi possível excluir este card do banco de dados. A alteração foi desfeita.");
     throw error;
   }
 }
@@ -6615,17 +6778,17 @@ function openTaskEditor(taskId, isProject, projectName = "") {
       dialog.classList.add("hidden");
     };
   });
-  document.getElementById("taskDeleteButton").onclick = () => {
+  document.getElementById("taskDeleteButton").onclick = async () => {
     if (isProject) {
       const list = workspaceData().projectBoards[projectName] || [];
       workspaceData().projectBoards[projectName] = list.filter((item) => item.id !== taskId);
     } else {
       workspaceData().taskItems = workspaceData().taskItems.filter((item) => item.id !== taskId);
     }
-    saveState();
+    await saveState({ instant: true });
     dialog.close();
     dialog.classList.add("hidden");
-    renderApp();
+    renderAppPreservingScroll();
   };
   const form = document.getElementById("taskEditorForm");
   form.querySelectorAll("input[type='date']").forEach((input) => {
@@ -6644,13 +6807,13 @@ function openTaskEditor(taskId, isProject, projectName = "") {
     field.addEventListener("change", () => persistTaskEditorDraft());
     field.addEventListener("blur", () => persistTaskEditorDraft());
   });
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
     persistTaskEditorDraft();
-    saveState();
+    await saveState({ instant: true });
     dialog.close();
     dialog.classList.add("hidden");
-    renderApp();
+    renderAppPreservingScroll();
   });
 }
 
