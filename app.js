@@ -4857,7 +4857,13 @@ function createCRMCard(item) {
   const locationLine = [item.sector, item.location, item.year].filter(Boolean).map((part) => displayText(part)).join(" - ");
   article.innerHTML = `
     <div class="card-cover" style="background-image:url('${item.cover}')">
-      <button class="ghost-button cover-actions" data-card-action="menu" data-card-id="${item.id}">...</button>
+      <div class="card-menu-shell">
+        <button class="ghost-button cover-actions" data-card-menu-toggle="${item.id}" type="button" aria-label="Abrir menu do card">...</button>
+        <div class="card-menu hidden" data-card-menu="${item.id}">
+          <button class="ghost-button card-menu-button" data-card-action="edit" data-card-id="${item.id}" type="button">Editar</button>
+          <button class="ghost-button card-menu-button" data-card-action="duplicate" data-card-id="${item.id}" type="button">Duplicar</button>
+        </div>
+      </div>
       <div class="status-badge">${displayText(item.tags.includes("Investido") ? "Investido" : item.status)}</div>
     </div>
     <div class="card-logo ${item.logo ? "has-image" : ""}" style="${item.logo ? "background:transparent" : ""}">${item.logo ? `<img src="${item.logo}" alt="${item.name}">` : initials(item.name)}</div>
@@ -4894,14 +4900,28 @@ function createCRMCard(item) {
       <div><strong>Framework:</strong> ${displayText(item.framework || "-")}</div>
       <div class="progress-bar"><span style="width:${item.progress}%; background:${accent}"></span></div>
       <div class="card-footer"><span>${displayText(item.owner)}</span><strong>${currency(item.estimatedValue)}</strong></div>
-      <div class="inline-actions">
-        <button class="ghost-button" data-card-action="edit" data-card-id="${item.id}">Editar</button>
-        <button class="ghost-button" data-card-action="duplicate" data-card-id="${item.id}">Duplicar</button>
-      </div>
     </div>
   `;
+  const menuToggle = article.querySelector("[data-card-menu-toggle]");
+  const menu = article.querySelector("[data-card-menu]");
+  menuToggle?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    document.querySelectorAll(".card-menu").forEach((node) => {
+      if (node !== menu) node.classList.add("hidden");
+    });
+    menu?.classList.toggle("hidden");
+  });
+  article.addEventListener("mouseleave", () => {
+    menu?.classList.add("hidden");
+  });
   article.querySelectorAll("[data-card-action]").forEach((button) => {
-    button.addEventListener("click", () => handleCRMCardAction(button.dataset.cardAction, item.id));
+    button.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      menu?.classList.add("hidden");
+      await handleCRMCardAction(button.dataset.cardAction, item.id);
+    });
   });
   article.addEventListener("dragstart", (event) => {
     event.dataTransfer.effectAllowed = "move";
@@ -4935,7 +4955,7 @@ function createCRMCard(item) {
   });
   article.addEventListener("click", (event) => {
     if (article.dataset.justDragged === "1") return;
-    if (event.target.closest("[data-card-action]")) return;
+    if (event.target.closest("[data-card-action]") || event.target.closest("[data-card-menu-toggle]")) return;
     openProjectDetail(item.id, state.currentView[state.currentWorkspace]);
   });
   return article;
@@ -5658,7 +5678,7 @@ async function duplicateCRMItem(item, sourceView = state.currentView[state.curre
 async function handleCRMCardAction(action, id) {
   const item = workspaceData().crmItems.find((entry) => entry.id === id);
   if (!item) return;
-  if (action === "edit" || action === "menu") openProjectDetail(item.id, state.currentView[state.currentWorkspace]);
+  if (action === "edit") openProjectDetail(item.id, state.currentView[state.currentWorkspace]);
   if (action === "duplicate") {
     await duplicateCRMItem(item, state.currentView[state.currentWorkspace]);
   }
@@ -6899,12 +6919,27 @@ function openTaskEditor(taskId, isProject, projectName = "") {
     </form>
   `;
   dialog.showModal();
+  const closeEditor = () => {
+    dialog.close();
+    dialog.classList.add("hidden");
+  };
+  const persistTaskEditorRemotely = async () => {
+    persistTaskEditorDraft();
+    await saveState({ instant: true });
+  };
   dialog.querySelectorAll("[data-dialog-close]").forEach((button) => {
-    button.onclick = () => {
-      dialog.close();
-      dialog.classList.add("hidden");
+    button.onclick = async () => {
+      await persistTaskEditorRemotely();
+      closeEditor();
+      renderAppPreservingScroll();
     };
   });
+  dialog.addEventListener("cancel", async (event) => {
+    event.preventDefault();
+    await persistTaskEditorRemotely();
+    closeEditor();
+    renderAppPreservingScroll();
+  }, { once: true });
   document.getElementById("taskDeleteButton").onclick = async () => {
     if (isProject) {
       const list = workspaceData().projectBoards[projectName] || [];
@@ -6913,8 +6948,7 @@ function openTaskEditor(taskId, isProject, projectName = "") {
       workspaceData().taskItems = workspaceData().taskItems.filter((item) => item.id !== taskId);
     }
     await saveState({ instant: true });
-    dialog.close();
-    dialog.classList.add("hidden");
+    closeEditor();
     renderAppPreservingScroll();
   };
   const form = document.getElementById("taskEditorForm");
@@ -6931,15 +6965,19 @@ function openTaskEditor(taskId, isProject, projectName = "") {
   });
   form.querySelectorAll("input, textarea, select").forEach((field) => {
     field.addEventListener("input", () => persistTaskEditorDraft());
-    field.addEventListener("change", () => persistTaskEditorDraft());
+    field.addEventListener("change", async () => {
+      persistTaskEditorDraft();
+      if (field.name === "dueDate" || field.name === "completionDate") {
+        await saveState({ instant: true });
+      }
+    });
     field.addEventListener("blur", () => persistTaskEditorDraft());
   });
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     persistTaskEditorDraft();
     await saveState({ instant: true });
-    dialog.close();
-    dialog.classList.add("hidden");
+    closeEditor();
     renderAppPreservingScroll();
   });
 }
