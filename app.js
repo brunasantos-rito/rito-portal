@@ -398,7 +398,12 @@ async function loadPortalStateForDatabaseWrite() {
   }
 }
 
-async function persistCRMItemToDatabase(item, { workspaceId = state.currentWorkspace, remove = false, attempts = 3 } = {}) {
+async function persistCRMItemToDatabase(item, {
+  workspaceId = state.currentWorkspace,
+  remove = false,
+  attempts = 3,
+  renderOnSuccess = true
+} = {}) {
   queuedSaveVersion += 1;
   await pendingRemoteSave.catch(() => null);
   pendingRemoteSave = Promise.resolve();
@@ -443,12 +448,20 @@ async function persistCRMItemToDatabase(item, { workspaceId = state.currentWorks
       }
       if ((remove && !persistedItem) || (!remove && persistedItem)) {
         state = savedState;
-        renderApp();
+        if (renderOnSuccess) renderApp();
         return savedState;
       }
-      lastError = new Error(remove
-        ? "O banco retornou sucesso, mas o deal removido ainda apareceu no snapshot salvo."
-        : "O banco retornou sucesso, mas o novo deal não apareceu no snapshot salvo.");
+      console.warn("[crm-save] Gravacao confirmada, mas o read-after-write ainda nao refletiu o snapshot esperado. Mantendo estado otimista e reagendando verificacao.", {
+        workspaceId,
+        remove,
+        dealId: item?.id || null,
+        dealName: item?.name || null,
+        expectedLastSavedAt: nextState?.lastSavedAt || null
+      });
+      state = buildPortalState(nextState);
+      if (renderOnSuccess) renderApp();
+      schedulePortalStateVerification(nextState);
+      return state;
     } catch (error) {
       console.error("[crm-save] Falha na persistencia do deal", {
         attempt: attempt + 1,
@@ -4017,13 +4030,39 @@ function bindRitoProjectDetailPage(page, item) {
     };
   });
   let autosaveTimer = null;
+  let autosaveInFlight = Promise.resolve();
+  const queueDetailAutosave = (mode = "debounced") => {
+    const runAutosave = async () => {
+      try {
+        await persistDrawerProject(item, page, {
+          silentError: true,
+          preserveLocalOnError: true
+        });
+      } catch (error) {
+        console.warn("[crm-save] Autosave do detalhe do projeto falhou; mantendo rascunho local.", {
+          dealId: item?.id || null,
+          dealName: item?.name || null,
+          message: error?.message || String(error)
+        });
+      }
+    };
+    if (mode === "immediate") {
+      clearTimeout(autosaveTimer);
+      autosaveInFlight = autosaveInFlight.then(runAutosave);
+      return;
+    }
+    clearTimeout(autosaveTimer);
+    autosaveTimer = setTimeout(() => {
+      autosaveInFlight = autosaveInFlight.then(runAutosave);
+    }, 650);
+  };
   page.querySelectorAll("[data-drawer-field], [data-framework-field]").forEach((field) => {
     field.addEventListener("input", () => {
-      clearTimeout(autosaveTimer);
-      autosaveTimer = setTimeout(() => persistProjectDraft(item, page), 220);
+      persistProjectDraft(item, page);
+      queueDetailAutosave("debounced");
     });
-    field.addEventListener("change", () => persistDrawerProject(item, page));
-    field.addEventListener("blur", () => persistDrawerProject(item, page));
+    field.addEventListener("change", () => queueDetailAutosave("immediate"));
+    field.addEventListener("blur", () => queueDetailAutosave("immediate"));
   });
 }
 
@@ -5799,6 +5838,7 @@ async function upsertCRMItem(item, options = {}) {
   const workspaceId = state.currentWorkspace;
   const previousState = clonePortalState(state);
   const nextItem = clonePortalState(item);
+  delete nextItem.__draftDirty;
   nextItem.updatedAt = new Date().toISOString();
   nextItem.createdAt = nextItem.createdAt || nextItem.updatedAt;
   ensureProjectShape(nextItem);
@@ -5812,9 +5852,13 @@ async function upsertCRMItem(item, options = {}) {
   if (!nextItem.tags.includes("Investido") && workspaceData().projectBoards[nextItem.name] && nextItem.investmentStatus !== "Investido") {
     delete workspaceData().projectBoards[nextItem.name];
   }
-  renderApp();
+  if (!options.skipRender) renderApp();
   try {
-    await persistCRMItemToDatabase(nextItem, { workspaceId });
+    await persistCRMItemToDatabase(nextItem, {
+      workspaceId,
+      renderOnSuccess: options.renderOnSuccess !== false
+    });
+    delete item.__draftDirty;
   } catch (error) {
     console.error("[crm-save] upsertCRMItem falhou", {
       workspaceId,
@@ -5825,8 +5869,10 @@ async function upsertCRMItem(item, options = {}) {
       hint: error?.hint || null,
       code: error?.code || null
     });
-    state = buildPortalState(previousState);
-    renderApp();
+    if (!options.preserveLocalOnError) {
+      state = buildPortalState(previousState);
+      if (!options.skipRender) renderApp();
+    }
     if (!options.silentError) {
       alert("Não foi possível salvar este card no banco de dados. A alteração foi desfeita.");
     }
@@ -6096,7 +6142,7 @@ function bindProjectDrawer(item) {
   };
 }
 
-async function persistDrawerProject(item, root = document) {
+async function persistDrawerProject(item, root = document, options = {}) {
   ensureProjectShape(item);
   const before = JSON.stringify(item);
   const oldName = item.name;
@@ -6121,13 +6167,23 @@ async function persistDrawerProject(item, root = document) {
   });
   syncInvestmentTag(item);
   item.subtitle = item.subtitle || `${item.sector} - ${item.location} - ${item.year}`;
-  item.updatedAt = todayISO();
-  if (JSON.stringify(item) !== before) pushHistory(item, "Informações do projeto atualizadas");
-  upsertCRMItem(item);
+  const changed = JSON.stringify(item) !== before || item.__draftDirty === true;
+  if (!changed) return false;
+  item.updatedAt = new Date().toISOString();
+  pushHistory(item, "Informações do projeto atualizadas");
+  await upsertCRMItem(item, {
+    skipRender: true,
+    renderOnSuccess: false,
+    silentError: options.silentError === true,
+    preserveLocalOnError: options.preserveLocalOnError === true
+  });
+  delete item.__draftDirty;
+  return true;
 }
 
 function persistProjectDraft(item, root = document) {
   ensureProjectShape(item);
+  const before = JSON.stringify(item);
   const oldName = item.name;
   root.querySelectorAll("[data-drawer-field]").forEach((field) => {
     const key = field.dataset.drawerField;
@@ -6155,7 +6211,9 @@ function persistProjectDraft(item, root = document) {
   const index = items.findIndex((entry) => entry.id === item.id);
   if (index >= 0) items[index] = item;
   else items.unshift(item);
-  saveState();
+  if (JSON.stringify(item) !== before) {
+    item.__draftDirty = true;
+  }
 }
 
 function clipboardImageFromPasteEvent(event) {
