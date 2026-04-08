@@ -3620,6 +3620,13 @@ body[data-theme="dark"] .paste-dropzone {
   max-width: 520px;
 }
 
+.tag-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .tag-picker-create {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
