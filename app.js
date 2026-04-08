@@ -206,6 +206,7 @@ function resolveDocumentUrl(doc = {}) {
 
 let pendingRemoteSave = Promise.resolve();
 let queuedSaveVersion = 0;
+let activeProjectTagPickerKey = "";
 
 function clonePortalState(snapshot = state) {
   return JSON.parse(JSON.stringify(snapshot));
@@ -2234,13 +2235,16 @@ function getSelectedProject() {
 function dashboardFilterState() {
   if (!state.dashboardFilters) {
     state.dashboardFilters = {
-      rito: { stage: "Todos", temp: "Todos", query: "" },
-      atica: { stage: "Todos", temp: "Todos", query: "" },
-      fast: { stage: "Todos", temp: "Todos", query: "" }
+      rito: { stage: "Todos", temp: "Todos", query: "", owner: "Todos" },
+      atica: { stage: "Todos", temp: "Todos", query: "", owner: "Todos" },
+      fast: { stage: "Todos", temp: "Todos", query: "", owner: "Todos" }
     };
   }
   if (!state.dashboardFilters[state.currentWorkspace]) {
-    state.dashboardFilters[state.currentWorkspace] = { stage: "Todos", temp: "Todos", query: "" };
+    state.dashboardFilters[state.currentWorkspace] = { stage: "Todos", temp: "Todos", query: "", owner: "Todos" };
+  }
+  if (!Object.prototype.hasOwnProperty.call(state.dashboardFilters[state.currentWorkspace], "owner")) {
+    state.dashboardFilters[state.currentWorkspace].owner = "Todos";
   }
   return state.dashboardFilters[state.currentWorkspace];
 }
@@ -3057,7 +3061,15 @@ function renderDashboard() {
   const config = workspaceConfig[state.currentWorkspace];
 
   if (state.currentWorkspace === "fast") {
-    const tasks = allWorkspaceTasksWithProjectContext("fast");
+    const filters = dashboardFilterState();
+    const allTasks = allWorkspaceTasksWithProjectContext("fast");
+    const ownerOptions = [...new Set([
+      ...(workspaceConfig.fast?.memberOptions || []),
+      ...allTasks.map((task) => String(task.owner || "").trim()).filter(Boolean)
+    ])].sort((a, b) => a.localeCompare(b, "pt-BR"));
+    const tasks = filters.owner === "Todos"
+      ? allTasks
+      : allTasks.filter((task) => String(task.owner || "").trim() === filters.owner);
     const summary = taskStatusSummary(tasks);
     const done = summary.Concluido;
     const inExecution = summary["Em andamento"];
@@ -3077,6 +3089,25 @@ function renderDashboard() {
         <div><h3>Dashboard</h3><p>${displayText("Painel executivo da Fast Massagem com visão operacional, prioridades e performance")}</p></div>
       </section>
     `;
+    const filtersRow = document.createElement("section");
+    filtersRow.className = "reference-toolbar";
+    filtersRow.innerHTML = `
+      <div class="toolbar-left">
+        <label class="field">
+          <span>Responsável</span>
+          <select id="fastDashboardOwnerFilter">
+            <option value="Todos">Todos</option>
+            ${ownerOptions.map((owner) => `<option value="${escapeHtml(owner)}" ${filters.owner === owner ? "selected" : ""}>${displayText(owner)}</option>`).join("")}
+          </select>
+        </label>
+      </div>
+    `;
+    filtersRow.querySelector("#fastDashboardOwnerFilter")?.addEventListener("change", (event) => {
+      dashboardFilterState().owner = event.target.value || "Todos";
+      state.fastDashboardStatusFocus = "";
+      renderApp();
+    });
+    panel.appendChild(filtersRow);
     panel.appendChild(renderMetrics(metrics));
     panel.appendChild(renderFastDashboardDetail(tasks));
     return panel;
@@ -3703,12 +3734,15 @@ function renderRitoProjectDetailPage() {
       </div>
       <div class="tag-editor project-tag-selected-list is-compact">${editableProjectTags(item).map((tag) => `<span class="tag-chip ${tagChipClass(tag)}">${tag}<button data-remove-project-tag="${escapeAttr(tag)}" type="button">×</button></span>`).join("") || "<div class='subtle'>Nenhuma tag personalizada selecionada.</div>"}</div>
       <section class="tag-picker-shell tag-picker-shell-compact hidden" id="projectTagPicker">
+        <div class="tag-picker-head">
+          <span class="field-label">Selecionar tags</span>
+          <button class="ghost-icon-button" id="closeProjectTagPicker" type="button" aria-label="Fechar tags">×</button>
+        </div>
         <div class="tag-picker-inline-row">
           <input id="projectTagCreateInput" placeholder="Criar tag">
           <button class="ghost-button" id="projectTagCreateButton" type="button">Adicionar</button>
         </div>
         <div class="tag-picker-block">
-          <span class="field-label">Selecionar tags</span>
           <div class="tag-picker-options">${workspaceProjectTagOptions().map((tag) => `<button class="tag-picker-option ${tagChipClass(tag)} ${editableProjectTags(item).some((entry) => normalizeProjectTagKey(entry) === normalizeProjectTagKey(tag)) ? "is-selected" : ""}" data-toggle-project-tag="${escapeAttr(tag)}" type="button">${tag}</button>`).join("") || "<div class='subtle'>Nenhuma tag cadastrada ainda.</div>"}</div>
         </div>
         <div class="tag-picker-block">
@@ -3813,6 +3847,7 @@ function populateProjectDetailBoard(page, item) {
 
 function bindRitoProjectDetailPage(page, item) {
   const sourceView = state.projectReturnView[state.currentWorkspace] || "crm";
+  const projectTagPickerKey = `${state.currentWorkspace}:${item.id}`;
   page.querySelector("[data-project-action='back']").onclick = closeProjectDetail;
   page.querySelector("[data-project-action='delete']").onclick = async () => {
     const docsToRemove = workspaceData().documents.filter((doc) => (doc.linkedTo || "").toLowerCase() === item.name.toLowerCase());
@@ -3877,8 +3912,36 @@ function bindRitoProjectDetailPage(page, item) {
   statusField?.addEventListener("change", () => {
     if (temperatureField) temperatureField.value = temperatureFromRitoDealStatus(statusField.value);
   });
-  page.querySelector("#toggleProjectTagPicker")?.addEventListener("click", () => {
-    page.querySelector("#projectTagPicker")?.classList.toggle("hidden");
+  const projectTagPicker = page.querySelector("#projectTagPicker");
+  const toggleProjectTagPickerButton = page.querySelector("#toggleProjectTagPicker");
+  const closeProjectTagPicker = () => {
+    activeProjectTagPickerKey = "";
+    projectTagPicker?.classList.add("hidden");
+  };
+  const openProjectTagPicker = () => {
+    activeProjectTagPickerKey = projectTagPickerKey;
+    projectTagPicker?.classList.remove("hidden");
+  };
+  if (activeProjectTagPickerKey === projectTagPickerKey) {
+    projectTagPicker?.classList.remove("hidden");
+  }
+  toggleProjectTagPickerButton?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    if (projectTagPicker?.classList.contains("hidden")) openProjectTagPicker();
+    else closeProjectTagPicker();
+  });
+  page.querySelector("#closeProjectTagPicker")?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    closeProjectTagPicker();
+  });
+  projectTagPicker?.addEventListener("click", (event) => {
+    event.stopPropagation();
+  });
+  page.addEventListener("click", (event) => {
+    if (projectTagPicker?.classList.contains("hidden")) return;
+    if (projectTagPicker?.contains(event.target)) return;
+    if (toggleProjectTagPickerButton?.contains(event.target)) return;
+    closeProjectTagPicker();
   });
   const createProjectTag = () => {
     const input = page.querySelector("#projectTagCreateInput");
@@ -3894,6 +3957,7 @@ function bindRitoProjectDetailPage(page, item) {
     setEditableProjectTags(item, nextTags);
     item.updatedAt = todayISO();
     pushHistory(item, `Tag adicionada: ${value}`);
+    activeProjectTagPickerKey = projectTagPickerKey;
     saveState();
     openProjectDetail(item.id, sourceView);
   };
@@ -3914,6 +3978,7 @@ function bindRitoProjectDetailPage(page, item) {
       setEditableProjectTags(item, nextTags);
       item.updatedAt = todayISO();
       pushHistory(item, exists ? `Tag removida: ${value}` : `Tag adicionada: ${value}`);
+      activeProjectTagPickerKey = projectTagPickerKey;
       saveState();
       openProjectDetail(item.id, sourceView);
     };
@@ -3925,6 +3990,7 @@ function bindRitoProjectDetailPage(page, item) {
       setEditableProjectTags(item, nextTags);
       item.updatedAt = todayISO();
       pushHistory(item, `Tag removida: ${value}`);
+      activeProjectTagPickerKey = projectTagPickerKey;
       saveState();
       openProjectDetail(item.id, sourceView);
     };
@@ -3938,6 +4004,7 @@ function bindRitoProjectDetailPage(page, item) {
       renameProjectTagAcrossWorkspace(oldTag, nextTag);
       item.updatedAt = todayISO();
       pushHistory(item, `Tag renomeada: ${oldTag} -> ${nextTag}`);
+      activeProjectTagPickerKey = projectTagPickerKey;
       saveState();
       openProjectDetail(item.id, sourceView);
     };
@@ -3948,6 +4015,7 @@ function bindRitoProjectDetailPage(page, item) {
       deleteProjectTagAcrossWorkspace(value);
       item.updatedAt = todayISO();
       pushHistory(item, `Tag excluída do catálogo: ${value}`);
+      activeProjectTagPickerKey = projectTagPickerKey;
       saveState();
       openProjectDetail(item.id, sourceView);
     };
@@ -5673,24 +5741,43 @@ function openCRMDialog(item) {
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const formData = new FormData(form);
-    current.name = formData.get("name");
-    current.status = formData.get("status");
-    current.sector = formData.get("sector");
-    current.location = formData.get("location");
-    current.year = formData.get("year");
-    current.owner = formData.get("owner");
-    current.estimatedValue = Number(formData.get("estimatedValue"));
-    current.investmentAmount = Number(formData.get("investmentAmount") || 0);
-    current.progress = Number(formData.get("progress"));
-    current.framework = formData.get("framework");
-    current.dealHistory = formData.get("dealHistory");
-    current.description = formData.get("description");
-    current.tags = String(formData.get("tags")).split(",").map((tag) => tag.trim()).filter(Boolean);
-    current.cover = await imageFileToProjectDataURL(form.querySelector("input[name='cover']").files[0], "cover", current.cover);
-    current.logo = await imageFileToProjectDataURL(form.querySelector("input[name='logo']").files[0], "logo", current.logo);
-    await upsertCRMItem(current);
+    const nextItem = {
+      ...current,
+      name: formData.get("name"),
+      status: formData.get("status"),
+      sector: formData.get("sector"),
+      location: formData.get("location"),
+      year: formData.get("year"),
+      owner: formData.get("owner"),
+      estimatedValue: Number(formData.get("estimatedValue")),
+      investmentAmount: Number(formData.get("investmentAmount") || 0),
+      progress: Number(formData.get("progress")),
+      framework: formData.get("framework"),
+      dealHistory: formData.get("dealHistory"),
+      description: formData.get("description"),
+      tags: String(formData.get("tags")).split(",").map((tag) => tag.trim()).filter(Boolean)
+    };
     dialog.close();
     dialog.classList.add("hidden");
+    try {
+      const [cover, logo] = await Promise.all([
+        imageFileToProjectDataURL(form.querySelector("input[name='cover']").files[0], "cover", current.cover),
+        imageFileToProjectDataURL(form.querySelector("input[name='logo']").files[0], "logo", current.logo)
+      ]);
+      nextItem.cover = cover;
+      nextItem.logo = logo;
+      void upsertCRMItem(nextItem).catch(() => null);
+    } catch (error) {
+      console.error("[crm-save] Erro no submit do modal de edicao do deal", {
+        message: error?.message || String(error),
+        details: error?.details || null,
+        hint: error?.hint || null,
+        code: error?.code || null,
+        dealId: nextItem?.id || null,
+        dealName: nextItem?.name || null
+      });
+      alert(error?.message || "Nao foi possivel salvar o deal agora. Revise os dados e tente novamente.");
+    }
   });
 }
 
@@ -5778,11 +5865,6 @@ function openOpportunityDialog() {
   const form = document.getElementById("opportunityForm");
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const submitButton = form.querySelector('button[type="submit"]');
-    if (submitButton) {
-      submitButton.disabled = true;
-      submitButton.textContent = "Salvando...";
-    }
     const formData = new FormData(form);
     const newItem = {
       ...current,
@@ -5810,23 +5892,23 @@ function openOpportunityDialog() {
     };
     newItem.name = String(newItem.name || "").trim();
     if (!newItem.name) {
-      if (submitButton) {
-        submitButton.disabled = false;
-        submitButton.textContent = "Salvar";
-      }
       alert("Preencha o nome da empresa para criar o card.");
       form.querySelector("input[name='name']")?.focus();
       return;
     }
     newItem.subtitle = newItem.subtitle || ritoSubtitle(newItem.sector, newItem.location, newItem.year);
+    dialog.close();
+    dialog.classList.add("hidden");
     try {
-      newItem.cover = await imageFileToProjectDataURL(form.querySelector("input[name='cover']").files[0], "cover", newItem.cover);
-      newItem.logo = await imageFileToProjectDataURL(form.querySelector("input[name='logo']").files[0], "logo", newItem.logo);
-      await upsertCRMItem(newItem, {
+      const [cover, logo] = await Promise.all([
+        imageFileToProjectDataURL(form.querySelector("input[name='cover']").files[0], "cover", newItem.cover),
+        imageFileToProjectDataURL(form.querySelector("input[name='logo']").files[0], "logo", newItem.logo)
+      ]);
+      newItem.cover = cover;
+      newItem.logo = logo;
+      void upsertCRMItem(newItem, {
         silentError: true
-      });
-      dialog.close();
-      dialog.classList.add("hidden");
+      }).catch(() => null);
     } catch (error) {
       console.error("[crm-save] Erro no submit do modal de novo deal", {
         message: error?.message || String(error),
@@ -5837,11 +5919,6 @@ function openOpportunityDialog() {
         dealName: newItem?.name || null
       });
       alert(error?.message || "Nao foi possivel criar o deal agora. Revise os dados e tente novamente.");
-    } finally {
-      if (submitButton && dialog.open) {
-        submitButton.disabled = false;
-        submitButton.textContent = "Salvar";
-      }
     }
   });
 }
