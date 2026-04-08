@@ -506,7 +506,6 @@ function persistTaskEditorDraft() {
   task.owner = String(formData.get("owner") || task.owner);
   task.dueDate = normalizeDateInputValue(formData.get("dueDate") || task.dueDate);
   task.completionDate = normalizeDateInputValue(formData.get("completionDate") || "");
-  saveState();
 }
 
 function persistVisibleCardEdits(root = document) {
@@ -1998,6 +1997,32 @@ function normalizeKanbanTask(task, themes) {
   if (!("completionDate" in task)) task.completionDate = "";
 }
 
+function canonicalTaskStatus(status = "") {
+  const value = String(status || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+  if (value === "concluido" || value === "concluida") return "Concluido";
+  if (value === "revisao" || value === "aguardando") return "Revisao";
+  if (value === "a fazer" || value === "a-fazer" || value === "nao iniciado" || value === "não iniciado") return "A fazer";
+  if (value === "em andamento" || value === "em execucao" || value === "em execução" || value === "atrasado") return "Em andamento";
+  return "A fazer";
+}
+
+function taskStatusSummary(tasks = []) {
+  return (tasks || []).reduce((summary, task) => {
+    const key = canonicalTaskStatus(task?.status);
+    summary[key] = (summary[key] || 0) + 1;
+    return summary;
+  }, {
+    "A fazer": 0,
+    "Em andamento": 0,
+    Revisao: 0,
+    Concluido: 0
+  });
+}
+
 function ensureWorkspaceKanbans(workspaceId = state.currentWorkspace) {
   const data = state.workspaces[workspaceId];
   if (!data) return;
@@ -2209,19 +2234,24 @@ function resetCalendarCursor(workspaceId = state.currentWorkspace) {
 }
 
 function calendarTaskEntries() {
-  const directTasks = (workspaceData().taskItems || []).map((task) => ({
+  return allWorkspaceTasksWithProjectContext().filter((task) => normalizeDateInputValue(task.dueDate));
+}
+
+function allWorkspaceTasksWithProjectContext(workspaceId = state.currentWorkspace) {
+  const data = state.workspaces[workspaceId] || {};
+  const directTasks = (data.taskItems || []).map((task) => ({
     ...task,
     projectName: "",
     isProjectTask: false
   }));
-  const projectTasks = Object.entries(workspaceData().projectBoards || {}).flatMap(([projectName, tasks]) =>
+  const projectTasks = Object.entries(data.projectBoards || {}).flatMap(([projectName, tasks]) =>
     (tasks || []).map((task) => ({
       ...task,
       projectName,
       isProjectTask: true
     }))
   );
-  return [...directTasks, ...projectTasks].filter((task) => normalizeDateInputValue(task.dueDate));
+  return [...directTasks, ...projectTasks];
 }
 
 function workspaceKanbanCompletedVisibility(workspaceId = state.currentWorkspace) {
@@ -3115,11 +3145,12 @@ function renderDashboard() {
   const config = workspaceConfig[state.currentWorkspace];
 
   if (state.currentWorkspace === "fast") {
-    const tasks = data.taskItems;
-    const done = tasks.filter((task) => task.status === "Concluido").length;
-    const inExecution = tasks.filter((task) => task.status === "Em andamento").length;
-    const awaiting = tasks.filter((task) => task.status === "Revisao").length;
-    const todo = tasks.filter((task) => task.status === "A fazer").length;
+    const tasks = allWorkspaceTasksWithProjectContext("fast");
+    const summary = taskStatusSummary(tasks);
+    const done = summary.Concluido;
+    const inExecution = summary["Em andamento"];
+    const awaiting = summary.Revisao;
+    const todo = summary["A fazer"];
     const workstreams = workspaceTaskThemes("fast").length;
     const metrics = [
       ["Iniciativas", tasks.length, "Plano tático total"],
@@ -4035,11 +4066,10 @@ function bindRitoProjectDetailPage(page, item) {
     const runAutosave = async () => {
       try {
         await persistDrawerProject(item, page, {
-          silentError: true,
-          preserveLocalOnError: true
+          silentError: true
         });
       } catch (error) {
-        console.warn("[crm-save] Autosave do detalhe do projeto falhou; mantendo rascunho local.", {
+        console.warn("[crm-save] Autosave do detalhe do projeto falhou.", {
           dealId: item?.id || null,
           dealName: item?.name || null,
           message: error?.message || String(error)
@@ -4434,11 +4464,12 @@ function renderFastDashboardDetail(tasks) {
 
   const workstreams = workspaceTaskThemes("fast");
   const total = tasks.length || 1;
+  const summary = taskStatusSummary(tasks);
   const statusGroups = [
-    { label: "Não iniciadas", key: "A fazer", count: tasks.filter((task) => task.status === "A fazer").length, color: "#9aa4b8" },
-    { label: "Em andamento", key: "Em andamento", count: tasks.filter((task) => task.status === "Em andamento").length, color: "#4f7cff" },
-    { label: "Aguardando", key: "Revisao", count: tasks.filter((task) => task.status === "Revisao").length, color: "#c6932d" },
-    { label: "Concluídas", key: "Concluido", count: tasks.filter((task) => task.status === "Concluido").length, color: "#32a36a" }
+    { label: "Não iniciadas", key: "A fazer", count: summary["A fazer"], color: "#9aa4b8" },
+    { label: "Em andamento", key: "Em andamento", count: summary["Em andamento"], color: "#4f7cff" },
+    { label: "Aguardando", key: "Revisao", count: summary.Revisao, color: "#c6932d" },
+    { label: "Concluídas", key: "Concluido", count: summary.Concluido, color: "#32a36a" }
   ];
   const activeStatusKey = state.fastDashboardStatusFocus || "";
   const activeStatusGroup = statusGroups.find((item) => item.key === activeStatusKey) || null;
@@ -4482,7 +4513,7 @@ function renderFastDashboardDetail(tasks) {
     });
   });
   if (activeStatusGroup) {
-    const matchingTasks = tasks.filter((task) => task.status === activeStatusGroup.key);
+    const matchingTasks = tasks.filter((task) => canonicalTaskStatus(task.status) === activeStatusGroup.key);
     const detail = document.createElement("div");
     detail.className = "fast-status-detail";
     detail.innerHTML = `
@@ -4523,9 +4554,10 @@ function renderFastDashboardDetail(tasks) {
   workstreamPanel.innerHTML = `<div class="panel-header"><div><h3>Performance por tema</h3><p>Distribuição das entregas e progresso por frente de trabalho</p></div></div>`;
   workstreams.forEach((stage) => {
     const stageTasks = tasks.filter((task) => task.stage === stage);
-    const done = stageTasks.filter((task) => task.status === "Concluido").length;
-    const inProgress = stageTasks.filter((task) => task.status === "Em andamento").length;
-    const waiting = stageTasks.filter((task) => task.status === "Revisao").length;
+    const stageSummary = taskStatusSummary(stageTasks);
+    const done = stageSummary.Concluido;
+    const inProgress = stageSummary["Em andamento"];
+    const waiting = stageSummary.Revisao;
     const progress = Math.round((done / (stageTasks.length || 1)) * 100);
     const row = document.createElement("div");
     row.className = "fast-workstream-row";
@@ -4553,10 +4585,11 @@ function renderFastDashboardDetail(tasks) {
   workstreams.forEach((stage) => {
     const stageTasks = tasks.filter((task) => task.stage === stage);
     const totalStage = stageTasks.length;
-    const done = stageTasks.filter((task) => task.status === "Concluido").length;
-    const inProgress = stageTasks.filter((task) => task.status === "Em andamento").length;
-    const waiting = stageTasks.filter((task) => task.status === "Revisao").length;
-    const todo = stageTasks.filter((task) => task.status === "A fazer").length;
+    const stageSummary = taskStatusSummary(stageTasks);
+    const done = stageSummary.Concluido;
+    const inProgress = stageSummary["Em andamento"];
+    const waiting = stageSummary.Revisao;
+    const todo = stageSummary["A fazer"];
     const intensity = Math.round((totalStage / maxStageTasks) * 100);
     const row = document.createElement("div");
     row.className = "fast-mix-row";
@@ -4587,7 +4620,7 @@ function renderFastDashboardDetail(tasks) {
   workstreams.forEach((stage) => {
     const stageTasks = tasks.filter((task) => task.stage === stage);
     const totalStage = stageTasks.length;
-    const done = stageTasks.filter((task) => task.status === "Concluido").length;
+    const done = taskStatusSummary(stageTasks).Concluido;
     const height = Math.max(Math.round((totalStage / maxStageTasks) * 100), totalStage ? 18 : 6);
     const bar = document.createElement("div");
     bar.className = "fast-volume-bar";
@@ -4633,7 +4666,7 @@ function renderFastDashboardDetail(tasks) {
   criticalPanel.className = "panel fast-panel";
   criticalPanel.innerHTML = `<div class="panel-header"><div><h3>${displayText("Prioridades Críticas")}</h3><p>${displayText("Itens com maior impacto em caixa, operação e expansão")}</p></div></div>`;
   tasks
-    .filter((task) => task.priority === "Alta" || task.status === "Revisao" || /aporte/i.test(task.description))
+    .filter((task) => task.priority === "Alta" || canonicalTaskStatus(task.status) === "Revisao" || /aporte/i.test(task.description))
     .slice(0, 8)
     .forEach((task) => {
       const item = document.createElement("div");
@@ -4656,7 +4689,7 @@ function renderFastDashboardDetail(tasks) {
     ["Dependem de aporte", tasks.filter((task) => /aporte/i.test(task.description)).length, "#c6932d"],
     ["Itens financeiros", tasks.filter((task) => task.stage === "Financeiro").length, "#4f7cff"],
     ["Itens de marketing", tasks.filter((task) => task.stage === "Marketing").length, "#9d6bff"],
-    ["Entregas concluídas", tasks.filter((task) => task.status === "Concluido").length, "#32a36a"]
+    ["Entregas concluídas", summary.Concluido, "#32a36a"]
   ].forEach(([label, count, color]) => {
     const width = Math.round((count / total) * 100);
     const line = document.createElement("div");
@@ -5097,13 +5130,13 @@ function createTaskCard(task, projectScoped, projectName = "") {
   return article;
 }
 
-function updateTaskStage(id, stage) {
+async function updateTaskStage(id, stage) {
   const items = workspaceData().taskItems;
   const task = items.find((item) => item.id === id);
   if (!task) return;
   task.stage = stage;
   task.status = task.dueDate < todayISO() ? "Atrasado" : "Em andamento";
-  saveState();
+  await saveState({ instant: true });
   renderAppPreservingScroll();
 }
 
@@ -5171,7 +5204,7 @@ function renderProjectBoards() {
 function attachProjectDnD() {
   document.querySelectorAll("[data-project-dropzone]").forEach((zone) => {
     zone.addEventListener("dragover", (event) => event.preventDefault());
-    zone.addEventListener("drop", (event) => {
+    zone.addEventListener("drop", async (event) => {
       event.preventDefault();
       const dragId = event.dataTransfer.getData("text/plain");
       const projectName = zone.dataset.projectDropzone;
@@ -5179,7 +5212,7 @@ function attachProjectDnD() {
       if (!task) return;
       task.stage = zone.dataset.stage;
       task.status = task.dueDate < todayISO() ? "Atrasado" : "Em andamento";
-      saveState();
+      await saveState({ instant: true });
       renderApp();
     });
   });
@@ -5594,14 +5627,40 @@ function handleOutsideWorkspaceDropdown(event) {
   document.getElementById("workspaceDropdown")?.classList.add("hidden");
 }
 
+function buildDuplicatedCRMItem(item) {
+  const timestamp = new Date().toISOString();
+  const copy = JSON.parse(JSON.stringify(item || {}));
+  copy.id = uid("deal");
+  copy.name = `${item.name} Copy`;
+  copy.createdAt = timestamp;
+  copy.updatedAt = timestamp;
+  copy.history = [];
+  copy.referenceKey = "";
+  copy.dealHistory = item.dealHistory || item.statusSummary || "";
+  copy.status = "Pipeline";
+  copy.temperature = temperatureFromRitoDealStatus(copy.status);
+  copy.progress = progressFromRitoDealStatus(copy.status);
+  copy.closeDate = "";
+  copy.archived = false;
+  delete copy.__draftDirty;
+  ensureProjectShape(copy);
+  copy.history = [{ at: new Date().toLocaleString("pt-BR"), text: `Card duplicado de ${item.name}` }];
+  return copy;
+}
+
+async function duplicateCRMItem(item, sourceView = state.currentView[state.currentWorkspace]) {
+  if (!item) return;
+  const copy = buildDuplicatedCRMItem(item);
+  await upsertCRMItem(copy);
+  openProjectDetail(copy.id, sourceView);
+}
+
 async function handleCRMCardAction(action, id) {
   const item = workspaceData().crmItems.find((entry) => entry.id === id);
   if (!item) return;
   if (action === "edit" || action === "menu") openProjectDetail(item.id, state.currentView[state.currentWorkspace]);
   if (action === "duplicate") {
-    const copy = { ...JSON.parse(JSON.stringify(item)), id: uid("deal"), name: `${item.name} Copy` };
-    delete copy.referenceKey;
-    await upsertCRMItem(copy);
+    await duplicateCRMItem(item, state.currentView[state.currentWorkspace]);
   }
 }
 
@@ -5809,10 +5868,23 @@ function openOpportunityDialog() {
       advantages: formData.get("advantages"),
       tags: String(formData.get("tags") || "").split(",").map((tag) => tag.trim()).filter(Boolean)
     };
+    newItem.name = String(newItem.name || "").trim();
+    if (!newItem.name) {
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.textContent = "Salvar";
+      }
+      alert("Preencha o nome da empresa para criar o card.");
+      form.querySelector("input[name='name']")?.focus();
+      return;
+    }
+    newItem.subtitle = newItem.subtitle || ritoSubtitle(newItem.sector, newItem.location, newItem.year);
     try {
       newItem.cover = await imageFileToProjectDataURL(form.querySelector("input[name='cover']").files[0], "cover", newItem.cover);
       newItem.logo = await imageFileToProjectDataURL(form.querySelector("input[name='logo']").files[0], "logo", newItem.logo);
-      await upsertCRMItem(newItem, { silentError: true });
+      await upsertCRMItem(newItem, {
+        silentError: true
+      });
       dialog.close();
       dialog.classList.add("hidden");
     } catch (error) {
@@ -6036,10 +6108,7 @@ function bindProjectDrawer(item) {
     openProjectDrawer(item.id);
   };
   document.getElementById("duplicateDrawerCard").onclick = async () => {
-    const copy = { ...JSON.parse(JSON.stringify(item)), id: uid("deal"), name: `${item.name} Copy` };
-    delete copy.referenceKey;
-    pushHistory(copy, "Card duplicado");
-    await upsertCRMItem(copy);
+    await duplicateCRMItem(item, state.projectReturnView[state.currentWorkspace] || "crm");
   };
   document.getElementById("moveDrawerStage").onclick = async () => {
     await persistDrawerProject(item);
@@ -6659,7 +6728,7 @@ function openTaskDialog(projectName, presetStage = "") {
     };
   });
   const form = document.getElementById("taskForm");
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const formData = new FormData(form);
     const task = {
@@ -6679,7 +6748,7 @@ function openTaskDialog(projectName, presetStage = "") {
       workspaceData().projectBoards[projectName].push(task);
     }
     else workspaceData().taskItems.unshift(task);
-    saveState();
+    await saveState({ instant: true });
     dialog.close();
     dialog.classList.add("hidden");
     renderApp();
@@ -7146,7 +7215,7 @@ function attachDnD(selector, onDrop) {
 
 function bindInlineEditing() {
   document.querySelectorAll("[data-inline-field]").forEach((node) => {
-    const commit = () => {
+    const commit = async (persistRemotely = false) => {
       const taskId = node.dataset.id;
       const isProject = node.dataset.project === "1";
       const projectName = node.dataset.projectName || "";
@@ -7158,12 +7227,20 @@ function bindInlineEditing() {
       if (field === "dueDate") {
         found.status = nextValue < todayISO() ? "Atrasado" : "Em andamento";
       }
-      saveState();
+      if (persistRemotely) {
+        await saveState({ instant: true });
+      }
     };
-    node.addEventListener("input", commit);
+    node.addEventListener("input", () => {
+      commit(false);
+    });
     const eventName = node.matches("select,input[type='date'],input[type='text']") ? "change" : "blur";
-    node.addEventListener(eventName, commit);
-    if (eventName !== "blur") node.addEventListener("blur", commit);
+    node.addEventListener(eventName, () => {
+      commit(true);
+    });
+    if (eventName !== "blur") node.addEventListener("blur", () => {
+      commit(true);
+    });
   });
 
   document.querySelectorAll("[data-inline-column]").forEach((node) => {
