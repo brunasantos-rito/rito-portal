@@ -2,8 +2,6 @@ const STORAGE_KEY = "rito-os-v1";
 
 const SUPABASE_URL = "https://soarinrvuvnqabtyyrta.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_qsbL0lRuMR1eZAKp0vcscg_5PfVxGHo";
-const RECOVERED_PORTAL_STATE_URL = "./recovered-portal-state.json";
-const FORCE_PORTAL_RECOVERY = false;
 const REMOTE_REQUEST_TIMEOUT_MS = 12000;
 
 if (!window.supabase) {
@@ -16,7 +14,6 @@ const supabaseClient = window.supabase.createClient(
 );
 
 let currentSessionAccessToken = "";
-let didAttemptRecoveredStateRepublish = false;
 const PORTAL_MEDIA_BUCKET = "portal-media";
 const PORTAL_DOCUMENTS_BUCKET = "portal-documents";
 
@@ -74,20 +71,6 @@ async function loadSharedPortalState() {
   };
 }
 
-async function loadRecoveredPortalState() {
-  const response = await fetch(RECOVERED_PORTAL_STATE_URL, {
-    cache: "no-store"
-  });
-  if (!response.ok) {
-    throw new Error(`Falha ao carregar snapshot recuperado (${response.status})`);
-  }
-  const snapshot = await response.json();
-  console.info("[portal-recovery] Snapshot local recuperado carregado.", {
-    lastSavedAt: snapshot?.lastSavedAt || null
-  });
-  return buildPortalState(snapshot);
-}
-
 async function saveSharedPortalState(state) {
   const payload = {
     id: 1,
@@ -136,23 +119,6 @@ async function refreshSessionAccessToken() {
     console.warn("Não foi possível atualizar o token da sessão.", error);
   }
   return currentSessionAccessToken;
-}
-
-async function republishRecoveredPortalState(snapshot) {
-  if (didAttemptRecoveredStateRepublish) return;
-  didAttemptRecoveredStateRepublish = true;
-  if (!currentSessionAccessToken) {
-    console.warn("[portal-recovery] Sessao sem token. Snapshot recuperado nao foi republicado para a nuvem.");
-    return;
-  }
-  try {
-    const savedRow = await saveSharedPortalState(clonePortalState(snapshot));
-    console.info("[portal-recovery] Snapshot recuperado republicado para shared_portal_state.", {
-      updatedAt: savedRow?.updated_at || null
-    });
-  } catch (error) {
-    console.error("[portal-recovery] Falha ao republicar snapshot recuperado.", error);
-  }
 }
 
 function triggerKeepalivePortalSave(snapshot = state) {
@@ -1414,9 +1380,27 @@ function fastWorkflowStatus(rawStatus = "") {
   return "A fazer";
 }
 
-function fastTask(title, stage, owner, rawStatus, note = "", priority = "Media") {
+function stableTaskSeedSlug(value = "") {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function seededFastTaskId(group, title) {
+  return `fast-task-${stableTaskSeedSlug(group)}-${stableTaskSeedSlug(title)}`;
+}
+
+function fastSeedTaskTitleKey(taskOrTitle = "") {
+  const title = typeof taskOrTitle === "string" ? taskOrTitle : taskOrTitle?.title;
+  return normalizeColumnKey(title);
+}
+
+function fastTask(title, stage, owner, rawStatus, note = "", priority = "Media", seedGroup = "base") {
   return {
-    id: uid("task"),
+    id: seededFastTaskId(seedGroup, title),
     title,
     description: [rawStatus, note].filter(Boolean).join(" - "),
     stage,
@@ -1474,7 +1458,7 @@ function buildFastTaskItems() {
 function buildFastDailyTasksMarch30() {
   const dueDate = "2026-03-30";
   const seed = (title, stage, owner = "", description = "", priority = "Media") => ({
-    id: uid("task"),
+    id: seededFastTaskId("daily-2026-03-30", title),
     title,
     description,
     owner,
@@ -1551,107 +1535,14 @@ function migrateRitoReferenceProjects(rootState) {
   const rito = rootState.workspaces?.rito;
   if (!rito) return;
   rito.projectBoards = rito.projectBoards || {};
-  const hadExistingItems = Array.isArray(rito.crmItems) && rito.crmItems.length > 0;
-  const legacySeedNames = new Set(["pulse fitness club", "dermavita clinics", "amazoo pets"]);
-  rito.crmItems = (rito.crmItems || []).filter((item) => !legacySeedNames.has(String(item.name || "").toLowerCase()));
-  const seededItems = buildRitoReferenceCRMItems();
-  seededItems.forEach((seeded) => {
-    const matches = (rito.crmItems || []).filter((item) => isLikelyReferenceProjectMatch(item, seeded));
-    if (!matches.length) return;
-    matches.forEach((item) => {
-      item.referenceKey = referenceProjectKey(seeded);
-      ensureProjectShape(item);
-    });
-    if (matches.length < 2) return;
-    const keep = [...matches].sort((a, b) => projectRecordScore(b, seeded) - projectRecordScore(a, seeded))[0];
-    matches
-      .filter((item) => item !== keep)
-      .forEach((duplicate) => {
-        mergeProjectRecords(keep, duplicate, seeded);
-        rito.crmItems = rito.crmItems.filter((item) => item !== duplicate);
-      });
-  });
-  const existingByReference = new Map((rito.crmItems || []).map((item) => [String(item.referenceKey || ""), item]).filter(([key]) => key));
-  seededItems.forEach((seeded) => {
-    const key = referenceProjectKey(seeded);
-    const existing = existingByReference.get(key) || (rito.crmItems || []).find((item) => isLikelyReferenceProjectMatch(item, seeded));
-    if (existing) {
-      existing.referenceKey = key;
-      if (!existing.cover || isGeneratedImageAsset(existing.cover)) existing.cover = seeded.cover;
-      if (!existing.logo || isGeneratedImageAsset(existing.logo)) existing.logo = seeded.logo;
-      existing.logoText = existing.logoText || seeded.logoText;
-      if (!existing.logoBg || isGeneratedImageAsset(existing.logo) || existing.logo === seeded.logo) {
-        existing.logoBg = seeded.logoBg || "transparent";
-      }
-      existing.subtitle = existing.subtitle || seeded.subtitle;
-      existing.description = existing.description || seeded.description;
-      existing.sector = existing.sector || seeded.sector;
-      existing.location = existing.location || seeded.location;
-      existing.year = existing.year || seeded.year;
-      existing.owner = existing.owner || seeded.owner;
-      existing.estimatedValue = existing.estimatedValue || seeded.estimatedValue;
-      existing.investmentAmount = existing.investmentAmount || seeded.investmentAmount || 0;
-      existing.temperature = existing.temperature || seeded.temperature;
-      existing.investmentStatus = existing.investmentStatus || seeded.investmentStatus;
-      existing.tags = [...new Set([...(existing.tags || []), ...seeded.tags])];
-      if (existing.name === "UFC Jiu Jitsu") {
-        existing.investmentStatus = "Investido";
-        syncInvestmentTag(existing);
-      }
-      ensureProjectShape(existing);
-      if (existing.investmentStatus === "Investido" && !rito.projectBoards[existing.name]) {
-        rito.projectBoards[existing.name] = [];
-      }
-      existingByReference.set(key, existing);
-      return;
-    }
-    if (!hadExistingItems) {
-      const seededItem = JSON.parse(JSON.stringify(seeded));
-      seededItem.referenceKey = key;
-      rito.crmItems.unshift(seededItem);
-      if (seededItem.investmentStatus === "Investido" && !rito.projectBoards[seededItem.name]) {
-        rito.projectBoards[seededItem.name] = [];
-      }
-      existingByReference.set(key, seededItem);
-    }
-  });
-  if (!hadExistingItems) {
-    const popIndex = rito.crmItems.findIndex((item) => item.name === "Pop Move");
-    const braslarIndex = rito.crmItems.findIndex((item) => item.name === "Geral / Braslar");
-    if (popIndex > -1 && braslarIndex > -1 && popIndex > braslarIndex) {
-      const [popMove] = rito.crmItems.splice(popIndex, 1);
-      rito.crmItems.splice(braslarIndex, 0, popMove);
-    }
-    const adoreiIndex = rito.crmItems.findIndex((item) => item.name === "Adorei");
-    if (adoreiIndex > 0) {
-      const [adorei] = rito.crmItems.splice(adoreiIndex, 1);
-      rito.crmItems.unshift(adorei);
-    }
-  }
+  rito.crmItems = Array.isArray(rito.crmItems) ? rito.crmItems : [];
+  rito.crmItems.forEach((item) => ensureProjectShape(item));
 }
 
 function migrateRitoKanbanTasks(rootState) {
   const rito = rootState.workspaces?.rito;
   if (!rito) return;
-
-  const seededTasks = buildRitoKanbanTasks();
-  const currentTasks = Array.isArray(rito.taskItems) ? rito.taskItems : [];
-  const legacyTitles = new Set([
-    "Preparar teaser Ibi Liv",
-    "Atualizar data room Fast Massagem",
-    "Revisar memorando Omni Internet"
-  ]);
-  const hasLegacyOnly =
-    currentTasks.length > 0 &&
-    currentTasks.length <= 3 &&
-    currentTasks.every((task) => legacyTitles.has(String(task.title || "")));
-
-  if (!currentTasks.length || hasLegacyOnly) {
-    rito.taskItems = seededTasks;
-  } else {
-    rito.taskItems = currentTasks;
-  }
-
+  rito.taskItems = Array.isArray(rito.taskItems) ? rito.taskItems : [];
   const currentThemes = Array.isArray(rito.taskThemes) ? rito.taskThemes.map((theme) => String(theme || "").trim()).filter(Boolean) : [];
   rito.taskThemes = currentThemes.length ? [...new Set(currentThemes)] : [...DEFAULT_TASK_THEMES.rito];
 }
@@ -1662,26 +1553,29 @@ function migrateFastWorkspace(rootState) {
 
   const seededTasks = buildFastTaskItems();
   const dailyTasks = buildFastDailyTasksMarch30();
-  const currentTasks = Array.isArray(fast.taskItems) ? fast.taskItems : [];
+  const stableFastTaskIdsByTitle = new Map(
+    [...seededTasks, ...dailyTasks].map((task) => [fastSeedTaskTitleKey(task), task.id])
+  );
+  const currentTasks = Array.isArray(fast.taskItems)
+    ? fast.taskItems.map((task) => {
+      const stableTaskId = stableFastTaskIdsByTitle.get(fastSeedTaskTitleKey(task));
+      if (!stableTaskId) return task;
+      return {
+        ...task,
+        id: stableTaskId
+      };
+    })
+    : [];
   const currentThemes = Array.isArray(fast.taskThemes) && fast.taskThemes.length
     ? fast.taskThemes.map((theme) => String(theme || "").trim()).filter(Boolean)
     : [];
-  const nextTasks = currentTasks.length ? currentTasks : seededTasks;
-  if (!currentThemes.length) {
-    nextTasks.forEach((task) => {
-      task.stage = normalizeFastTaskThemeName(task.stage);
-    });
-  }
-  const existingTitles = new Set(nextTasks.map((task) => String(task.title || "").trim().toLowerCase()));
-  dailyTasks.forEach((task) => {
-    if (!existingTitles.has(String(task.title || "").trim().toLowerCase())) {
-      nextTasks.unshift(task);
-      existingTitles.add(String(task.title || "").trim().toLowerCase());
-    }
+  const nextTasks = currentTasks;
+  nextTasks.forEach((task) => {
+    task.stage = normalizeFastTaskThemeName(task.stage);
   });
-  fast.taskItems = nextTasks;
+  fast.taskItems = dedupeKanbanTasks(nextTasks);
   const inferredThemes = [...new Set(
-    nextTasks
+    fast.taskItems
       .map((task) => String(normalizeFastTaskThemeName(task.stage) || "").trim())
       .filter(Boolean)
   )];
@@ -1689,12 +1583,7 @@ function migrateFastWorkspace(rootState) {
     ? [...new Set(currentThemes)]
     : [...new Set([...FAST_DAILY_THEMES, ...DEFAULT_TASK_THEMES.fast, ...inferredThemes])];
   fast.taskThemes = nextThemes.length ? nextThemes : [...DEFAULT_TASK_THEMES.fast];
-  fast.members = fast.members || [];
-  ["Bruna Cristina", "Arthur Bueno", "Ciro Ribeiro", "Mayra", "Eduardo", "Rodrigo", "Grace", "Samuel", "Moisés"].forEach((name) => {
-    if (!fast.members.some((member) => member.name === name)) {
-      fast.members.push({ name, role: name === "Grace" ? "Marketing" : name === "Mayra" ? "Operacoes" : name === "Eduardo" ? "Operacoes" : name === "Rodrigo" ? "Operacoes" : name === "Samuel" ? "Comercial" : name === "Moisés" ? "Operacoes" : name === "Arthur Bueno" ? "CEO" : name === "Ciro Ribeiro" ? "Socio" : "Financeiro", photo: defaultMemberPhoto(name) });
-    }
-  });
+  fast.members = Array.isArray(fast.members) ? fast.members : [];
 }
 
 function seedData() {
@@ -1738,44 +1627,21 @@ function seedData() {
     },
     workspaces: {
       rito: {
-        crmItems: buildRitoReferenceCRMItems(),
-        taskItems: buildRitoKanbanTasks(),
+        crmItems: [],
+        taskItems: [],
         taskThemes: [...DEFAULT_TASK_THEMES.rito],
         projectThemes: [...DEFAULT_PROJECT_THEMES.rito],
-        projectBoards: {
-          "Omni Internet": [
-            { id: uid("proj"), title: "Mapear playbook comercial", stage: "Comercial", owner: "Arthur Bueno", dueDate: "2026-03-24", priority: "Alta", status: "A fazer", tags: ["Comercial"] },
-            { id: uid("proj"), title: "Revisar KPIs operacionais", stage: "Operacao", owner: "Gabriela Reis", dueDate: "2026-03-21", priority: "Media", status: "Em andamento", tags: ["Ops"] }
-          ],
-          "Formula CRM": [],
-          "Fast Massagem": []
-        },
-        documents: [
-          { id: uid("doc"), name: "SPA - Omni Internet.pdf", category: "Juridico", linkedTo: "Omni Internet", fileUrl: "", filePath: "", fileType: "application/pdf", uploadedAt: "2026-03-10" },
-          { id: uid("doc"), name: "Modelo Financeiro Fast Massagem.xlsx", category: "Financeiro", linkedTo: "Fast Massagem", fileUrl: "", filePath: "", fileType: "application/vnd.ms-excel", uploadedAt: "2026-03-14" }
-        ],
-        members: [
-          { name: "Bruna Cristina", role: "Sell Side", photo: "" },
-          { name: "Arthur Bueno", role: "CEO", photo: ARTHUR_BUENO_PHOTO },
-          { name: "Ciro Ribeiro", role: "Socio", photo: "" },
-          { name: "Gabriela Reis", role: "Sell Side", photo: "" }
-        ]
+        projectBoards: {},
+        documents: [],
+        members: []
       },
       fast: {
         taskThemes: [...DEFAULT_TASK_THEMES.fast],
         projectThemes: [...DEFAULT_PROJECT_THEMES.fast],
-        taskItems: buildFastTaskItems(),
+        taskItems: [],
+        projectBoards: {},
         documents: [],
-        members: [
-          { name: "Bruna Cristina", role: "Sell Side", photo: "" },
-          { name: "Arthur Bueno", role: "CEO", photo: ARTHUR_BUENO_PHOTO },
-          { name: "Ciro Ribeiro", role: "Socio", photo: "" },
-          { name: "Gabriela Reis", role: "Sell Side", photo: "" },
-          { name: "Mayra", role: "Operacao", photo: "" },
-          { name: "Eduardo", role: "Operacao", photo: "" },
-          { name: "Rodrigo", role: "Operacao", photo: "" },
-          { name: "Grace", role: "Marketing", photo: "" }
-        ]
+        members: []
       }
     }
   };
@@ -1883,6 +1749,9 @@ function buildPortalState(snapshot = null) {
   migrateRitoReferenceProjects(merged);
   migrateRitoKanbanTasks(merged);
   migrateFastWorkspace(merged);
+  Object.values(merged.workspaces || {}).forEach((workspace) => {
+    dedupeWorkspaceKanbanData(workspace);
+  });
   pruneDeprecatedWorkspaces(merged);
   applyDefaultMemberPhotos(merged);
   merged.lastSavedAt = merged.lastSavedAt || new Date().toISOString();
@@ -1890,41 +1759,17 @@ function buildPortalState(snapshot = null) {
 }
 
 async function loadState() {
-  if (FORCE_PORTAL_RECOVERY) {
-    try {
-      const recoveredState = await loadRecoveredPortalState();
-      return recoveredState;
-    } catch (error) {
-      console.error("[portal-recovery] Nao foi possivel usar o snapshot recuperado. Voltando ao fluxo padrao.", error);
-    }
-  }
-
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       const data = await loadSharedPortalState();
       const remoteState = data?.data && Object.keys(data.data).length ? data.data : null;
       return buildPortalState(remoteState);
     } catch (error) {
-      if (attempt === 2) {
-        console.error("Falha ao carregar dados do banco", error);
-        try {
-          const recoveredState = await loadRecoveredPortalState();
-          return recoveredState;
-        } catch (recoveryError) {
-          console.error("[portal-recovery] Fallback recuperado tambem falhou.", recoveryError);
-        }
-        return buildPortalState();
-      }
+      if (attempt === 2) throw error;
       await delay(250 * (attempt + 1));
     }
   }
-  try {
-    const recoveredState = await loadRecoveredPortalState();
-    return recoveredState;
-  } catch (error) {
-    console.error("[portal-recovery] Snapshot recuperado indisponivel no fallback final.", error);
-  }
-  return buildPortalState();
+  throw new Error("Não foi possível carregar o estado do portal no Supabase.");
 }
 
 function saveState(options = {}) {
@@ -1934,6 +1779,73 @@ function saveState(options = {}) {
   }
   return queueImmediateRemoteSave(state);
 }
+
+function mergeKanbanTaskRecords(previousTask = {}, nextTask = {}) {
+  const merged = { ...previousTask, ...nextTask };
+  Object.keys(previousTask || {}).forEach((key) => {
+    const value = merged[key];
+    if (value === undefined || value === null) {
+      merged[key] = previousTask[key];
+      return;
+    }
+    if (typeof value === "string" && !value.trim() && typeof previousTask[key] === "string" && previousTask[key].trim()) {
+      merged[key] = previousTask[key];
+    }
+  });
+  return merged;
+}
+
+function dedupeKanbanTasks(tasks = []) {
+  const uniqueTasks = [];
+  const taskIndexById = new Map();
+  (tasks || []).forEach((task) => {
+    if (!task || typeof task !== "object") return;
+    const taskId = String(task.id || "").trim();
+    if (!taskId) {
+      uniqueTasks.push(task);
+      return;
+    }
+    if (!taskIndexById.has(taskId)) {
+      taskIndexById.set(taskId, uniqueTasks.length);
+      uniqueTasks.push(task);
+      return;
+    }
+    const index = taskIndexById.get(taskId);
+    uniqueTasks[index] = mergeKanbanTaskRecords(uniqueTasks[index], task);
+  });
+  return uniqueTasks;
+}
+
+function dedupeWorkspaceKanbanData(workspace) {
+  if (!workspace || typeof workspace !== "object") return;
+  workspace.taskItems = dedupeKanbanTasks(workspace.taskItems || []);
+  workspace.projectBoards = workspace.projectBoards && typeof workspace.projectBoards === "object" ? workspace.projectBoards : {};
+  Object.keys(workspace.projectBoards).forEach((projectName) => {
+    workspace.projectBoards[projectName] = dedupeKanbanTasks(workspace.projectBoards[projectName] || []);
+  });
+}
+
+function persistKanbanStateOptimistically(options = {}) {
+  const {
+    instant = true,
+    rollbackState = clonePortalState(state),
+    rollbackMessage = "Nao foi possível salvar a alteração no Kanban. O último estado salvo foi restaurado.",
+    onRollback = null
+  } = options;
+  state.lastSavedAt = new Date().toISOString();
+  const pendingSave = instant
+    ? triggerInstantRemoteSave(state)
+    : queueImmediateRemoteSave(state);
+  return pendingSave.catch((error) => {
+    console.error("Falha ao persistir alteração do Kanban.", error);
+    state = buildPortalState(rollbackState);
+    if (typeof onRollback === "function") onRollback(error);
+    renderAppPreservingScroll();
+    alert(rollbackMessage);
+    throw error;
+  });
+}
+
 function workspaceTaskThemes(workspaceId = state.currentWorkspace) {
   const data = state.workspaces[workspaceId];
   if (!data.taskThemes || !data.taskThemes.length) data.taskThemes = [...(DEFAULT_TASK_THEMES[workspaceId] || ["Geral"])];
@@ -5154,10 +5066,14 @@ async function updateTaskStage(id, stage) {
   const items = workspaceData().taskItems;
   const task = items.find((item) => item.id === id);
   if (!task) return;
+  const rollbackState = clonePortalState(state);
   task.stage = stage;
   task.status = task.dueDate < todayISO() ? "Atrasado" : "Em andamento";
-  await saveState({ instant: true });
   renderAppPreservingScroll();
+  await persistKanbanStateOptimistically({
+    rollbackState,
+    rollbackMessage: "Nao foi possível mover a tarefa. O Kanban voltou para o último estado salvo."
+  });
 }
 
 function renderProjectBoards() {
@@ -5230,10 +5146,14 @@ function attachProjectDnD() {
       const projectName = zone.dataset.projectDropzone;
       const task = workspaceData().projectBoards[projectName].find((item) => item.id === dragId);
       if (!task) return;
+      const rollbackState = clonePortalState(state);
       task.stage = zone.dataset.stage;
       task.status = task.dueDate < todayISO() ? "Atrasado" : "Em andamento";
-      await saveState({ instant: true });
-      renderApp();
+      renderAppPreservingScroll();
+      await persistKanbanStateOptimistically({
+        rollbackState,
+        rollbackMessage: "Nao foi possível mover a tarefa do projeto. O último estado salvo foi restaurado."
+      });
     });
   });
 }
@@ -6751,6 +6671,7 @@ function openTaskDialog(projectName, presetStage = "") {
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const formData = new FormData(form);
+    const rollbackState = clonePortalState(state);
     const task = {
       id: uid("task"),
       title: formData.get("title"),
@@ -6768,10 +6689,13 @@ function openTaskDialog(projectName, presetStage = "") {
       workspaceData().projectBoards[projectName].push(task);
     }
     else workspaceData().taskItems.unshift(task);
-    await saveState({ instant: true });
     dialog.close();
     dialog.classList.add("hidden");
-    renderApp();
+    renderAppPreservingScroll();
+    await persistKanbanStateOptimistically({
+      rollbackState,
+      rollbackMessage: "Nao foi possível criar a tarefa. O Kanban voltou para o último estado salvo."
+    });
   });
 }
 
@@ -6923,33 +6847,40 @@ function openTaskEditor(taskId, isProject, projectName = "") {
     dialog.close();
     dialog.classList.add("hidden");
   };
-  const persistTaskEditorRemotely = async () => {
+  const persistTaskEditorRemotely = () => {
+    const rollbackState = clonePortalState(state);
     persistTaskEditorDraft();
-    await saveState({ instant: true });
+    renderAppPreservingScroll();
+    return persistKanbanStateOptimistically({
+      rollbackState,
+      rollbackMessage: "Nao foi possível salvar a tarefa. O Kanban voltou para o último estado salvo."
+    }).catch(() => null);
   };
   dialog.querySelectorAll("[data-dialog-close]").forEach((button) => {
-    button.onclick = async () => {
-      await persistTaskEditorRemotely();
+    button.onclick = () => {
+      persistTaskEditorRemotely();
       closeEditor();
-      renderAppPreservingScroll();
     };
   });
   dialog.addEventListener("cancel", async (event) => {
     event.preventDefault();
-    await persistTaskEditorRemotely();
+    persistTaskEditorRemotely();
     closeEditor();
-    renderAppPreservingScroll();
   }, { once: true });
   document.getElementById("taskDeleteButton").onclick = async () => {
+    const rollbackState = clonePortalState(state);
     if (isProject) {
       const list = workspaceData().projectBoards[projectName] || [];
       workspaceData().projectBoards[projectName] = list.filter((item) => item.id !== taskId);
     } else {
       workspaceData().taskItems = workspaceData().taskItems.filter((item) => item.id !== taskId);
     }
-    await saveState({ instant: true });
     closeEditor();
     renderAppPreservingScroll();
+    await persistKanbanStateOptimistically({
+      rollbackState,
+      rollbackMessage: "Nao foi possível excluir a tarefa. O Kanban voltou para o último estado salvo."
+    });
   };
   const form = document.getElementById("taskEditorForm");
   form.querySelectorAll("input[type='date']").forEach((input) => {
@@ -6965,20 +6896,24 @@ function openTaskEditor(taskId, isProject, projectName = "") {
   });
   form.querySelectorAll("input, textarea, select").forEach((field) => {
     field.addEventListener("input", () => persistTaskEditorDraft());
-    field.addEventListener("change", async () => {
+    field.addEventListener("change", () => {
       persistTaskEditorDraft();
       if (field.name === "dueDate" || field.name === "completionDate") {
-        await saveState({ instant: true });
+        persistTaskEditorRemotely();
       }
     });
     field.addEventListener("blur", () => persistTaskEditorDraft());
   });
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    const rollbackState = clonePortalState(state);
     persistTaskEditorDraft();
-    await saveState({ instant: true });
     closeEditor();
     renderAppPreservingScroll();
+    await persistKanbanStateOptimistically({
+      rollbackState,
+      rollbackMessage: "Nao foi possível salvar a tarefa. O Kanban voltou para o último estado salvo."
+    });
   });
 }
 
@@ -7595,10 +7530,30 @@ async function protectApp() {
   history.replaceState({}, "", location.pathname);
   document.getElementById("loginOverlay")?.remove();
   setPortalVisibility(true);
-  state = await loadState();
-  bootstrapFromURL();
-  renderApp();
-  addLogoutButton();
+  try {
+    state = await loadState();
+    bootstrapFromURL();
+    renderApp();
+    addLogoutButton();
+  } catch (error) {
+    console.error("Falha ao carregar o portal exclusivamente do Supabase.", error);
+    document.getElementById("appContent").innerHTML = `
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h3>Falha ao carregar dados do Supabase</h3>
+            <p>O portal nao vai usar fallback local. Verifique a conexão e tente novamente.</p>
+          </div>
+        </div>
+        <div class="inline-actions">
+          <button class="action-button" id="retryPortalLoadButton" type="button">Tentar novamente</button>
+        </div>
+      </section>
+    `;
+    document.getElementById("retryPortalLoadButton")?.addEventListener("click", () => {
+      window.location.reload();
+    });
+  }
 }
 
 window.addEventListener("beforeunload", () => {
