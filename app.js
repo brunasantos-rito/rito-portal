@@ -3097,7 +3097,7 @@ function renderDashboard() {
           <span>Responsável</span>
           <select id="fastDashboardOwnerFilter">
             <option value="Todos">Todos</option>
-            ${ownerOptions.map((owner) => `<option value="${escapeHtml(owner)}" ${filters.owner === owner ? "selected" : ""}>${displayText(owner)}</option>`).join("")}
+            ${ownerOptions.map((owner) => `<option value="${escapeHTML(owner)}" ${filters.owner === owner ? "selected" : ""}>${displayText(owner)}</option>`).join("")}
           </select>
         </label>
       </div>
@@ -3759,6 +3759,9 @@ function renderRitoProjectDetailPage() {
       ${renderProjectMetaCard("Localização", `<input data-drawer-field="location" value="${escapeAttr(item.location || "")}">`)}
       ${renderProjectMetaCard("Ano", `<input data-drawer-field="year" value="${escapeAttr(item.year || "")}">`)}
       ${renderProjectMetaCard("Website", `<input data-drawer-field="website" value="${escapeAttr(item.website || "")}">`)}
+      ${renderProjectMetaCard("Contato principal", `<input data-drawer-field="mainContact" value="${escapeAttr(item.mainContact || "")}">`)}
+      ${renderProjectMetaCard("Telefone", `<input data-drawer-field="phone" value="${escapeAttr(item.phone || "")}">`)}
+      ${renderProjectMetaCard("E-mail", `<input data-drawer-field="email" type="email" value="${escapeAttr(item.email || "")}">`)}
       ${renderProjectMetaCard("Responsável", `<select data-drawer-field="owner">${workspaceConfig[state.currentWorkspace].memberOptions.map((owner) => `<option ${owner === item.owner ? "selected" : ""}>${owner}</option>`).join("")}</select>`)}
       ${renderProjectMetaCard("Temperatura", `<input data-drawer-field="temperature" value="${escapeAttr(item.temperature || "")}" readonly>`)}
       ${renderProjectMetaCard("Prioridade", `<select data-drawer-field="priority"><option ${item.priority === "Alta" ? "selected" : ""}>Alta</option><option ${item.priority === "Media" ? "selected" : ""}>Média</option><option ${item.priority === "Baixa" ? "selected" : ""}>Baixa</option></select>`)}
@@ -4168,12 +4171,15 @@ function renderRitoDocumentsPage() {
     const documentName = String(doc.name || doc.title || "Documento").trim();
     const rawUrl = resolveDocumentUrl(doc);
     const fileUrl = toFileHref(rawUrl);
+    const isUploading = Boolean(doc.uploading);
     const fileType = String(doc.fileType || documentName.split(".").pop() || "arquivo").replace(/^\./, "").trim();
     const category = String(doc.category || "Geral").trim();
     const linkedTo = String(doc.linkedTo || "").trim();
     const icon = fileType ? fileType.slice(0, 4).toUpperCase() : "DOC";
     const tags = [category, linkedTo, fileType.toLowerCase()].filter(Boolean);
-    const description = linkedTo
+    const description = isUploading
+      ? "Upload em andamento para a biblioteca do workspace."
+      : linkedTo
       ? `Documento vinculado a ${linkedTo}.`
       : "Documento armazenado na biblioteca do workspace.";
     const meta = [doc.uploadedAt, fileType.toUpperCase()].filter(Boolean).join(" - ") || "Arquivo sem metadados";
@@ -4187,8 +4193,8 @@ function renderRitoDocumentsPage() {
         ${fileUrl
           ? `<a class="action-button" href="${escapeAttr(fileUrl)}" download="${escapeAttr(documentName)}" target="_blank" rel="noreferrer">Download</a>
              <a class="ghost-button" href="${escapeAttr(fileUrl)}" target="_blank" rel="noreferrer">Abrir</a>`
-          : `<button class="action-button" disabled>Download</button>
-             <button class="ghost-button" disabled>Abrir</button>`}
+          : `<button class="action-button" disabled>${isUploading ? "Enviando..." : "Download"}</button>
+             <button class="ghost-button" disabled>${isUploading ? "Processando" : "Abrir"}</button>`}
         <button class="ghost-button" data-ref-action="delete-doc" data-doc-id="${escapeAttr(doc.id)}" data-doc-title="${escapeAttr(documentName)}" type="button">Excluir</button>
       </div>
     `;
@@ -6033,6 +6039,9 @@ function openProjectDrawer(projectId) {
           <label class="field"><span>Ano</span><input data-drawer-field="year" value="${escapeAttr(item.year || "")}"></label>
           <label class="field"><span>Estágio do funil</span><select data-drawer-field="status">${workspaceConfig[state.currentWorkspace].pipelineStages.map((stage) => `<option ${stage === item.status ? "selected" : ""}>${displayText(stage)}</option>`).join("")}</select></label>
           <label class="field"><span>Temperatura</span><input data-drawer-field="temperature" value="${escapeAttr(item.temperature || "")}" readonly></label>
+          <label class="field"><span>Contato principal</span><input data-drawer-field="mainContact" value="${escapeAttr(item.mainContact || "")}"></label>
+          <label class="field"><span>Telefone</span><input data-drawer-field="phone" value="${escapeAttr(item.phone || "")}"></label>
+          <label class="field"><span>E-mail</span><input data-drawer-field="email" type="email" value="${escapeAttr(item.email || "")}"></label>
           <label class="field"><span>Status de investimento</span><select data-drawer-field="investmentStatus"><option ${item.investmentStatus === "Nao investido" ? "selected" : ""}>Não investido</option><option ${item.investmentStatus === "Investido" ? "selected" : ""}>Investido</option></select></label>
           <label class="field"><span>Valor estimado</span><input type="number" data-drawer-field="estimatedValue" value="${item.estimatedValue || 0}"></label>
           <label class="field"><span>Valor da operação</span><input type="number" data-drawer-field="investmentAmount" value="${item.investmentAmount || 0}"></label>
@@ -6242,6 +6251,8 @@ async function persistDrawerProject(item, root = document, options = {}) {
   root.querySelectorAll("[data-media-field]").forEach((field) => {
     item.media[field.dataset.mediaField] = field.type === "number" ? Number(field.value) : field.value;
   });
+  item.contact = item.mainContact || "";
+  item.management = item.managementTeam || "";
   ensureProjectShape(item);
   if (oldName !== item.name && workspaceData().projectBoards[oldName]) {
     const existingBoard = workspaceData().projectBoards[item.name] || [];
@@ -6281,6 +6292,8 @@ function persistProjectDraft(item, root = document) {
   root.querySelectorAll("[data-media-field]").forEach((field) => {
     item.media[field.dataset.mediaField] = field.type === "number" ? Number(field.value) : field.value;
   });
+  item.contact = item.mainContact || "";
+  item.management = item.managementTeam || "";
   ensureProjectShape(item);
   if (oldName !== item.name && workspaceData().projectBoards[oldName]) {
     const existingBoard = workspaceData().projectBoards[item.name] || [];
@@ -7006,7 +7019,7 @@ function openDocumentDialog(linkedToPreset = "") {
         <label class="field"><span>Nome</span><input name="name"></label>
         <label class="field"><span>Categoria</span><select name="category"><option>Jurídico</option><option>Financeiro</option><option>Comercial</option></select></label>
         <label class="field full-span"><span>Vinculado a</span><input name="linkedTo" placeholder="Projeto ou área" value="${escapeAttr(linkedToPreset)}"></label>
-        <label class="field full-span"><span>Arquivo</span><input name="file" type="file"></label>
+        <label class="field full-span"><span>Arquivo</span><input name="file" type="file" multiple></label>
       </div>
       <div class="dialog-actions">
         <button class="ghost-button" type="button" data-dialog-close>Cancelar</button>
@@ -7025,31 +7038,68 @@ function openDocumentDialog(linkedToPreset = "") {
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const formData = new FormData(form);
-    const file = form.querySelector("input[name='file']").files[0];
-    if (!file) {
+    const files = Array.from(form.querySelector("input[name='file']").files || []);
+    if (!files.length) {
       alert("Selecione um arquivo para enviar ao banco.");
       return;
     }
-    const uploaded = await uploadFileToStorage(
-      file,
-      PORTAL_DOCUMENTS_BUCKET,
-      `${state.currentWorkspace}/documents`,
-      { prefix: "documento" }
-    );
-    workspaceData().documents.unshift({
-      id: uid("doc"),
-      name: formData.get("name") || (file && file.name) || "Documento",
-      category: formData.get("category"),
-      linkedTo: formData.get("linkedTo"),
-      fileType: (file && file.type) || "application/octet-stream",
-      filePath: uploaded.path,
-      fileUrl: uploaded.publicUrl,
-      uploadedAt: todayISO()
-    });
-    saveState();
     dialog.close();
     dialog.classList.add("hidden");
+
+    const rawName = String(formData.get("name") || "").trim();
+    const category = String(formData.get("category") || "").trim() || "Geral";
+    const linkedTo = String(formData.get("linkedTo") || "").trim();
+    const optimisticDocuments = files.map((file, index) => ({
+      id: uid("doc"),
+      name: rawName && files.length === 1 ? rawName : file.name || `Documento ${index + 1}`,
+      category,
+      linkedTo,
+      fileType: file.type || "application/octet-stream",
+      filePath: "",
+      fileUrl: "",
+      uploadedAt: "Enviando...",
+      uploading: true
+    }));
+
+    workspaceData().documents.unshift(...optimisticDocuments);
     renderApp();
+
+    try {
+      const uploadedDocuments = await Promise.all(
+        files.map(async (file, index) => {
+          const uploaded = await uploadFileToStorage(
+            file,
+            PORTAL_DOCUMENTS_BUCKET,
+            `${state.currentWorkspace}/documents`,
+            { prefix: "documento" }
+          );
+          return {
+            ...optimisticDocuments[index],
+            filePath: uploaded.path,
+            fileUrl: uploaded.publicUrl,
+            uploadedAt: todayISO(),
+            uploading: false
+          };
+        })
+      );
+
+      const documents = workspaceData().documents || [];
+      workspaceData().documents = documents.map((doc) => {
+        const replacement = uploadedDocuments.find((item) => item.id === doc.id);
+        return replacement || doc;
+      });
+      void saveState();
+      renderApp();
+    } catch (error) {
+      workspaceData().documents = (workspaceData().documents || []).filter(
+        (doc) => !optimisticDocuments.some((pendingDoc) => pendingDoc.id === doc.id)
+      );
+      renderApp();
+      console.error("Erro ao enviar documento:", error);
+      alert(files.length > 1
+        ? "Não foi possível concluir o upload dos arquivos."
+        : "Não foi possível concluir o upload do arquivo.");
+    }
   });
 }
 
