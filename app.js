@@ -569,7 +569,7 @@ const workspaceConfig = {
     name: "Fast Massagem",
     subtitle: "Operação, marketing e expansão",
     mark: "FM",
-    views: ["dashboard", "tasks", "calendar"],
+    views: ["dashboard", "tasks", "calendar", "documents", "members", "settings"],
     kanbanStages: ["ABF", "Pessoas", "Operacoes", "Estrategico", "Financeiro", "Marketing"],
     memberOptions: ["Bruna Cristina", "Arthur Bueno", "Ciro Ribeiro", "Mayra", "Eduardo", "Grace", "Rodrigo"]
   }
@@ -797,6 +797,56 @@ function memberColor(name) {
   return palette[value % palette.length];
 }
 
+function mergeMemberRecords(previous = {}, next = {}) {
+  const fallbackName = String(next.name || previous.name || "").trim();
+  return {
+    ...previous,
+    ...next,
+    name: fallbackName,
+    role: String(next.role || previous.role || "").trim(),
+    email: String(next.email || previous.email || "").trim(),
+    tags: [...new Set([...(Array.isArray(previous.tags) ? previous.tags : []), ...(Array.isArray(next.tags) ? next.tags : [])].filter(Boolean))],
+    color: next.color || previous.color || memberColor(fallbackName),
+    photo: next.photo || previous.photo || ""
+  };
+}
+
+function dedupeMembersByName(members = []) {
+  const mergedMembers = [];
+  const memberIndexByName = new Map();
+  (members || []).forEach((member) => {
+    if (!member || typeof member !== "object") return;
+    const memberName = String(member.name || "").trim();
+    if (!memberName) return;
+    const key = normalizeMemberLookupName(memberName);
+    if (!memberIndexByName.has(key)) {
+      memberIndexByName.set(key, mergedMembers.length);
+      mergedMembers.push(mergeMemberRecords({}, member));
+      return;
+    }
+    const index = memberIndexByName.get(key);
+    mergedMembers[index] = mergeMemberRecords(mergedMembers[index], member);
+  });
+  return mergedMembers;
+}
+
+function syncSharedMembersState(rootState = state) {
+  if (!rootState || typeof rootState !== "object") return [];
+  const workspaceMembers = Object.values(rootState.workspaces || {}).flatMap((workspace) =>
+    Array.isArray(workspace?.members) ? workspace.members : []
+  );
+  const currentSharedMembers = Array.isArray(rootState.sharedMembers) ? rootState.sharedMembers : [];
+  rootState.sharedMembers = dedupeMembersByName([...workspaceMembers, ...currentSharedMembers]);
+  Object.values(rootState.workspaces || {}).forEach((workspace) => {
+    if (workspace && typeof workspace === "object") workspace.members = [];
+  });
+  return rootState.sharedMembers;
+}
+
+function sharedMembersData(rootState = state) {
+  return syncSharedMembersState(rootState);
+}
+
 function defaultMemberPhoto(name) {
   return normalizeMemberLookupName(name) === "arthur bueno" ? ARTHUR_BUENO_PHOTO : "";
 }
@@ -827,6 +877,9 @@ function findMemberByName(name) {
     const normalized = normalizeMemberLookupName(memberName);
     return normalized === target || normalized.startsWith(target) || target.startsWith(normalized);
   };
+  const sharedMembers = sharedMembersData();
+  const sharedPhotoMatch = sharedMembers.find((member) => matchesName(member.name) && member.photo);
+  if (sharedPhotoMatch) return sharedPhotoMatch;
   const currentMembers = state?.workspaces?.[state.currentWorkspace]?.members || [];
   const currentPhotoMatch = currentMembers.find((member) => matchesName(member.name) && member.photo);
   if (currentPhotoMatch) return currentPhotoMatch;
@@ -835,6 +888,8 @@ function findMemberByName(name) {
     const match = members.find((member) => matchesName(member.name) && member.photo);
     if (match) return match;
   }
+  const sharedMatch = sharedMembers.find((member) => matchesName(member.name));
+  if (sharedMatch) return sharedMatch;
   const currentMatch = currentMembers.find((member) => matchesName(member.name));
   if (currentMatch) return currentMatch;
   for (const workspace of Object.values(state?.workspaces || {})) {
@@ -874,11 +929,18 @@ function memberCardData(member) {
   };
 }
 
-function syncWorkspaceMemberOptions() {
-  workspaceConfig[state.currentWorkspace].memberOptions = workspaceData().members.map((member) => member.name);
+function syncWorkspaceMemberOptions(rootState = state) {
+  const memberNames = sharedMembersData(rootState).map((member) => member.name);
+  Object.values(workspaceConfig).forEach((workspace) => {
+    workspace.memberOptions = [...memberNames];
+  });
 }
 
 function applyDefaultMemberPhotos(rootState) {
+  (rootState?.sharedMembers || []).forEach((member) => {
+    const defaultPhoto = defaultMemberPhoto(member.name);
+    if (defaultPhoto) member.photo = defaultPhoto;
+  });
   Object.values(rootState?.workspaces || {}).forEach((workspace) => {
     (workspace.members || []).forEach((member) => {
       const defaultPhoto = defaultMemberPhoto(member.name);
@@ -1632,6 +1694,7 @@ function seedData() {
       rito: {},
       fast: {}
     },
+    sharedMembers: [],
     workspaces: {
       rito: {
         crmItems: [],
@@ -1656,6 +1719,7 @@ function seedData() {
 
 let state = seedData();
 applyDefaultMemberPhotos(state);
+syncWorkspaceMemberOptions(state);
 
 function pruneDeprecatedWorkspaces(rootState) {
   if (!rootState || typeof rootState !== "object") return;
@@ -1760,7 +1824,9 @@ function buildPortalState(snapshot = null) {
     dedupeWorkspaceKanbanData(workspace);
   });
   pruneDeprecatedWorkspaces(merged);
+  syncSharedMembersState(merged);
   applyDefaultMemberPhotos(merged);
+  syncWorkspaceMemberOptions(merged);
   merged.lastSavedAt = merged.lastSavedAt || new Date().toISOString();
   return merged;
 }
@@ -2963,6 +3029,7 @@ function renderCurrentView() {
         if (currentView === "documents") target.appendChild(renderDocuments());
         if (currentView === "members") target.appendChild(renderMembers());
         if (currentView === "calendar") target.appendChild(renderCalendar());
+        if (currentView === "settings") target.appendChild(renderRitoSettingsPage());
       }
       return;
     }
@@ -2974,6 +3041,7 @@ function renderCurrentView() {
     if (currentView === "documents") target.appendChild(renderDocuments());
     if (currentView === "members") target.appendChild(renderMembers());
     if (currentView === "calendar") target.appendChild(renderCalendar());
+    if (currentView === "settings") target.appendChild(renderRitoSettingsPage());
   } catch (error) {
     console.error("[render] Falha ao montar a view atual", {
       workspace: state.currentWorkspace,
@@ -3638,6 +3706,7 @@ function renderRitoPipelinePage() {
       <div><h3>Pipeline</h3><p>Pipeline operacional de deals da Rito</p></div>
       <div class="page-head-actions">
         <div class="segmented"><button class="${viewMode === "cards" ? "is-active" : ""}" data-ref-action="cards-view" data-ref-view="crm" type="button">Cards</button><button class="${viewMode === "list" ? "is-active" : ""}" data-ref-action="list-view" data-ref-view="crm" type="button">Lista</button></div>
+        <button class="ghost-button" data-ref-action="export-crm" type="button">Exportar deals</button>
         <button class="action-button" data-ref-action="new-opportunity" type="button">+ Oportunidade</button>
       </div>
     </section>
@@ -4229,7 +4298,7 @@ function renderRitoDocumentsPage() {
 
 function renderRitoMembersPage() {
   const page = document.createElement("section");
-  const members = workspaceData().members;
+  const members = sharedMembersData();
   page.className = "content-grid ref-page members-page";
   page.innerHTML = `
     <section class="page-head">
@@ -4272,13 +4341,8 @@ function renderRitoSettingsPage() {
       <div class="workspace-settings-list">
         <article><strong>Rito Ventures</strong><div class="subtle">17 empresas - 127 tarefas - 5 documentos - 17 oportunidades</div><div class="inline-actions"><button class="ghost-button" data-ref-action="workspace-edit" data-workspace="rito" type="button">Editar</button><button class="ghost-button" data-ref-action="workspace-duplicate" data-workspace="rito" type="button">Duplicar</button><button class="ghost-button" data-ref-action="workspace-link" data-workspace="rito" type="button">Link</button></div></article>
         <article><strong>Fast Massagem</strong><div class="subtle">2 empresas - 38 tarefas - 0 documentos - 0 oportunidades</div><div class="inline-actions"><button class="ghost-button" data-ref-action="workspace-edit" data-workspace="fast" type="button">Editar</button><button class="ghost-button" data-ref-action="workspace-duplicate" data-workspace="fast" type="button">Duplicar</button><button class="ghost-button" data-ref-action="workspace-link" data-workspace="fast" type="button">Link</button></div></article>
-        <article><strong>Ática Gestão</strong><div class="subtle">1 empresas - 0 tarefas - 0 documentos - 0 oportunidades</div><div class="inline-actions"><button class="ghost-button" data-ref-action="workspace-edit" data-workspace="atica" type="button">Editar</button><button class="ghost-button" data-ref-action="workspace-duplicate" data-workspace="atica" type="button">Duplicar</button><button class="ghost-button" data-ref-action="workspace-link" data-workspace="atica" type="button">Link</button></div></article>
         <button class="ghost-button settings-add" data-ref-action="new-workspace" type="button">+ Novo Workspace</button>
       </div>
-    </section>
-    <section class="settings-section">
-      <h4>Backup & Exportação</h4>
-      <article class="panel"><p>Os dados do portal ficam centralizados no Supabase. Se precisar analisar fora do sistema, você pode exportar os deals do workspace atual em uma planilha compatível com Excel, com status, responsáveis, seguranças, inseguranças e demais campos preenchidos.</p><div class="inline-actions"><button class="ghost-button" data-ref-action="connect-source" type="button">Importação local desativada</button><button class="ghost-button" data-ref-action="save-html" type="button">HTML local desativado</button><button class="action-button" data-ref-action="export-crm" type="button">Exportar deals em Excel</button><button class="ghost-button" data-ref-action="export-tasks" type="button">CSV local desativado</button><button class="ghost-button" data-ref-action="export-portfolio" type="button">CSV local desativado</button></div></article>
     </section>
     <section class="settings-section">
       <h4>Dados do Sistema</h4>
@@ -4799,6 +4863,7 @@ function renderCRM() {
         <p>Deals com visual premium, filtros dinâmicos e leitura mais limpa</p>
       </div>
       <div class="page-head-actions">
+        <button class="ghost-button" data-ref-action="export-crm" type="button">Exportar deals</button>
         <button class="action-button" data-ref-action="new-opportunity" type="button">+ Oportunidade</button>
       </div>
     </section>
@@ -5287,16 +5352,17 @@ function renderDocuments() {
 
 function renderMembers() {
   const panel = document.createElement("section");
+  const members = sharedMembersData();
   panel.className = "content-grid ref-page workspace-soft-page members-page";
   panel.innerHTML = `
     <section class="page-head">
-      <div><h3>Membros</h3><p>${workspaceData().members.length} membros cadastrados</p></div>
+      <div><h3>Membros</h3><p>${members.length} membros cadastrados</p></div>
       <div class="page-head-actions"><button class="action-button" data-ref-action="new-member" type="button">+ Membro</button></div>
     </section>
   `;
   const grid = document.createElement("section");
   grid.className = "reference-member-list members-reference-list";
-  workspaceData().members.forEach((member) => {
+  members.forEach((member) => {
     const view = memberCardData(member);
     const card = document.createElement("article");
     card.className = "reference-member-card members-reference-card";
@@ -5324,13 +5390,12 @@ function renderMembers() {
 
 function openMemberDialog(memberName = "") {
   const dialog = document.getElementById("entityDialog");
-  const currentMember = workspaceData().members.find((member) => member.name === memberName);
+  const currentMember = sharedMembersData().find((member) => member.name === memberName);
   const accessProfiles = ["Admin", "Gestor", "Usuario"];
-  const workspaceChoices = [
-    { label: "Rito Ventures", value: "Rito" },
-    { label: "Fast Massagem", value: "Fast" },
-    { label: "Ática Gestão", value: "Ática" }
-  ];
+  const workspaceChoices = orderedWorkspaceIds().map((workspaceId) => ({
+    label: workspaceConfig[workspaceId]?.name || workspaceId,
+    value: workspaceDisplayName(workspaceId)
+  }));
   const current = currentMember ? { ...currentMember } : {
     name: "",
     role: "",
@@ -5406,7 +5471,7 @@ function openMemberDialog(memberName = "") {
     if (currentMember) {
       Object.assign(currentMember, payload);
     } else {
-      workspaceData().members.push(payload);
+      sharedMembersData().push(payload);
     }
     syncWorkspaceMemberOptions();
     saveState();
@@ -5602,7 +5667,7 @@ function bindReferenceActions() {
       if (action === "new-member") return openMemberDialog();
       if (action === "edit-member") return openMemberDialog(button.dataset.member);
       if (action === "delete-member") {
-        state.workspaces[state.currentWorkspace].members = workspaceData().members.filter((member) => member.name !== button.dataset.member);
+        state.sharedMembers = sharedMembersData().filter((member) => member.name !== button.dataset.member);
         syncWorkspaceMemberOptions();
         saveState();
         return renderApp();
@@ -7087,7 +7152,7 @@ function openDocumentDialog(linkedToPreset = "") {
     try {
       const uploadedDocuments = await Promise.all(
         files.map(async (file, index) => {
-          const uploaded = await uploadFileToStorage(
+          const uploaded = await uploadDocumentWithFallback(
             file,
             PORTAL_DOCUMENTS_BUCKET,
             `${state.currentWorkspace}/documents`,
@@ -7098,7 +7163,8 @@ function openDocumentDialog(linkedToPreset = "") {
             filePath: uploaded.path,
             fileUrl: uploaded.publicUrl,
             uploadedAt: todayISO(),
-            uploading: false
+            uploading: false,
+            storageFallback: Boolean(uploaded.fallback)
           };
         })
       );
@@ -7214,7 +7280,7 @@ function fileToDataURL(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
-    reader.onerror = () => reject(new Error("Falha ao ler a imagem localmente."));
+    reader.onerror = () => reject(new Error("Falha ao ler o arquivo localmente."));
     reader.readAsDataURL(file);
   });
 }
@@ -7238,6 +7304,31 @@ async function uploadProjectImageWithFallback(file, bucket, folder, options = {}
       console.warn("[portal-media] Upload remoto falhou. Usando fallback local em data URL.", error);
     }
     return fileToDataURL(file);
+  }
+}
+
+async function uploadDocumentWithFallback(file, bucket, folder, options = {}) {
+  try {
+    const uploaded = await uploadFileToStorage(file, bucket, folder, options);
+    return {
+      path: uploaded.path || "",
+      publicUrl: uploaded.publicUrl || "",
+      fallback: false
+    };
+  } catch (error) {
+    if (isStorageBucketMissingError(error)) {
+      console.warn("[portal-documents] Bucket de storage indisponivel. Usando fallback local em data URL.", {
+        bucket,
+        folder
+      });
+    } else {
+      console.warn("[portal-documents] Upload remoto falhou. Usando fallback local em data URL.", error);
+    }
+    return {
+      path: "",
+      publicUrl: await fileToDataURL(file),
+      fallback: true
+    };
   }
 }
 
