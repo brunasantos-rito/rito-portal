@@ -559,7 +559,7 @@ const workspaceConfig = {
     name: "Rito Ventures",
     subtitle: "CRM, investimento e operação",
     mark: "Rito",
-    views: ["dashboard", "crm", "invested", "tasks", "projectBoards", "rituals", "documents", "members", "settings"],
+    views: ["dashboard", "crm", "invested", "tasks", "projectBoards", "documents", "members", "settings"],
     pipelineStages: RITO_PIPELINE_STAGES,
     kanbanStages: ["A fazer", "Em andamento", "Concluído"],
     memberOptions: ["Bruna Cristina", "Arthur Bueno", "Ciro Ribeiro", "Gabriela Reis"]
@@ -606,7 +606,6 @@ const viewLabels = {
   invested: "Projetos Investidos",
   tasks: "Kanban",
   projectBoards: "Kanban dos Projetos",
-  rituals: "Rituais",
   documents: "Documentos",
   members: "Membros",
   calendar: "Calendário",
@@ -620,7 +619,6 @@ const viewIcons = {
   invested: "✦",
   tasks: "☰",
   projectBoards: "▦",
-  rituals: "✦",
   documents: "⌁",
   members: "•",
   calendar: "◷",
@@ -642,203 +640,6 @@ const workspaceLaunchMeta = {
   }
 };
 
-const RITO_RITUAL_MONTHS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-
-const RITO_RITUAL_LIBRARY = [
-  {
-    id: "cafe-sem-pauta",
-    number: "01",
-    category: "Rede",
-    categoryTone: "rede",
-    title: "Café Sem Pauta",
-    frequency: "Quinzenal",
-    location: "Presencial, na cidade do fundador",
-    duration: "1h",
-    owner: "Arthur ou Ciro",
-    commitment: "24 encontros por ano",
-    months: ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"],
-    summary: "Conversa sem deck, sem follow-up automático e sem intenção transacional imediata. O objetivo é ouvir, entender e ajudar antes de investir.",
-    playbook: "Registrar no mesmo dia três pontos no CRM: o que aprendemos sobre a pessoa, o negócio e o potencial de conexão ou deal.",
-    story: "O ritual mais barato da Rito e um dos mais fortes para gerar confiança real no ecossistema."
-  },
-  {
-    id: "mesa-centro-oeste",
-    number: "02",
-    category: "Rede",
-    categoryTone: "rede",
-    title: "Mesa do Centro-Oeste",
-    frequency: "Trimestral",
-    location: "Jantar curado",
-    duration: "2h30",
-    owner: "Arthur + Ciro",
-    commitment: "4 edições por ano",
-    months: ["Mar", "Jun", "Set", "Dez"],
-    summary: "Mesa fechada para fundadores, operadores e aliados estratégicos da região. A Rito define o tema, modera a conversa e constrói a comunidade.",
-    playbook: "Cada edição precisa ter tema claro, lista intencional de convidados e fechamento com conexões acionáveis entre as mesas.",
-    story: "É um ritual para criar o tipo de densidade relacional que o Centro-Oeste ainda não tinha."
-  },
-  {
-    id: "porteira-aberta",
-    number: "03",
-    category: "Rede",
-    categoryTone: "rede",
-    title: "Porteira Aberta",
-    frequency: "Trimestral",
-    location: "Operação da investida ou parceiro",
-    duration: "Meio período",
-    owner: "Arthur ou Ciro",
-    commitment: "4 visitas por ano",
-    months: ["Fev", "Mai", "Ago", "Nov"],
-    summary: "Abrir uma operação real para que fundadores e parceiros entendam como a Rito pensa e trabalha por dentro.",
-    playbook: "Toda visita precisa terminar com leitura prática: o que aprendemos, o que admiramos e o que levamos para outros negócios.",
-    story: "Ajuda a traduzir o que a Rito faz sem depender de pitch institucional."
-  },
-  {
-    id: "jantar-alumni",
-    number: "04",
-    category: "Rede",
-    categoryTone: "rede",
-    title: "Jantar dos Alumni",
-    frequency: "Semestral",
-    location: "Jantar intimista",
-    duration: "3h",
-    owner: "Arthur + Ciro",
-    commitment: "2 encontros por ano",
-    months: ["Jun", "Dez"],
-    summary: "Reunir fundadores com quem a Rito já conversou, mesmo sem investir, para transformar rejeição respeitosa em comunidade viva.",
-    playbook: "A curadoria deve equilibrar fundadores investidos, não investidos e parceiros que ampliem repertório.",
-    story: "Quando a relação continua depois do não, a marca vira referência de longo prazo."
-  },
-  {
-    id: "primeira-mesa",
-    number: "05",
-    category: "Construção",
-    categoryTone: "build",
-    title: "A Primeira Mesa",
-    frequency: "Por investida",
-    location: "Jantar de passagem",
-    duration: "1 noite",
-    owner: "Arthur",
-    commitment: "Toda nova investida deve passar por esse rito",
-    months: [],
-    summary: "Jantar que marca o momento em que fundador e investidor deixam de ser contraparte e viram sócios de verdade.",
-    playbook: "Mesa posta, famílias e pessoas-chave presentes, carta escrita à mão e uma narrativa clara sobre a nova sociedade.",
-    story: "O contrato formaliza. A mesa faz todo mundo sentir que a relação mudou de fase."
-  },
-  {
-    id: "primeiros-100-dias",
-    number: "06",
-    category: "Construção",
-    categoryTone: "build",
-    title: "Os Primeiros 100 Dias",
-    frequency: "Por investida",
-    location: "Dentro da operação",
-    duration: "100 dias",
-    owner: "Arthur + equipe",
-    commitment: "Diagnóstico profundo no pós-closing",
-    months: [],
-    summary: "Período de presença intensa na operação para construir confiança, entender a verdade do negócio e gerar primeiras vitórias.",
-    playbook: "Mapear dores reais, definir quick wins e criar cadência de acompanhamento desde a primeira semana.",
-    story: "É quando a promessa da Primeira Mesa vira prática operacional."
-  },
-  {
-    id: "a-carta",
-    number: "07",
-    category: "Comunicação",
-    categoryTone: "comm",
-    title: "A Carta",
-    frequency: "Mensal",
-    location: "Publicação própria",
-    duration: "1 edição por mês",
-    owner: "Arthur",
-    commitment: "12 cartas por ano",
-    months: ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"],
-    summary: "Peça editorial principal da Rito. Texto direto, humano e sem jargão, sempre com história concreta, aprendizado e honestidade.",
-    playbook: "Abrir com um caso real, fechar com reflexão sincera e nunca escrever em tom autocelebratório.",
-    story: "Mais importante que uma matéria. A Carta acumula confiança ao longo do tempo."
-  },
-  {
-    id: "relatorio-centro-oeste",
-    number: "08",
-    category: "Comunicação",
-    categoryTone: "comm",
-    title: "Relatório Centro-Oeste",
-    frequency: "Trimestral",
-    location: "Publicação analítica",
-    duration: "1 relatório por trimestre",
-    owner: "Ciro + Arthur",
-    commitment: "4 relatórios por ano",
-    months: ["Mar", "Jun", "Set", "Dez"],
-    summary: "Leitura autoral sobre negócios, founders e movimentos relevantes da região, transformando observação em autoridade prática.",
-    playbook: "Cruzar deals, conversas, tendências e decisões locais em um documento com opinião e densidade.",
-    story: "A Rito não só participa do ecossistema. Ela ajuda a narrar o que está acontecendo nele."
-  },
-  {
-    id: "comite-investimentos",
-    number: "09",
-    category: "Governança",
-    categoryTone: "gov",
-    title: "Comitê de Investimentos",
-    frequency: "Por deal relevante",
-    location: "Reunião de decisão",
-    duration: "90 min",
-    owner: "Arthur",
-    commitment: "Sempre que houver material para decisão",
-    months: [],
-    summary: "Momento formal para decidir com método, expor tese, fragilidades e implicações antes de investir.",
-    playbook: "Toda pauta deve chegar com memo, tese, riscos, dúvidas abertas e recomendação clara de caminho.",
-    story: "O ritual existe para evitar convicção sem processo."
-  },
-  {
-    id: "conselho-estrategico",
-    number: "10",
-    category: "Governança",
-    categoryTone: "gov",
-    title: "Conselho Estratégico",
-    frequency: "Trimestral",
-    location: "Encontro com conselheiros",
-    duration: "2h",
-    owner: "Conselho + Arthur",
-    commitment: "4 encontros por ano",
-    months: ["Mar", "Jun", "Set", "Dez"],
-    summary: "Trazer senioridade e provocação para a Rito sem perder agilidade. O conselho não opera, mas amplia a visão.",
-    playbook: "Levar perguntas reais, decisões em aberto e pontos cegos da gestora para debate.",
-    story: "A melhor pergunta do conselho não é o que estamos fazendo, mas o que estamos deixando de ver."
-  },
-  {
-    id: "evento-primeira-mesa",
-    number: "11",
-    category: "Lançamento",
-    categoryTone: "found",
-    title: "A Primeira Mesa — O Evento",
-    frequency: "Especial",
-    location: "Jantar de lançamento",
-    duration: "1 noite",
-    owner: "Arthur + Ciro",
-    commitment: "Evento-âncora de marca",
-    months: ["Mai", "Jun"],
-    summary: "Lançamento da Rito como experiência, não como coquetel corporativo. Uma mesa bem pensada para 60 a 80 convidados.",
-    playbook: "Narrativa em três atos, fala curta sem slides, mesas com curadoria forte e objeto de memória na saída.",
-    story: "A experiência mostra quem a Rito é sem precisar explicar demais."
-  }
-];
-
-const RITO_RITUAL_RULES = [
-  "Ritual não se cancela; se justifica.",
-  "Todo ritual tem dono claro.",
-  "Todo ritual precisa ser registrado no sistema.",
-  "Ritual evolui com o tempo, mas não perde o propósito.",
-  "Se virou obrigação sem significado, precisa ser redesenhado."
-];
-
-function buildDefaultRitoRitualCalendarEntries() {
-  return [
-    { id: uid("ritual-calendar"), ritualId: "mesa-centro-oeste", title: "Mesa do Centro-Oeste | edição março", date: "2026-03-19", owner: "Arthur Bueno / Ciro Ribeiro", status: "Planejado", notes: "Definir tema e convidados âncora." },
-    { id: uid("ritual-calendar"), ritualId: "a-carta", title: "Carta de março", date: "2026-03-15", owner: "Arthur Bueno", status: "Em andamento", notes: "Fechar história-base e revisão final." },
-    { id: uid("ritual-calendar"), ritualId: "conselho-estrategico", title: "Conselho Estratégico | Q2", date: "2026-06-10", owner: "Arthur Bueno", status: "Planejado", notes: "Levar decisões de governança e pipeline." },
-    { id: uid("ritual-calendar"), ritualId: "evento-primeira-mesa", title: "A Primeira Mesa — Evento", date: "2026-06-25", owner: "Arthur Bueno / Ciro Ribeiro", status: "Planejado", notes: "Travar local, mesa e curadoria da lista." }
-  ];
-}
 
 function workspaceLogoMarkup(workspaceId, variant = "default") {
   if (workspaceId === "fast") {
@@ -1903,12 +1704,7 @@ function seedData() {
         projectThemes: [...DEFAULT_PROJECT_THEMES.rito],
         projectBoards: {},
         documents: [],
-        members: [],
-        rituals: {
-          activeSection: "overview",
-          letterTemplates: [],
-          calendarEntries: buildDefaultRitoRitualCalendarEntries()
-        }
+        members: []
       },
       fast: {
         taskThemes: [...DEFAULT_TASK_THEMES.fast],
@@ -3223,7 +3019,6 @@ function renderCurrentView() {
         if (currentView === "invested") target.appendChild(renderRitoInvestedPage());
         if (currentView === "tasks") target.appendChild(renderTasksBoard());
         if (currentView === "projectBoards") target.appendChild(renderProjectBoards());
-        if (currentView === "rituals") target.appendChild(renderRitoRitualsPage());
         if (currentView === "documents") target.appendChild(renderRitoDocumentsPage());
         if (currentView === "members") target.appendChild(renderRitoMembersPage());
         if (currentView === "settings") target.appendChild(renderRitoSettingsPage());
@@ -4437,301 +4232,6 @@ function renderRitoProjectBoardsPage() {
   });
   page.appendChild(board);
   return page;
-}
-
-function ritoRitualsState(rootState = state) {
-  const ritoWorkspace = rootState?.workspaces?.rito;
-  if (!ritoWorkspace) return {
-    activeSection: "overview",
-    letterTemplates: [],
-    calendarEntries: buildDefaultRitoRitualCalendarEntries()
-  };
-  if (!ritoWorkspace.rituals || typeof ritoWorkspace.rituals !== "object") {
-    ritoWorkspace.rituals = {
-      activeSection: "overview",
-      letterTemplates: [],
-      calendarEntries: buildDefaultRitoRitualCalendarEntries()
-    };
-  }
-  ritoWorkspace.rituals.activeSection = ritoWorkspace.rituals.activeSection || "overview";
-  ritoWorkspace.rituals.letterTemplates = Array.isArray(ritoWorkspace.rituals.letterTemplates) ? ritoWorkspace.rituals.letterTemplates : [];
-  ritoWorkspace.rituals.calendarEntries = Array.isArray(ritoWorkspace.rituals.calendarEntries) && ritoWorkspace.rituals.calendarEntries.length
-    ? ritoWorkspace.rituals.calendarEntries
-    : buildDefaultRitoRitualCalendarEntries();
-  return ritoWorkspace.rituals;
-}
-
-function ritoRitualById(ritualId) {
-  return RITO_RITUAL_LIBRARY.find((ritual) => ritual.id === ritualId) || null;
-}
-
-function ritoRitualTemplates() {
-  return ritoRitualsState().letterTemplates;
-}
-
-function ritoRitualCalendarEntries() {
-  return ritoRitualsState().calendarEntries;
-}
-
-function ritoRitualSectionButton(id, label, activeSection) {
-  return `<button class="${activeSection === id ? "is-active" : ""}" data-ritual-section="${id}" type="button">${label}</button>`;
-}
-
-function renderRitoRitualsPage() {
-  const ritualsState = ritoRitualsState();
-  const activeSection = ritualsState.activeSection || "overview";
-  const page = document.createElement("section");
-  page.className = "content-grid ref-page rituals-shell";
-  page.innerHTML = `
-    <section class="page-head">
-      <div><h3>Rituais</h3><p>Livro dos rituais da Rito Ventures, transformado em base operacional viva.</p></div>
-      <div class="page-head-actions">
-        <div class="segmented">
-          ${ritoRitualSectionButton("overview", "Visão Geral", activeSection)}
-          ${ritoRitualSectionButton("library", "Biblioteca", activeSection)}
-          ${ritoRitualSectionButton("templates", "Modelos", activeSection)}
-          ${ritoRitualSectionButton("calendar", "Calendário", activeSection)}
-          ${ritoRitualSectionButton("rules", "Regras", activeSection)}
-        </div>
-      </div>
-    </section>
-  `;
-
-  if (activeSection === "overview") page.appendChild(renderRitoRitualOverview());
-  if (activeSection === "library") page.appendChild(renderRitoRitualLibrary());
-  if (activeSection === "templates") page.appendChild(renderRitoRitualTemplatesSection());
-  if (activeSection === "calendar") page.appendChild(renderRitoRitualCalendarSection());
-  if (activeSection === "rules") page.appendChild(renderRitoRitualRulesSection());
-  return page;
-}
-
-function renderRitoRitualOverview() {
-  const section = document.createElement("section");
-  section.className = "rituals-content-grid";
-  const categoryCount = new Set(RITO_RITUAL_LIBRARY.map((ritual) => ritual.category)).size;
-  section.innerHTML = `
-    <article class="panel rituals-hero-card">
-      <span class="eyebrow">Livro dos Rituais</span>
-      <h3>11 rituais que definem como a Rito constrói cultura, marca e governança.</h3>
-      <p>O material original foi integrado aqui como uma base viva: com visão editorial, biblioteca operacional, upload de modelos e calendário para transformar os rituais em cadência real.</p>
-      <div class="rituals-hero-metrics">
-        <article><strong>${RITO_RITUAL_LIBRARY.length}</strong><span>rituais</span></article>
-        <article><strong>${categoryCount}</strong><span>categorias</span></article>
-        <article><strong>${ritoRitualTemplates().length}</strong><span>modelos</span></article>
-        <article><strong>${ritoRitualCalendarEntries().length}</strong><span>eventos</span></article>
-      </div>
-    </article>
-  `;
-
-  const categories = document.createElement("section");
-  categories.className = "rituals-category-grid";
-  [
-    ["Rede", "Construir relação antes, durante e depois dos deals."],
-    ["Construção", "Marcar o começo de cada investida com presença real."],
-    ["Comunicação", "Transformar prática em narrativa e confiança."],
-    ["Governança", "Decidir com método, tese e accountability."],
-    ["Lançamento", "Criar mito fundador e experiência de marca."]
-  ].forEach(([title, copy]) => {
-    const card = document.createElement("article");
-    card.className = "panel rituals-category-card";
-    card.innerHTML = `<span class="eyebrow">${title}</span><p>${copy}</p>`;
-    categories.appendChild(card);
-  });
-  section.appendChild(categories);
-  section.appendChild(renderRitoRitualCadenceBoard());
-  return section;
-}
-
-function renderRitoRitualCadenceBoard() {
-  const panel = document.createElement("section");
-  panel.className = "panel rituals-cadence-board";
-  panel.innerHTML = `
-    <div class="panel-header">
-      <div>
-        <h3>Cadência anual</h3>
-        <p>Leitura rápida do que acontece todo ano e do que entra conforme novos deals.</p>
-      </div>
-    </div>
-  `;
-  const grid = document.createElement("div");
-  grid.className = "rituals-month-grid";
-  const head = document.createElement("div");
-  head.className = "rituals-month-grid-head";
-  head.innerHTML = `<span>Ritual</span>${RITO_RITUAL_MONTHS.map((month) => `<span>${month}</span>`).join("")}`;
-  grid.appendChild(head);
-  RITO_RITUAL_LIBRARY.forEach((ritual) => {
-    const row = document.createElement("div");
-    row.className = "rituals-month-grid-row";
-    row.innerHTML = `
-      <span class="rituals-month-grid-label">
-        <strong>${ritual.title}</strong>
-        <small>${ritual.frequency}</small>
-      </span>
-      ${RITO_RITUAL_MONTHS.map((month) => `<span class="rituals-month-chip ${ritual.months.includes(month) ? `is-${ritual.categoryTone}` : ""}">${ritual.months.includes(month) ? "•" : ""}</span>`).join("")}
-    `;
-    grid.appendChild(row);
-  });
-  panel.appendChild(grid);
-  return panel;
-}
-
-function renderRitoRitualLibrary() {
-  const grid = document.createElement("section");
-  grid.className = "rituals-library-grid";
-  RITO_RITUAL_LIBRARY.forEach((ritual) => {
-    const card = document.createElement("article");
-    card.className = "panel ritual-card";
-    card.innerHTML = `
-      <div class="ritual-card-head">
-        <span class="ritual-card-kicker">${ritual.number} · ${ritual.category}</span>
-        <strong>${ritual.title}</strong>
-      </div>
-      <div class="ritual-card-meta">
-        <div><label>Frequência</label><span>${ritual.frequency}</span></div>
-        <div><label>Onde</label><span>${ritual.location}</span></div>
-        <div><label>Duração</label><span>${ritual.duration}</span></div>
-        <div><label>Dono</label><span>${displayText(ritual.owner)}</span></div>
-      </div>
-      <p>${ritual.summary}</p>
-      <div class="ritual-note-block">
-        <span>Como operar</span>
-        <p>${ritual.playbook}</p>
-      </div>
-      <div class="ritual-note-block is-soft">
-        <span>Por que importa</span>
-        <p>${ritual.story}</p>
-      </div>
-      <div class="inline-actions">
-        <button class="ghost-button" data-ritual-action="quick-add-entry" data-ritual-id="${escapeAttr(ritual.id)}" type="button">Adicionar ao calendário</button>
-      </div>
-    `;
-    grid.appendChild(card);
-  });
-  return grid;
-}
-
-function renderRitoRitualTemplatesSection() {
-  const section = document.createElement("section");
-  section.className = "rituals-content-grid";
-  section.innerHTML = `
-    <section class="page-head rituals-inline-head">
-      <div><h3>Modelos de Cartas e Materiais</h3><p>Suba cartas, convites, relatórios e qualquer peça de apoio usada nos rituais.</p></div>
-      <div class="page-head-actions"><button class="action-button" data-ritual-action="new-template" type="button">+ Modelo</button></div>
-    </section>
-  `;
-  const templates = ritoRitualTemplates();
-  const list = document.createElement("section");
-  list.className = "ritual-template-list";
-  if (!templates.length) {
-    list.innerHTML = "<article class='panel ritual-template-card'><strong>Nenhum modelo enviado ainda.</strong><p class='subtle'>Use esta área para guardar cartas do Arthur, convites, roteiros de reunião e templates do relatório.</p></article>";
-  } else {
-    templates.forEach((template) => {
-      const fileUrl = toFileHref(resolveDocumentUrl(template));
-      const card = document.createElement("article");
-      card.className = "panel ritual-template-card";
-      card.innerHTML = `
-        <div class="ritual-template-main">
-          <strong>${escapeHTML(template.name || "Modelo")}</strong>
-          <div class="chips">
-            <span class="chip">${escapeHTML(template.category || "Geral")}</span>
-            <span class="chip">${escapeHTML((template.fileType || "arquivo").replace(/^\./, "").toUpperCase())}</span>
-          </div>
-          <p class="subtle">${escapeHTML(template.description || "Material de apoio dos rituais da Rito.")}</p>
-          <div class="subtle">${escapeHTML(template.uploadedAt || "")}</div>
-        </div>
-        <div class="inline-actions">
-          ${fileUrl ? `<a class="ghost-button" href="${escapeAttr(fileUrl)}" target="_blank" rel="noreferrer">Abrir</a>` : ""}
-          ${fileUrl ? `<a class="action-button" href="${escapeAttr(fileUrl)}" download="${escapeAttr(template.name || "modelo")}" target="_blank" rel="noreferrer">Download</a>` : ""}
-          <button class="ghost-button" data-ritual-action="delete-template" data-template-id="${escapeAttr(template.id)}" data-template-title="${escapeAttr(template.name || "modelo")}" type="button">Excluir</button>
-        </div>
-      `;
-      list.appendChild(card);
-    });
-  }
-  section.appendChild(list);
-  return section;
-}
-
-function renderRitoRitualCalendarSection() {
-  const section = document.createElement("section");
-  section.className = "rituals-content-grid";
-  section.innerHTML = `
-    <section class="page-head rituals-inline-head">
-      <div><h3>Calendário Interativo</h3><p>Agenda operacional para planejar datas, donos e andamento de cada ritual.</p></div>
-      <div class="page-head-actions"><button class="action-button" data-ritual-action="add-calendar-entry" type="button">+ Evento</button></div>
-    </section>
-  `;
-  section.appendChild(renderRitoRitualCadenceBoard());
-  const list = document.createElement("section");
-  list.className = "ritual-calendar-list";
-  ritoRitualCalendarEntries().forEach((entry) => {
-    const ritual = ritoRitualById(entry.ritualId);
-    const article = document.createElement("article");
-    article.className = "panel ritual-calendar-card";
-    article.innerHTML = `
-      <div class="ritual-calendar-grid">
-        <label class="field">
-          <span>Ritual</span>
-          <select data-ritual-calendar-field="ritualId" data-entry-id="${escapeAttr(entry.id)}">
-            <option value="">Selecione</option>
-            ${RITO_RITUAL_LIBRARY.map((item) => `<option value="${escapeAttr(item.id)}" ${item.id === entry.ritualId ? "selected" : ""}>${item.number} · ${item.title}</option>`).join("")}
-          </select>
-        </label>
-        <label class="field">
-          <span>Título do evento</span>
-          <input data-ritual-calendar-field="title" data-entry-id="${escapeAttr(entry.id)}" value="${escapeAttr(entry.title || ritual?.title || "")}">
-        </label>
-        <label class="field">
-          <span>Data</span>
-          <input data-ritual-calendar-field="date" data-entry-id="${escapeAttr(entry.id)}" type="date" value="${escapeAttr(normalizeDateInputValue(entry.date || ""))}">
-        </label>
-        <label class="field">
-          <span>Responsável</span>
-          <input data-ritual-calendar-field="owner" data-entry-id="${escapeAttr(entry.id)}" value="${escapeAttr(entry.owner || ritual?.owner || "")}">
-        </label>
-        <label class="field">
-          <span>Status</span>
-          <select data-ritual-calendar-field="status" data-entry-id="${escapeAttr(entry.id)}">
-            ${["Planejado", "Em andamento", "Concluído", "Pausado"].map((status) => `<option ${status === entry.status ? "selected" : ""}>${status}</option>`).join("")}
-          </select>
-        </label>
-        <div class="inline-actions ritual-calendar-actions">
-          <button class="ghost-button" data-ritual-action="remove-calendar-entry" data-entry-id="${escapeAttr(entry.id)}" type="button">Excluir</button>
-        </div>
-        <label class="field full-span">
-          <span>Notas</span>
-          <textarea data-ritual-calendar-field="notes" data-entry-id="${escapeAttr(entry.id)}">${escapeHTML(entry.notes || "")}</textarea>
-        </label>
-      </div>
-    `;
-    list.appendChild(article);
-  });
-  section.appendChild(list);
-  return section;
-}
-
-function renderRitoRitualRulesSection() {
-  const section = document.createElement("section");
-  section.className = "rituals-content-grid";
-  const panel = document.createElement("article");
-  panel.className = "panel ritual-rules-card";
-  panel.innerHTML = `
-    <div class="panel-header">
-      <div>
-        <h3>As Regras dos Rituais</h3>
-        <p>Baseado no manifesto original do Livro dos Rituais.</p>
-      </div>
-    </div>
-    <div class="ritual-rules-list">
-      ${RITO_RITUAL_RULES.map((rule, index) => `<article><strong>${index + 1}.</strong><p>${rule}</p></article>`).join("")}
-    </div>
-    <div class="ritual-note-block">
-      <span>Princípio central</span>
-      <p>Se um ritual parar de resolver problema real, ele precisa ser ajustado. Se surgir problema novo sem rito, a Rito cria um novo.</p>
-    </div>
-  `;
-  section.appendChild(panel);
-  return section;
 }
 
 function renderRitoDocumentsPage() {
@@ -6150,7 +5650,6 @@ function bindStaticActions() {
   document.querySelectorAll("[data-action='export-tasks']").forEach((button) => { button.onclick = () => alert("Exportações locais foram desativadas."); });
   bindInlineEditing();
   bindReferenceActions();
-  bindRitualActions();
   if (!window.__workspaceDropdownBound) {
     document.addEventListener("click", handleOutsideWorkspaceDropdown);
     window.__workspaceDropdownBound = true;
@@ -6239,100 +5738,6 @@ function bindReferenceActions() {
       }
       if (action === "edit-columns") return openTaskThemesDialog();
     };
-  });
-}
-
-function bindRitualActions() {
-  const root = document.getElementById("appContent");
-  if (!root) return;
-
-  root.querySelectorAll("[data-ritual-section]").forEach((button) => {
-    button.onclick = (event) => {
-      event.preventDefault();
-      const rituals = ritoRitualsState();
-      rituals.activeSection = button.dataset.ritualSection || "overview";
-      saveState();
-      renderApp();
-    };
-  });
-
-  root.querySelectorAll("[data-ritual-action]").forEach((button) => {
-    button.onclick = async (event) => {
-      event.preventDefault();
-      const action = button.dataset.ritualAction;
-      const rituals = ritoRitualsState();
-
-      if (action === "new-template") return openRitualTemplateDialog();
-
-      if (action === "delete-template") {
-        const templateId = String(button.dataset.templateId || "").trim();
-        const templateTitle = button.dataset.templateTitle || "este modelo";
-        const template = rituals.letterTemplates.find((item) => item.id === templateId);
-        if (!template) return;
-        if (!confirm(`Deseja excluir ${templateTitle}?`)) return;
-        if (template.filePath) {
-          await removeFileFromStorage(PORTAL_DOCUMENTS_BUCKET, template.filePath);
-        }
-        rituals.letterTemplates = rituals.letterTemplates.filter((item) => item.id !== templateId);
-        saveState();
-        return renderApp();
-      }
-
-      if (action === "add-calendar-entry") {
-        rituals.calendarEntries.unshift({
-          id: uid("ritual-calendar"),
-          ritualId: "",
-          title: "",
-          date: "",
-          owner: "",
-          status: "Planejado",
-          notes: ""
-        });
-        saveState();
-        return renderApp();
-      }
-
-      if (action === "quick-add-entry") {
-        const ritual = ritoRitualById(button.dataset.ritualId);
-        rituals.calendarEntries.unshift({
-          id: uid("ritual-calendar"),
-          ritualId: ritual?.id || "",
-          title: ritual?.title || "",
-          date: "",
-          owner: ritual?.owner || "",
-          status: "Planejado",
-          notes: ritual?.playbook || ""
-        });
-        rituals.activeSection = "calendar";
-        saveState();
-        return renderApp();
-      }
-
-      if (action === "remove-calendar-entry") {
-        const entryId = String(button.dataset.entryId || "").trim();
-        rituals.calendarEntries = rituals.calendarEntries.filter((entry) => entry.id !== entryId);
-        saveState();
-        return renderApp();
-      }
-    };
-  });
-
-  root.querySelectorAll("[data-ritual-calendar-field]").forEach((field) => {
-    const updateEntry = () => {
-      const entryId = String(field.dataset.entryId || "").trim();
-      const key = String(field.dataset.ritualCalendarField || "").trim();
-      const entry = ritoRitualCalendarEntries().find((item) => item.id === entryId);
-      if (!entry || !key) return;
-      entry[key] = field.value;
-      if (key === "ritualId") {
-        const ritual = ritoRitualById(field.value);
-        if (ritual && !String(entry.title || "").trim()) entry.title = ritual.title;
-        if (ritual && !String(entry.owner || "").trim()) entry.owner = ritual.owner;
-      }
-      saveState();
-    };
-    field.addEventListener("input", updateEntry);
-    field.addEventListener("change", updateEntry);
   });
 }
 
@@ -7709,87 +7114,6 @@ function openTaskEditor(taskId, isProject, projectName = "") {
 }
 
 
-function openRitualTemplateDialog() {
-  const dialog = document.getElementById("entityDialog");
-  dialog.dataset.dialogSize = "compact";
-  dialog.classList.remove("hidden");
-  dialog.innerHTML = `
-    <form method="dialog" id="ritualTemplateForm" class="compact-dialog-form">
-      <div class="panel-header dialog-header"><div><h3>Novo modelo</h3><p>Suba cartas, convites, relatórios ou roteiros ligados aos rituais da Rito.</p></div><button class="dialog-close-button" data-dialog-close type="button" aria-label="Fechar">X</button></div>
-      <div class="dialog-grid compact-dialog-grid">
-        <label class="field"><span>Nome</span><input name="name" placeholder="Carta do Arthur - Abril"></label>
-        <label class="field"><span>Categoria</span><select name="category"><option>Carta</option><option>Convite</option><option>Relatório</option><option>Roteiro</option><option>Checklist</option></select></label>
-        <label class="field full-span"><span>Descrição</span><input name="description" placeholder="Contexto rápido do material"></label>
-        <label class="field full-span"><span>Arquivo</span><input name="file" type="file"></label>
-      </div>
-      <div class="dialog-actions">
-        <button class="ghost-button" type="button" data-dialog-close>Cancelar</button>
-        <button class="action-button" value="default">Salvar</button>
-      </div>
-    </form>
-  `;
-  dialog.showModal();
-  dialog.querySelectorAll("[data-dialog-close]").forEach((button) => {
-    button.onclick = () => {
-      dialog.close();
-      dialog.classList.add("hidden");
-    };
-  });
-
-  const form = dialog.querySelector("#ritualTemplateForm");
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const formData = new FormData(form);
-    const file = form.querySelector("input[name='file']").files?.[0];
-    if (!file) {
-      alert("Selecione um arquivo para enviar.");
-      return;
-    }
-
-    const rituals = ritoRitualsState();
-    const template = {
-      id: uid("ritual-template"),
-      name: String(formData.get("name") || "").trim() || file.name,
-      category: String(formData.get("category") || "").trim() || "Geral",
-      description: String(formData.get("description") || "").trim(),
-      fileType: file.type || file.name.split(".").pop() || "arquivo",
-      filePath: "",
-      fileUrl: "",
-      uploadedAt: "Enviando...",
-      uploading: true
-    };
-
-    rituals.letterTemplates.unshift(template);
-    dialog.close();
-    dialog.classList.add("hidden");
-    renderApp();
-
-    try {
-      const uploaded = await uploadDocumentWithFallback(
-        file,
-        PORTAL_DOCUMENTS_BUCKET,
-        "rito/rituals/templates",
-        { prefix: "ritual-template" }
-      );
-      const current = rituals.letterTemplates.find((item) => item.id === template.id);
-      if (current) {
-        current.filePath = uploaded.path;
-        current.fileUrl = uploaded.publicUrl;
-        current.uploadedAt = todayISO();
-        current.uploading = false;
-        current.storageFallback = Boolean(uploaded.fallback);
-      }
-      saveState();
-      renderApp();
-    } catch (error) {
-      rituals.letterTemplates = rituals.letterTemplates.filter((item) => item.id !== template.id);
-      renderApp();
-      console.error("Erro ao enviar modelo do ritual:", error);
-      alert("Não foi possível concluir o upload do modelo.");
-    }
-  });
-}
-
 function openDocumentDialog(linkedToPreset = "") {
   const dialog = document.getElementById("entityDialog");
   dialog.dataset.dialogSize = "compact";
@@ -8494,3 +7818,23 @@ async function protectApp() {
 window.addEventListener("beforeunload", () => {
   flushOpenEditors();
   triggerKeepalivePortalSave();
+});
+
+window.addEventListener("pagehide", () => {
+  flushOpenEditors();
+  flushRemoteSave();
+  triggerKeepalivePortalSave();
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "hidden") return;
+  flushOpenEditors();
+  flushRemoteSave();
+  triggerKeepalivePortalSave();
+});
+
+supabaseClient.auth.onAuthStateChange((_event, session) => {
+  currentSessionAccessToken = session?.access_token || "";
+});
+
+window.addEventListener("load", protectApp);
