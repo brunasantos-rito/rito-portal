@@ -1515,6 +1515,7 @@ function normalizeFastTaskThemeName(stage = "") {
 
 function crmItemToReferenceCard(item) {
   ensureProjectShape(item);
+  const transientStatusTags = new Set(["Pipeline", "Portfolio", "Portfólio", "Investido", "Declined", "Declinado", "LOI", "Due Diligence", "Frio", "Morno", "Quente", "Nao investido"]);
   return {
     id: item.id,
     name: item.name,
@@ -1524,7 +1525,7 @@ function crmItemToReferenceCard(item) {
     logoText: item.logoText || initials(item.name),
     logo: item.logo || "",
     logoBg: item.logoBg || "#ffffff",
-    tags: [...new Set([...(item.tags || []).filter((tag) => !["Pipeline", "Portfolio", "Investido", "Declined", "LOI", "Due Diligence", "Frio", "Morno", "Quente", "Nao investido"].includes(tag)), referenceStatusLabel(item.status, item.investmentStatus), item.investmentStatus === "Investido" ? "Investido" : "Nao investido", item.temperature])],
+    tags: [...new Set([...(item.tags || []).filter((tag) => !transientStatusTags.has(tag)), referenceStatusLabel(item.status, item.investmentStatus), item.investmentStatus === "Investido" ? "Investido" : "Nao investido", item.temperature])],
     owner: item.owner,
     accent: referenceAccent(item.status, item.investmentStatus),
     temperature: item.temperature,
@@ -2359,7 +2360,7 @@ function dealStatusSummaryPreview(item, maxLength = 150) {
 }
 
 function declinedReasonPreview(item, maxLength = 150) {
-  if (!item || normalizeReferenceDashboardStage(item) !== "Declined") return "";
+  if (!item || normalizeReferenceDashboardStage(item) !== "Declinado") return "";
   return dealStatusSummaryPreview(item, maxLength);
 }
 
@@ -2380,7 +2381,7 @@ function declinedDealReasonGroups(items) {
   const groups = [];
   (Array.isArray(items) ? items : [])
     .filter((item) => item && !Array.isArray(item) && typeof item === "object")
-    .filter((item) => normalizeReferenceDashboardStage(item) === "Declined")
+    .filter((item) => normalizeReferenceDashboardStage(item) === "Declinado")
     .forEach((item) => {
       const projectName = displayText(item?.name || item?.projectName || item?.company || "").trim() || "Deal sem nome";
       const summary = dealStatusSummary(item);
@@ -2476,9 +2477,9 @@ function updateRitoPipelineView() {
 
 function dashboardStageMatches(row, stage) {
   if (stage === "Todos") return true;
-  if (stage === "Investidos") return row.stage === "Portfolio";
-  if (stage === "Declinados") return row.stage === "Declined";
-  return row.stage === stage;
+  if (stage === "Investidos") return ["Aporte", "Portfólio", "Exit"].includes(row.stage);
+  if (stage === "Declinados") return row.stage === "Declinado";
+  return normalizeRitoDealStatus(row.stage) === normalizeRitoDealStatus(stage);
 }
 
 function usingReferenceDashboard() {
@@ -2487,14 +2488,7 @@ function usingReferenceDashboard() {
 
 function normalizeReferenceDashboardStage(item) {
   if (!item || Array.isArray(item) || typeof item !== "object") return "Lead";
-  const tags = Array.isArray(item.tags) ? item.tags : [];
-  const normalized = normalizeRitoDealStatus(item.status, item.investmentStatus);
-  if (["Aporte", "Portfólio", "Exit"].includes(normalized) || item.investmentStatus === "Investido" || tags.includes("Investido")) return "Portfolio";
-  if (normalized === "Declinado") return "Declined";
-  if (["LOI", "NBO", "Proposta"].includes(normalized)) return "LOI";
-  if (["Due Diligence", "Signing", "Closing"].includes(normalized)) return "Due Diligence";
-  if (normalized === "Lead") return "Lead";
-  return "Pipeline";
+  return normalizeRitoDealStatus(item.status, item.investmentStatus);
 }
 
 function referenceDashboardRows() {
@@ -2508,6 +2502,7 @@ function referenceDashboardRows() {
       : temperatureFromRitoDealStatus(item.status);
     const companyName = displayText(item.name || item.company || "Deal sem nome").trim() || "Deal sem nome";
     return {
+      id: item.id || "",
       company: companyName,
       segment: item.email || item.sector || item.subtitle || "-",
       contact: item.contact || item.mainContact || item.email || "-",
@@ -2528,15 +2523,27 @@ function referenceDashboardRows() {
 
 function referenceDashboardStages() {
   const rows = referenceDashboardRows();
-  const countStage = (stage) => rows.filter((row) => row.stage === stage).length;
-  return [
-    { label: "Lead", count: countStage("Lead"), tone: "#e1e4ea", accent: "#6f7788" },
-    { label: "Pipeline", count: countStage("Pipeline"), tone: "#f5edcf", accent: "#c09205" },
-    { label: "LOI", count: countStage("LOI"), tone: "#ddd4fb", accent: "#7a5cf0" },
-    { label: "Due Diligence", count: countStage("Due Diligence"), tone: "#d7e1f8", accent: "#4d7ef6" },
-    { label: "Investidos", count: countStage("Portfolio"), tone: "#d8edd8", accent: "#41a047" },
-    { label: "Declinados", count: countStage("Declined"), tone: "#f5d7d7", accent: "#dc3535" }
-  ].map((stage) => ({ ...stage, deals: `${stage.count} deals` }));
+  const palette = {
+    Lead: { tone: "#e1e4ea", accent: "#6f7788" },
+    Pipeline: { tone: "#f5edcf", accent: "#c09205" },
+    NDA: { tone: "#dce8fa", accent: "#4c88c8" },
+    IRL: { tone: "#d8e1fb", accent: "#6d86d8" },
+    LOI: { tone: "#ddd4fb", accent: "#7a5cf0" },
+    NBO: { tone: "#e3d8f6", accent: "#8a67d9" },
+    Proposta: { tone: "#f6e0d7", accent: "#c27a4d" },
+    "Due Diligence": { tone: "#d7e1f8", accent: "#4d7ef6" },
+    Signing: { tone: "#e7dcc8", accent: "#9b7e4f" },
+    Closing: { tone: "#d8ebde", accent: "#2c9a72" },
+    Aporte: { tone: "#d9eddc", accent: "#4a9b63" },
+    "Portfólio": { tone: "#d8edd8", accent: "#41a047" },
+    Declinado: { tone: "#f5d7d7", accent: "#dc3535" },
+    Exit: { tone: "#d7efe6", accent: "#1f8f6a" }
+  };
+  return RITO_PIPELINE_STAGES.map((stage) => {
+    const count = rows.filter((row) => normalizeRitoDealStatus(row.stage) === stage).length;
+    const colors = palette[stage] || { tone: "#e8ebf0", accent: "#7b8491" };
+    return { label: stage, count, tone: colors.tone, accent: colors.accent, deals: `${count} deals` };
+  });
 }
 
 function getFilteredRitoDashboardRows() {
@@ -2569,6 +2576,11 @@ function updateRitoDashboardView() {
   if (!usingReferenceDashboard() || state.currentView[state.currentWorkspace] !== "dashboard") {
     renderApp();
     return;
+  }
+
+  const funnelRoot = document.querySelector(".rito-funnel-panel");
+  if (funnelRoot && funnelRoot.parentNode) {
+    funnelRoot.replaceWith(renderRitoFunnel());
   }
 
   const sideRoot = document.querySelector(".rito-dashboard-side");
@@ -3210,18 +3222,18 @@ function renderRitoFunnel() {
   panel.innerHTML = `<div class="panel-header"><div><h3>Etapas do Pipeline</h3></div></div>`;
 
   const stages = referenceDashboardStages();
-  const stageWidths = ["100%", "93%", "86%", "79%", "72%", "65%"];
-  const dividerWidths = ["100%", "93%", "86%", "79%", "72%"];
+  const stageCount = Math.max(stages.length - 1, 1);
 
   const stack = document.createElement("div");
   stack.className = "funnel-stack rito-funnel-stack";
 
   stages.forEach((stage, index) => {
+    const widthPercent = Math.max(58, 100 - Math.round((index / stageCount) * 38));
     const block = document.createElement("div");
     block.className = `funnel-block rito-funnel-block ${filters.stage === stage.label ? "is-active" : ""}`;
     block.dataset.dashboardStage = stage.label;
     block.style.background = stage.tone;
-    block.style.width = stageWidths[index] || "100%";
+    block.style.width = `${widthPercent}%`;
     block.innerHTML = `<div class="rito-funnel-count" style="color:${stage.accent}">${stage.count}</div><div class="rito-funnel-label">${stage.label}</div><div class="subtle">${stage.deals}</div>`;
     block.onclick = () => {
       const current = dashboardFilterState();
@@ -3233,8 +3245,9 @@ function renderRitoFunnel() {
       if (index !== stages.length - 1) {
         const divider = document.createElement("div");
         divider.className = "funnel-divider rito-funnel-divider";
-        divider.style.width = dividerWidths[index] || "100%";
-        divider.innerHTML = `<span style="width:${index === 1 ? "100" : index === 4 ? "38" : index === 5 ? "74" : "0"}%; background:${stage.accent}"></span>`;
+        const nextWidthPercent = Math.max(58, 100 - Math.round(((index + 1) / stageCount) * 38));
+        divider.style.width = `${Math.max(60, Math.min(widthPercent, nextWidthPercent) + 4)}%`;
+        divider.innerHTML = `<span style="width:${stage.count ? "100" : "0"}%; background:${stage.accent}"></span>`;
         stack.appendChild(divider);
       }
     });
@@ -3283,8 +3296,9 @@ function renderRitoDashboardSide() {
   const filters = dashboardFilterState();
   const filteredRows = getFilteredRitoDashboardRows();
   const crmItems = (workspaceData().crmItems || []).filter((item) => item && !Array.isArray(item) && typeof item === "object");
+  const visibleIds = new Set(filteredRows.map((row) => row.id).filter(Boolean));
   const visibleCompanies = new Set(filteredRows.map((row) => row.company));
-  const visibleItems = crmItems.filter((item) => visibleCompanies.has(item.name));
+  const visibleItems = crmItems.filter((item) => visibleIds.has(item.id) || visibleCompanies.has(displayText(item.name || item.company || "").trim()));
   const allocatedValue = allocatedPortfolioValue(visibleItems);
   const projectedValue = projectedAllocationValue(visibleItems);
   const side = document.createElement("section");
@@ -3292,8 +3306,8 @@ function renderRitoDashboardSide() {
 
   const metrics = [
     [String(filteredRows.length), "Deals", "visíveis no dashboard"],
-    [String(filteredRows.filter((row) => row.stage === "Portfolio").length), "Investidos", "deals investidos"],
-    [String(filteredRows.filter((row) => row.stage === "Declined").length), "Declinados", "deals recusados"],
+    [String(filteredRows.filter((row) => ["Aporte", "Portfólio", "Exit"].includes(row.stage)).length), "Investidos", "deals investidos"],
+    [String(filteredRows.filter((row) => row.stage === "Declinado").length), "Declinados", "deals recusados"],
     [String(filteredRows.filter((row) => row.temp === "Quente").length), "Quentes", "prioridade alta"],
     [String(filteredRows.filter((row) => row.temp === "Morno").length), "Mornos", "em acompanhamento"],
     [String(filteredRows.filter((row) => row.temp === "Frio").length), "Frios", "baixa tração"],
@@ -3423,8 +3437,9 @@ function renderRitoDashboardTable(rows = referenceDashboardRows()) {
     const row = document.createElement("div");
     row.className = "table-row rito-table-row";
     const companyName = displayText(rowData.company || "Deal sem nome").trim() || "Deal sem nome";
-    const linked = crmItems.find((item) => displayText(item?.name || "").trim() === companyName);
-    const shouldShowDeclinedReason = normalizeReferenceDashboardStage(linked || rowData) === "Declined";
+    const linked = crmItems.find((item) => item?.id && rowData.id && item.id === rowData.id)
+      || crmItems.find((item) => displayText(item?.name || item?.company || "").trim() === companyName);
+    const shouldShowDeclinedReason = normalizeReferenceDashboardStage(linked || rowData) === "Declinado";
     row.innerHTML = `
       <div class="company-cell">
         ${renderCompanyBadge(rowData)}
@@ -3614,7 +3629,7 @@ function renderRitoPipelinePage() {
   const crmItems = workspaceData().crmItems || [];
   const investedCount = investedProjects(crmItems).length;
   const pipelineCount = crmItems.filter((item) => normalizeReferenceDashboardStage(item) === "Pipeline").length;
-  const declinedCount = crmItems.filter((item) => normalizeReferenceDashboardStage(item) === "Declined").length;
+  const declinedCount = crmItems.filter((item) => normalizeReferenceDashboardStage(item) === "Declinado").length;
   const totalPortfolioValue = projectedAllocationValue(crmItems);
   const page = document.createElement("section");
   page.className = "content-grid ref-page";
@@ -4315,7 +4330,7 @@ function createReferenceProjectCard(card, invested = false, sourceView = "crm") 
   const companyDescription = displayText(linked?.description || card.description || linked?.businessModel || card.framework || "-");
   const statusSummarySource = linked || card;
   const statusSummary = dealStatusSummaryPreview(statusSummarySource, 160);
-  const statusSummaryLabel = normalizeReferenceDashboardStage(statusSummarySource) === "Declined" ? "Motivo do declínio" : "Resumo do status";
+  const statusSummaryLabel = normalizeReferenceDashboardStage(statusSummarySource) === "Declinado" ? "Motivo do declínio" : "Resumo do status";
   if (linked) {
     article.draggable = true;
     article.dataset.crmId = linked.id;
@@ -4841,7 +4856,7 @@ function createCRMCard(item) {
   const accent = coverPalette[item.status] || "#2864ff";
   const companyDescription = displayText(item.description || item.businessModel || item.framework || "-");
   const statusSummary = dealStatusSummaryPreview(item, 150);
-  const statusSummaryLabel = normalizeReferenceDashboardStage(item) === "Declined" ? "Motivo do declínio" : "Resumo do status";
+  const statusSummaryLabel = normalizeReferenceDashboardStage(item) === "Declinado" ? "Motivo do declínio" : "Resumo do status";
   const managementTeam = displayText(item.managementTeam || item.management || item.founders || "-");
   const fundraisingHistory = displayText(item.fundraisingHistory || "-");
   const vcBacked = displayText(item.vcPeBacked || "-");
