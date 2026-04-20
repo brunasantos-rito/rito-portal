@@ -1476,6 +1476,35 @@ function projectRecordScore(item, seededProject) {
 
 function mergeProjectRecords(target, source, seededProject = null) {
   if (!target || !source || target === source) return target;
+  const sourceOfTruthFields = [
+    "name",
+    "subtitle",
+    "description",
+    "sector",
+    "location",
+    "year",
+    "website",
+    "contact",
+    "email",
+    "businessModel",
+    "competitors",
+    "advantages",
+    "founders",
+    "management",
+    "managementTeam",
+    "framework",
+    "cover",
+    "logo",
+    "logoText",
+    "logoBg"
+  ];
+  if (seededProject) {
+    sourceOfTruthFields.forEach((key) => {
+      if (hasMeaningfulProjectValue(source[key])) {
+        target[key] = source[key];
+      }
+    });
+  }
   [
     "name",
     "subtitle",
