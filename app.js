@@ -29,6 +29,7 @@ window.__PORTAL_RECOVERY_DIAGNOSTICS__ = window.__PORTAL_RECOVERY_DIAGNOSTICS__ 
 let currentSessionAccessToken = "";
 const PORTAL_MEDIA_BUCKET = "portal-media";
 const PORTAL_DOCUMENTS_BUCKET = "portal-documents";
+let cachedSharedPortalStateRow = null;
 
 function withTimeout(promise, ms, label = "Operacao remota") {
   return new Promise((resolve, reject) => {
@@ -77,18 +78,20 @@ async function loadSharedPortalState() {
     throw error;
   }
 
-  return {
+  cachedSharedPortalStateRow = {
     id: data?.id ?? 1,
     data: data?.data && typeof data.data === "object" ? data.data : {},
     updated_at: data?.updated_at || null
   };
+  return cachedSharedPortalStateRow;
 }
 
 async function saveSharedPortalState(state) {
+  const updatedAt = new Date().toISOString();
   const payload = {
     id: 1,
     data: state,
-    updated_at: new Date().toISOString()
+    updated_at: updatedAt
   };
 
   console.info("[portal-db] POST /shared_portal_state?on_conflict=id", {
@@ -120,7 +123,12 @@ async function saveSharedPortalState(state) {
     throw error;
   }
 
-  return loadSharedPortalState();
+  cachedSharedPortalStateRow = {
+    id: payload.id,
+    data: payload.data,
+    updated_at: updatedAt
+  };
+  return cachedSharedPortalStateRow;
 }
 
 async function refreshSessionAccessToken() {
@@ -231,6 +239,11 @@ function delay(ms) {
 
 function portalStateVersion(snapshot = null) {
   const timestamp = Date.parse(String(snapshot?.lastSavedAt || "").trim());
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+function recordTimestampValue(record = null) {
+  const timestamp = Date.parse(String(record?.updatedAt || record?.createdAt || "").trim());
   return Number.isNaN(timestamp) ? 0 : timestamp;
 }
 
@@ -486,6 +499,7 @@ function persistTaskEditorDraft() {
   task.owner = String(formData.get("owner") || task.owner);
   task.dueDate = normalizeDateInputValue(formData.get("dueDate") || task.dueDate);
   task.completionDate = normalizeDateInputValue(formData.get("completionDate") || "");
+  task.updatedAt = new Date().toISOString();
 }
 
 function persistVisibleCardEdits(root = document) {
@@ -1476,6 +1490,7 @@ function projectRecordScore(item, seededProject) {
 
 function mergeProjectRecords(target, source, seededProject = null) {
   if (!target || !source || target === source) return target;
+  const targetIsNewerThanSeed = recordTimestampValue(target) > recordTimestampValue(source);
   const sourceOfTruthFields = [
     "name",
     "subtitle",
@@ -1498,7 +1513,7 @@ function mergeProjectRecords(target, source, seededProject = null) {
     "logoText",
     "logoBg"
   ];
-  if (seededProject) {
+  if (seededProject && !targetIsNewerThanSeed) {
     sourceOfTruthFields.forEach((key) => {
       if (hasMeaningfulProjectValue(source[key])) {
         target[key] = source[key];
@@ -1655,7 +1670,9 @@ function ritoTask(title, stage, owner, marker, notes = "") {
     dueDate: "",
     priority: ritoTaskPriority(marker),
     status: "A fazer",
-    tags: [stage, marker].filter(Boolean)
+    tags: [stage, marker].filter(Boolean),
+    createdAt: "2026-04-20",
+    updatedAt: "2026-04-20"
   };
 }
 
@@ -1676,7 +1693,9 @@ function ritoTaskSeed(title, stage, owner, rawStatus = "Nao iniciado", note = ""
     dueDate: "",
     priority,
     status: ritoWorkflowStatus(rawStatus),
-    tags: [stage, rawStatus].filter(Boolean)
+    tags: [stage, rawStatus].filter(Boolean),
+    createdAt: "2026-04-20",
+    updatedAt: "2026-04-20"
   };
 }
 
@@ -1818,7 +1837,9 @@ function fastTask(title, stage, owner, rawStatus, note = "", priority = "Media",
     dueDate: "",
     priority,
     status: fastWorkflowStatus(rawStatus),
-    tags: [stage, rawStatus].filter(Boolean)
+    tags: [stage, rawStatus].filter(Boolean),
+    createdAt: "2026-04-20",
+    updatedAt: "2026-04-20"
   };
 }
 
@@ -1877,7 +1898,9 @@ function buildFastDailyTasksMarch30() {
     priority,
     stage,
     status: "A Fazer",
-    tags: [stage, "Pauta 30/03"].filter(Boolean)
+    tags: [stage, "Pauta 30/03"].filter(Boolean),
+    createdAt: "2026-04-20",
+    updatedAt: "2026-04-20"
   });
 
   return [
@@ -2382,17 +2405,6 @@ async function loadState() {
         notes: [`Tentativa ${attempt + 1}: remoto=${remoteScore}, backup=${recoveredScore}`]
       });
 
-      if (recoveredState && recoveredScore > remoteScore) {
-        console.warn("Backup local mais completo que o estado remoto. Restaurando portal a partir do snapshot recuperado.");
-        const restoredState = finalizeLoadedPortalState(recoveredState, "backup-preferred-over-remote");
-        try {
-          await saveSharedPortalState(restoredState);
-        } catch (error) {
-          console.warn("Não foi possível sincronizar o snapshot recuperado com o Supabase.", error);
-        }
-        return restoredState;
-      }
-
       if (hasMeaningfulPortalData(remoteState)) {
         return finalizeLoadedPortalState(remoteState, "remote-state");
       }
@@ -2452,13 +2464,18 @@ function mergeKanbanTaskRecords(previousTask = {}, nextTask = {}) {
 }
 
 function mergeSeededKanbanTaskRecords(existingTask = {}, seededTask = {}) {
-  const merged = { ...existingTask, ...seededTask, id: seededTask.id };
-  ["status", "dueDate", "completionDate", "completedAt", "archivedAt"].forEach((field) => {
-    const value = existingTask?.[field];
-    if (typeof value === "string" ? value.trim() : value) {
-      merged[field] = value;
-    }
-  });
+  const existingIsNewerThanSeed = recordTimestampValue(existingTask) > recordTimestampValue(seededTask);
+  const merged = existingIsNewerThanSeed
+    ? { ...seededTask, ...existingTask, id: seededTask.id }
+    : { ...existingTask, ...seededTask, id: seededTask.id };
+  if (!existingIsNewerThanSeed) {
+    ["status", "dueDate", "completionDate", "completedAt", "archivedAt"].forEach((field) => {
+      const value = existingTask?.[field];
+      if (typeof value === "string" ? value.trim() : value) {
+        merged[field] = value;
+      }
+    });
+  }
   if (Array.isArray(existingTask?.history) && existingTask.history.length) {
     merged.history = existingTask.history;
   }
@@ -2595,6 +2612,14 @@ function normalizeKanbanTask(task, themes) {
   if (!task.priority) task.priority = "Media";
   if (!task.tags) task.tags = [];
   if (!("completionDate" in task)) task.completionDate = "";
+  if (!task.createdAt) task.createdAt = "2026-04-20";
+  if (!task.updatedAt) task.updatedAt = task.createdAt || "2026-04-20";
+}
+
+function touchKanbanTask(task) {
+  if (!task || typeof task !== "object") return;
+  if (!task.createdAt) task.createdAt = "2026-04-20";
+  task.updatedAt = new Date().toISOString();
 }
 
 function canonicalTaskStatus(status = "") {
@@ -6472,6 +6497,7 @@ async function updateTaskStage(id, stage) {
   const rollbackState = clonePortalState(state);
   task.stage = stage;
   task.status = task.dueDate < todayISO() ? "Atrasado" : "Em andamento";
+  touchKanbanTask(task);
   renderAppPreservingScroll();
   await persistKanbanStateOptimistically({
     rollbackState,
@@ -6552,6 +6578,7 @@ function attachProjectDnD() {
       const rollbackState = clonePortalState(state);
       task.stage = zone.dataset.stage;
       task.status = task.dueDate < todayISO() ? "Atrasado" : "Em andamento";
+      touchKanbanTask(task);
       renderAppPreservingScroll();
       await persistKanbanStateOptimistically({
         rollbackState,
@@ -8181,7 +8208,9 @@ function openTaskDialog(projectName, presetStage = "") {
       priority: formData.get("priority"),
       stage: formData.get("stage"),
       status: formData.get("status") || "A Fazer",
-      tags: String(formData.get("tags")).split(",").map((tag) => tag.trim()).filter(Boolean)
+      tags: String(formData.get("tags")).split(",").map((tag) => tag.trim()).filter(Boolean),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
     if (projectName) {
       if (!workspaceData().projectBoards[projectName]) workspaceData().projectBoards[projectName] = [];
@@ -8762,6 +8791,7 @@ function bindInlineEditing() {
       if (field === "dueDate") {
         found.status = nextValue < todayISO() ? "Atrasado" : "Em andamento";
       }
+      touchKanbanTask(found);
       if (persistRemotely) {
         await saveState({ instant: true });
       }
