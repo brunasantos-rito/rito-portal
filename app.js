@@ -2115,14 +2115,73 @@ function buildPortalState(snapshot = null) {
   return merged;
 }
 
+function unwrapPortalSnapshot(snapshot = null) {
+  if (!snapshot || typeof snapshot !== "object") return null;
+  if (!snapshot.workspaces && snapshot.data && typeof snapshot.data === "object") {
+    return snapshot.data;
+  }
+  return snapshot;
+}
+
+function hasMeaningfulPortalData(snapshot = null) {
+  const rawSnapshot = unwrapPortalSnapshot(snapshot);
+  if (!rawSnapshot || typeof rawSnapshot !== "object") return false;
+  const workspaces = rawSnapshot.workspaces;
+  if (!workspaces || typeof workspaces !== "object") return false;
+  return Object.values(workspaces).some((workspace) => {
+    if (!workspace || typeof workspace !== "object") return false;
+    if (Array.isArray(workspace.crmItems) && workspace.crmItems.length) return true;
+    if (Array.isArray(workspace.taskItems) && workspace.taskItems.length) return true;
+    if (Array.isArray(workspace.documents) && workspace.documents.length) return true;
+    if (Array.isArray(workspace.members) && workspace.members.length) return true;
+    if (workspace.projectBoards && typeof workspace.projectBoards === "object" && Object.keys(workspace.projectBoards).length) return true;
+    return false;
+  });
+}
+
+async function loadBundledPortalBackup() {
+  try {
+    const response = await fetch("./recovered-portal-state.json", {
+      cache: "no-store"
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    return hasMeaningfulPortalData(data) ? data : null;
+  } catch (error) {
+    console.warn("Não foi possível carregar o backup local do portal.", error);
+    return null;
+  }
+}
+
 async function loadState() {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       const data = await loadSharedPortalState();
       const remoteState = data?.data && Object.keys(data.data).length ? data.data : null;
+      if (hasMeaningfulPortalData(remoteState)) {
+        return buildPortalState(remoteState);
+      }
+      const recoveredState = await loadBundledPortalBackup();
+      if (recoveredState) {
+        console.warn("Estado remoto vazio. Restaurando portal a partir do backup local empacotado.");
+        const restoredState = buildPortalState(recoveredState);
+        try {
+          await saveSharedPortalState(restoredState);
+        } catch (error) {
+          console.warn("Não foi possível repopular o Supabase com o backup local.", error);
+        }
+        return restoredState;
+      }
       return buildPortalState(remoteState);
     } catch (error) {
-      if (attempt === 2) throw error;
+      if (attempt === 2) {
+        const recoveredState = await loadBundledPortalBackup();
+        if (recoveredState) {
+          console.warn("Leitura remota falhou. Carregando portal a partir do backup local empacotado.");
+          return buildPortalState(recoveredState);
+        }
+        throw error;
+      }
       await delay(250 * (attempt + 1));
     }
   }
