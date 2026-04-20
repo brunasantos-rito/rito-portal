@@ -1937,23 +1937,26 @@ function migrateRitoReferenceProjects(rootState) {
   const rito = rootState.workspaces?.rito;
   if (!rito) return;
   rito.projectBoards = rito.projectBoards || {};
-  rito.crmItems = Array.isArray(rito.crmItems) ? rito.crmItems : [];
-  rito.crmItems.forEach((item) => ensureProjectShape(item));
+  const existingItems = Array.isArray(rito.crmItems) ? rito.crmItems : [];
+  existingItems.forEach((item) => ensureProjectShape(item));
   const sourceProjects = getRitoSourceProjects();
-  const seededItems = sourceProjects.map(referenceProjectToCRMItem);
-  seededItems.forEach((seededItem, index) => {
-    const seededProject = sourceProjects[index];
-    const matches = rito.crmItems.filter((item) => isLikelyReferenceProjectMatch(item, seededProject));
-    if (!matches.length) {
-      rito.crmItems.push(seededItem);
-      return;
-    }
+  const seededItems = sourceProjects.map((project) => {
+    const seededItem = referenceProjectToCRMItem(project);
+    const matches = existingItems.filter((item) => isLikelyReferenceProjectMatch(item, project));
+    if (!matches.length) return seededItem;
     const bestMatch = matches.reduce((best, candidate) => {
       if (!best) return candidate;
-      return projectRecordScore(candidate, seededProject) > projectRecordScore(best, seededProject) ? candidate : best;
+      return projectRecordScore(candidate, project) > projectRecordScore(best, project) ? candidate : best;
     }, null);
-    mergeProjectRecords(bestMatch, seededItem, seededProject);
+    const mergedItem = { ...bestMatch };
+    mergeProjectRecords(mergedItem, seededItem, project);
+    mergedItem.id = bestMatch?.id || mergedItem.id;
+    return mergedItem;
   });
+  const extraItems = existingItems.filter((item) =>
+    !sourceProjects.some((project) => isLikelyReferenceProjectMatch(item, project))
+  );
+  rito.crmItems = [...seededItems, ...extraItems];
 }
 
 function migrateRitoKanbanTasks(rootState) {
