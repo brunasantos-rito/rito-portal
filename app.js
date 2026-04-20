@@ -2139,18 +2139,81 @@ function hasMeaningfulPortalData(snapshot = null) {
   });
 }
 
+function portalDataScore(snapshot = null) {
+  const rawSnapshot = unwrapPortalSnapshot(snapshot);
+  if (!rawSnapshot || typeof rawSnapshot !== "object") return 0;
+  const workspaces = rawSnapshot.workspaces;
+  if (!workspaces || typeof workspaces !== "object") return 0;
+  return Object.values(workspaces).reduce((score, workspace) => {
+    if (!workspace || typeof workspace !== "object") return score;
+    score += Array.isArray(workspace.crmItems) ? workspace.crmItems.length * 10 : 0;
+    score += Array.isArray(workspace.taskItems) ? workspace.taskItems.length * 3 : 0;
+    score += Array.isArray(workspace.documents) ? workspace.documents.length * 2 : 0;
+    score += Array.isArray(workspace.members) ? workspace.members.length : 0;
+    score += workspace.projectBoards && typeof workspace.projectBoards === "object"
+      ? Object.values(workspace.projectBoards).reduce((boardScore, board) => boardScore + (Array.isArray(board) ? board.length * 2 : 0), 0)
+      : 0;
+    return score;
+  }, 0);
+}
+
+function parsePortalBackupPayload(payload = "") {
+  if (typeof payload !== "string") return null;
+  const sanitized = payload.replace(/^\uFEFF/, "").trim();
+  if (!sanitized) return null;
+
+  const normalized = sanitized.startsWith("window.__PORTAL_RECOVERED_STATE__")
+    ? sanitized.replace(/^window\.__PORTAL_RECOVERED_STATE__\s*=\s*/, "").replace(/;\s*$/, "")
+    : sanitized;
+
+  try {
+    const parsed = JSON.parse(normalized);
+    return hasMeaningfulPortalData(parsed) ? parsed : null;
+  } catch (error) {
+    console.warn("Não foi possível interpretar o conteúdo bruto do backup do portal.", error);
+    return null;
+  }
+}
+
 async function loadBundledPortalBackup() {
+  try {
+    const bundledState = window.__PORTAL_RECOVERED_STATE__;
+    if (hasMeaningfulPortalData(bundledState)) {
+      return bundledState;
+    }
+    if (typeof bundledState === "string") {
+      const parsedBundledState = parsePortalBackupPayload(bundledState);
+      if (parsedBundledState) return parsedBundledState;
+    }
+  } catch (error) {
+    console.warn("Não foi possível acessar o backup embutido do portal.", error);
+  }
+
   try {
     const response = await fetch("./recovered-portal-state.json", {
       cache: "no-store"
     });
     if (!response.ok) return null;
-    const data = await response.json();
-    return hasMeaningfulPortalData(data) ? data : null;
+    const rawText = await response.text();
+    const parsedJsonBackup = parsePortalBackupPayload(rawText);
+    if (parsedJsonBackup) return parsedJsonBackup;
   } catch (error) {
     console.warn("Não foi possível carregar o backup local do portal.", error);
-    return null;
   }
+
+  try {
+    const response = await fetch("./recovered-portal-state.js", {
+      cache: "no-store"
+    });
+    if (!response.ok) return null;
+    const rawText = await response.text();
+    const parsedScriptBackup = parsePortalBackupPayload(rawText);
+    if (parsedScriptBackup) return parsedScriptBackup;
+  } catch (error) {
+    console.warn("Não foi possível carregar o script local de recuperação do portal.", error);
+  }
+
+  return null;
 }
 
 async function loadState() {
@@ -2158,10 +2221,24 @@ async function loadState() {
     try {
       const data = await loadSharedPortalState();
       const remoteState = data?.data && Object.keys(data.data).length ? data.data : null;
+      const recoveredState = await loadBundledPortalBackup();
+      const remoteScore = portalDataScore(remoteState);
+      const recoveredScore = portalDataScore(recoveredState);
+
+      if (recoveredState && recoveredScore > remoteScore) {
+        console.warn("Backup local mais completo que o estado remoto. Restaurando portal a partir do snapshot recuperado.");
+        const restoredState = buildPortalState(recoveredState);
+        try {
+          await saveSharedPortalState(restoredState);
+        } catch (error) {
+          console.warn("Não foi possível sincronizar o snapshot recuperado com o Supabase.", error);
+        }
+        return restoredState;
+      }
+
       if (hasMeaningfulPortalData(remoteState)) {
         return buildPortalState(remoteState);
       }
-      const recoveredState = await loadBundledPortalBackup();
       if (recoveredState) {
         console.warn("Estado remoto vazio. Restaurando portal a partir do backup local empacotado.");
         const restoredState = buildPortalState(recoveredState);
