@@ -170,13 +170,10 @@ body[data-theme="dark"] .sidebar {
 
 .workspace-logo-sidebar.workspace-logo-fast,
 .workspace-logo-sidebar.workspace-logo-atica,
-.workspace-logo-sidebar.workspace-logo-diligence,
 .workspace-logo-dropdown.workspace-logo-fast,
 .workspace-logo-dropdown.workspace-logo-atica,
-.workspace-logo-dropdown.workspace-logo-diligence,
 .workspace-logo-landing.workspace-logo-fast,
-.workspace-logo-landing.workspace-logo-atica,
-.workspace-logo-landing.workspace-logo-diligence {
+.workspace-logo-landing.workspace-logo-atica {
   width: 82%;
   height: 82%;
   margin: 9%;
