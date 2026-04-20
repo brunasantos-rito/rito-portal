@@ -13,6 +13,19 @@ const supabaseClient = window.supabase.createClient(
   SUPABASE_PUBLISHABLE_KEY
 );
 
+window.__PORTAL_RECOVERY_DIAGNOSTICS__ = window.__PORTAL_RECOVERY_DIAGNOSTICS__ || {
+  source: "boot",
+  remoteScore: 0,
+  recoveredScore: 0,
+  finalScore: 0,
+  counts: {
+    ritoDeals: 0,
+    fastTasks: 0,
+    aticaDeals: 0
+  },
+  notes: []
+};
+
 let currentSessionAccessToken = "";
 const PORTAL_MEDIA_BUCKET = "portal-media";
 const PORTAL_DOCUMENTS_BUCKET = "portal-documents";
@@ -2157,6 +2170,31 @@ function portalDataScore(snapshot = null) {
   }, 0);
 }
 
+function portalSnapshotCounts(snapshot = null) {
+  const rawSnapshot = unwrapPortalSnapshot(snapshot);
+  return {
+    ritoDeals: rawSnapshot?.workspaces?.rito?.crmItems?.length || 0,
+    fastTasks: rawSnapshot?.workspaces?.fast?.taskItems?.length || 0,
+    aticaDeals: rawSnapshot?.workspaces?.atica?.crmItems?.length || 0
+  };
+}
+
+function updateRecoveryDiagnostics(patch = {}) {
+  const current = window.__PORTAL_RECOVERY_DIAGNOSTICS__ || {};
+  window.__PORTAL_RECOVERY_DIAGNOSTICS__ = {
+    ...current,
+    ...patch,
+    counts: {
+      ...(current.counts || {}),
+      ...(patch.counts || {})
+    },
+    notes: [
+      ...((current.notes || []).slice(-4)),
+      ...((patch.notes || []).slice(-4))
+    ].slice(-8)
+  };
+}
+
 function parsePortalBackupPayload(payload = "") {
   if (typeof payload !== "string") return null;
   const sanitized = payload.replace(/^\uFEFF/, "").trim();
@@ -2179,11 +2217,25 @@ async function loadBundledPortalBackup() {
   try {
     const bundledState = window.__PORTAL_RECOVERED_STATE__;
     if (hasMeaningfulPortalData(bundledState)) {
+      updateRecoveryDiagnostics({
+        source: "embedded-window-object",
+        recoveredScore: portalDataScore(bundledState),
+        counts: portalSnapshotCounts(bundledState),
+        notes: ["Backup embutido lido de window.__PORTAL_RECOVERED_STATE__."]
+      });
       return bundledState;
     }
     if (typeof bundledState === "string") {
       const parsedBundledState = parsePortalBackupPayload(bundledState);
-      if (parsedBundledState) return parsedBundledState;
+      if (parsedBundledState) {
+        updateRecoveryDiagnostics({
+          source: "embedded-window-string",
+          recoveredScore: portalDataScore(parsedBundledState),
+          counts: portalSnapshotCounts(parsedBundledState),
+          notes: ["Backup embutido em string interpretado com sucesso."]
+        });
+        return parsedBundledState;
+      }
     }
   } catch (error) {
     console.warn("Não foi possível acessar o backup embutido do portal.", error);
@@ -2196,7 +2248,15 @@ async function loadBundledPortalBackup() {
     if (!response.ok) return null;
     const rawText = await response.text();
     const parsedJsonBackup = parsePortalBackupPayload(rawText);
-    if (parsedJsonBackup) return parsedJsonBackup;
+    if (parsedJsonBackup) {
+      updateRecoveryDiagnostics({
+        source: "json-file",
+        recoveredScore: portalDataScore(parsedJsonBackup),
+        counts: portalSnapshotCounts(parsedJsonBackup),
+        notes: ["Backup local carregado via recovered-portal-state.json."]
+      });
+      return parsedJsonBackup;
+    }
   } catch (error) {
     console.warn("Não foi possível carregar o backup local do portal.", error);
   }
@@ -2208,12 +2268,30 @@ async function loadBundledPortalBackup() {
     if (!response.ok) return null;
     const rawText = await response.text();
     const parsedScriptBackup = parsePortalBackupPayload(rawText);
-    if (parsedScriptBackup) return parsedScriptBackup;
+    if (parsedScriptBackup) {
+      updateRecoveryDiagnostics({
+        source: "js-file",
+        recoveredScore: portalDataScore(parsedScriptBackup),
+        counts: portalSnapshotCounts(parsedScriptBackup),
+        notes: ["Backup local carregado via recovered-portal-state.js."]
+      });
+      return parsedScriptBackup;
+    }
   } catch (error) {
     console.warn("Não foi possível carregar o script local de recuperação do portal.", error);
   }
 
   return null;
+}
+
+function finalizeLoadedPortalState(snapshot, sourceLabel = "unknown") {
+  const builtState = buildPortalState(snapshot);
+  updateRecoveryDiagnostics({
+    source: sourceLabel,
+    finalScore: portalDataScore(builtState),
+    counts: portalSnapshotCounts(builtState)
+  });
+  return builtState;
 }
 
 async function loadState() {
@@ -2224,10 +2302,15 @@ async function loadState() {
       const recoveredState = await loadBundledPortalBackup();
       const remoteScore = portalDataScore(remoteState);
       const recoveredScore = portalDataScore(recoveredState);
+      updateRecoveryDiagnostics({
+        remoteScore,
+        recoveredScore,
+        notes: [`Tentativa ${attempt + 1}: remoto=${remoteScore}, backup=${recoveredScore}`]
+      });
 
       if (recoveredState && recoveredScore > remoteScore) {
         console.warn("Backup local mais completo que o estado remoto. Restaurando portal a partir do snapshot recuperado.");
-        const restoredState = buildPortalState(recoveredState);
+        const restoredState = finalizeLoadedPortalState(recoveredState, "backup-preferred-over-remote");
         try {
           await saveSharedPortalState(restoredState);
         } catch (error) {
@@ -2237,11 +2320,11 @@ async function loadState() {
       }
 
       if (hasMeaningfulPortalData(remoteState)) {
-        return buildPortalState(remoteState);
+        return finalizeLoadedPortalState(remoteState, "remote-state");
       }
       if (recoveredState) {
         console.warn("Estado remoto vazio. Restaurando portal a partir do backup local empacotado.");
-        const restoredState = buildPortalState(recoveredState);
+        const restoredState = finalizeLoadedPortalState(recoveredState, "backup-remote-empty");
         try {
           await saveSharedPortalState(restoredState);
         } catch (error) {
@@ -2249,13 +2332,13 @@ async function loadState() {
         }
         return restoredState;
       }
-      return buildPortalState(remoteState);
+      return finalizeLoadedPortalState(remoteState, "remote-empty-seeded");
     } catch (error) {
       if (attempt === 2) {
         const recoveredState = await loadBundledPortalBackup();
         if (recoveredState) {
           console.warn("Leitura remota falhou. Carregando portal a partir do backup local empacotado.");
-          return buildPortalState(recoveredState);
+          return finalizeLoadedPortalState(recoveredState, "backup-after-remote-failure");
         }
         throw error;
       }
@@ -3427,6 +3510,32 @@ function tabTitle(view) {
 
 function renderCurrentView() {
   const target = document.getElementById("appContent");
+  const diagnostics = window.__PORTAL_RECOVERY_DIAGNOSTICS__ || {};
+  const shouldShowDiagnostics = Boolean(
+    diagnostics.finalScore ||
+    diagnostics.recoveredScore ||
+    diagnostics.remoteScore ||
+    (Array.isArray(diagnostics.notes) && diagnostics.notes.length)
+  );
+  const appendDiagnosticsBanner = () => {
+    if (!shouldShowDiagnostics || isLandingScreen()) return;
+    const banner = document.createElement("section");
+    banner.className = "panel";
+    banner.style.padding = "10px 12px";
+    banner.style.marginBottom = "12px";
+    banner.style.background = "rgba(255, 248, 230, 0.72)";
+    banner.style.borderColor = "rgba(181, 117, 7, 0.14)";
+    banner.innerHTML = `
+      <div class="panel-header" style="margin-bottom:0;">
+        <div>
+          <h3>Diagnóstico de carga</h3>
+          <p>Origem: ${escapeHTML(displayText(diagnostics.source || "desconhecida"))} • remoto ${diagnostics.remoteScore || 0} • backup ${diagnostics.recoveredScore || 0} • final ${diagnostics.finalScore || 0}</p>
+          <p>Rito deals: ${diagnostics.counts?.ritoDeals || 0} • Fast tarefas: ${diagnostics.counts?.fastTasks || 0} • Ática deals: ${diagnostics.counts?.aticaDeals || 0}</p>
+        </div>
+      </div>
+    `;
+    target.appendChild(banner);
+  };
   if (isLandingScreen()) {
     target.innerHTML = "";
     target.appendChild(renderWorkspaceLandingPage());
@@ -3435,6 +3544,7 @@ function renderCurrentView() {
   try {
     const currentView = state.currentView[state.currentWorkspace];
     target.innerHTML = "";
+    appendDiagnosticsBanner();
     if (state.currentWorkspace === "diligence") {
       if (currentView === "dashboard") target.appendChild(renderDueDiligenceDashboard());
       if (currentView === "tasks") target.appendChild(renderTasksBoard());
@@ -8904,6 +9014,15 @@ async function protectApp() {
   setPortalVisibility(true);
   try {
     state = await loadState();
+    if (!portalDataScore(state)) {
+      const recoveredState = await loadBundledPortalBackup();
+      if (portalDataScore(recoveredState) > 0) {
+        updateRecoveryDiagnostics({
+          notes: ["State final veio vazio; backup local forçado antes da renderização."]
+        });
+        state = finalizeLoadedPortalState(recoveredState, "forced-backup-before-render");
+      }
+    }
     bootstrapFromURL();
     renderApp();
     addLogoutButton();
