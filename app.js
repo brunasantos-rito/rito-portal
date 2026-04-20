@@ -559,7 +559,7 @@ const workspaceConfig = {
     name: "Rito Ventures",
     subtitle: "CRM, investimento e operação",
     mark: "Rito",
-    views: ["dashboard", "crm", "invested", "tasks", "projectBoards", "documents", "members", "settings"],
+    views: ["dashboard", "crm", "invested", "tasks", "projectBoards", "rites", "documents", "members", "settings"],
     pipelineStages: RITO_PIPELINE_STAGES,
     kanbanStages: ["A fazer", "Em andamento", "Concluído"],
     memberOptions: ["Bruna Cristina", "Arthur Bueno", "Ciro Ribeiro", "Gabriela Reis"]
@@ -572,6 +572,15 @@ const workspaceConfig = {
     views: ["dashboard", "tasks", "calendar", "documents", "members", "settings"],
     kanbanStages: ["ABF", "Pessoas", "Operacoes", "Estrategico", "Financeiro", "Marketing"],
     memberOptions: ["Bruna Cristina", "Arthur Bueno", "Ciro Ribeiro", "Mayra", "Eduardo", "Grace", "Rodrigo"]
+  },
+  diligence: {
+    id: "diligence",
+    name: "Due Diligence",
+    subtitle: "Análise executiva, riscos e contingências",
+    mark: "DD",
+    views: ["dashboard", "tasks", "documents", "members", "settings"],
+    kanbanStages: ["Planejamento", "Coleta", "Análise", "Comitê", "Fechamento"],
+    memberOptions: ["Bruna Cristina", "Arthur Bueno", "Ciro Ribeiro", "Gabriela Reis", "Consultor Externo"]
   }
 };
 
@@ -579,14 +588,16 @@ const RITO_DEAL_STATUS_OPTIONS = RITO_PIPELINE_STAGES;
 
 const DEFAULT_TASK_THEMES = {
   rito: ["Infra / CRM", "Marca e Marketing", "Digital", "Juridico", "Deals", "Governanca", "Marca", "Financeiro"],
-  fast: ["ABF", "Pessoas", "Operacoes", "Estrategico", "Financeiro", "Marketing"]
+  fast: ["ABF", "Pessoas", "Operacoes", "Estrategico", "Financeiro", "Marketing"],
+  diligence: ["Planejamento", "Data Room", "Financeiro", "Juridico", "Fiscal", "Operacional", "ESG"]
 };
 
 const FAST_DAILY_THEMES = ["ABF", "Felps", "Penog", "Prospecta", "Financeiro", "Estratégico", "Design Gráfico", "Operações", "Comercial", "Mayra"];
 
 const DEFAULT_PROJECT_THEMES = {
   rito: ["Operação", "Financeiro", "Comercial", "Jurídico", "Growth"],
-  fast: ["Operação", "Marketing", "Expansão", "Financeiro"]
+  fast: ["Operação", "Marketing", "Expansão", "Financeiro"],
+  diligence: ["Financeiro", "Juridico", "Fiscal", "Operacional", "ESG"]
 };
 
 const DEFAULT_KANBAN_THEME_COLORS = ["#8AAFCC", "#80CBC4", "#C87070", "#B0ACCE", "#F48FB1", "#FFCC80", "#FF8A65", "#B8A47A", "#4DB6AC", "#7986CB", "#BA68C8"];
@@ -606,6 +617,7 @@ const viewLabels = {
   invested: "Projetos Investidos",
   tasks: "Kanban",
   projectBoards: "Kanban dos Projetos",
+  rites: "Ritos",
   documents: "Documentos",
   members: "Membros",
   calendar: "Calendário",
@@ -619,6 +631,7 @@ const viewIcons = {
   invested: "✦",
   tasks: "☰",
   projectBoards: "▦",
+  rites: "✺",
   documents: "⌁",
   members: "•",
   calendar: "◷",
@@ -637,8 +650,251 @@ const workspaceLaunchMeta = {
     shortLabel: "FM",
     descriptor: "Operações",
     greeting: "Operação, marketing e expansão da marca."
+  },
+  diligence: {
+    index: "03",
+    shortLabel: "DD",
+    descriptor: "Due Diligence",
+    greeting: "Workspace executivo para análise, riscos e contingências."
   }
 };
+
+const DILIGENCE_PROJECTS = [
+  {
+    id: "aurora-bioenergia",
+    name: "Aurora Bioenergia S.A.",
+    companyCode: "AB",
+    status: "Em andamento",
+    risk: "Médio",
+    progress: 72,
+    startDate: "04 Abr 2026",
+    deadline: "30 Abr 2026",
+    enterpriseValue: 420000000,
+    equityValue: 286000000,
+    adjustedEnterpriseValue: 401300000,
+    adjustedEquityValue: 267300000,
+    adjustedEbitda: 58500000,
+    team: ["Bruna Cristina", "Arthur Bueno", "Gabriela Reis"],
+    tags: ["Energia", "Buy-side", "Brasil"],
+    sector: "Energia",
+    transaction: "Buy-side",
+    geography: "Brasil",
+    summary: "Tese de aquisição com foco em geração de caixa, estabilidade operacional e sinergias de expansão regional.",
+    areaRisks: [
+      { area: "Financeiro", score: 78, severity: "Alto", note: "Ajustes de EBITDA e concentração de clientes pressionam valuation." },
+      { area: "Jurídico", score: 63, severity: "Médio", note: "Contencioso trabalhista recorrente e covenants contratuais relevantes." },
+      { area: "Fiscal", score: 59, severity: "Médio", note: "Créditos tributários dependem de documentação complementar." },
+      { area: "Operacional", score: 54, severity: "Médio", note: "Dependência de fornecedores críticos no Centro-Oeste." },
+      { area: "ESG", score: 34, severity: "Baixo", note: "Governança adequada; melhoria recomendada em KPIs ambientais." }
+    ],
+    phases: [
+      { name: "Planejamento", progress: 100, owner: "Bruna Cristina" },
+      { name: "Coleta de dados", progress: 84, owner: "Gabriela Reis" },
+      { name: "Análise por área", progress: 68, owner: "Arthur Bueno" },
+      { name: "Comitê / recomendações", progress: 41, owner: "Ciro Ribeiro" }
+    ],
+    contingencies: [
+      { title: "Autos de infração de ICMS", type: "Tributária", area: "Fiscal", value: 7200000, probability: "Provável", impact: "Alto", status: "Em análise", owner: "Bruna Cristina", updatedAt: "12 Abr 2026", x: 88, y: 84 },
+      { title: "Ação coletiva de horas extras", type: "Trabalhista", area: "Jurídico", value: 3400000, probability: "Possível", impact: "Médio", status: "Aberta", owner: "Gabriela Reis", updatedAt: "10 Abr 2026", x: 64, y: 58 },
+      { title: "Passivo ambiental em unidade GO", type: "Ambiental", area: "ESG", value: 2100000, probability: "Possível", impact: "Alto", status: "Mitigada", owner: "Arthur Bueno", updatedAt: "08 Abr 2026", x: 56, y: 74 }
+    ],
+    tasks: {
+      todo: [
+        { title: "Fechar request list complementar", owner: "Bruna Cristina", phase: "Planejamento" },
+        { title: "Atualizar data room de contratos-chave", owner: "Gabriela Reis", phase: "Coleta" }
+      ],
+      doing: [
+        { title: "Revisar qualidade dos ganhos", owner: "Arthur Bueno", phase: "Financeiro" },
+        { title: "Validar provisões tributárias", owner: "Bruna Cristina", phase: "Fiscal" }
+      ],
+      done: [
+        { title: "Kickoff com advisors e management", owner: "Ciro Ribeiro", phase: "Planejamento" },
+        { title: "Mapeamento preliminar de riscos ESG", owner: "Consultor Externo", phase: "ESG" }
+      ]
+    },
+    insights: [
+      "Red flag financeira em concentração de receita nos três maiores clientes.",
+      "Contingências tributárias representam a maior pressão no ajuste de valuation.",
+      "Recomendação: condicionar signing a escrow e covenant de regularização fiscal."
+    ]
+  },
+  {
+    id: "nexa-saude",
+    name: "Nexa Saúde Integrada",
+    companyCode: "NS",
+    status: "Em risco",
+    risk: "Alto",
+    progress: 58,
+    startDate: "28 Mar 2026",
+    deadline: "24 Abr 2026",
+    enterpriseValue: 310000000,
+    equityValue: 228000000,
+    adjustedEnterpriseValue: 281000000,
+    adjustedEquityValue: 199000000,
+    adjustedEbitda: 36200000,
+    team: ["Bruna Cristina", "Arthur Bueno", "Consultor Externo"],
+    tags: ["Saúde", "Growth Equity", "Sudeste"],
+    sector: "Saúde",
+    transaction: "Growth Equity",
+    geography: "Sudeste",
+    summary: "Plataforma de clínicas com crescimento acelerado, porém pressionada por passivos regulatórios e integração operacional.",
+    areaRisks: [
+      { area: "Financeiro", score: 69, severity: "Médio", note: "Recebíveis com aging acima da política esperada." },
+      { area: "Jurídico", score: 72, severity: "Alto", note: "Exposição em contratos médicos e judicialização de pacientes." },
+      { area: "Fiscal", score: 66, severity: "Médio", note: "Fragilidade em documentação de créditos PIS/Cofins." },
+      { area: "Operacional", score: 81, severity: "Alto", note: "Integração de unidades e dependência de corpo clínico-chave." },
+      { area: "ESG", score: 57, severity: "Médio", note: "Controles de LGPD e governança clínica ainda imaturos." }
+    ],
+    phases: [
+      { name: "Planejamento", progress: 100, owner: "Bruna Cristina" },
+      { name: "Coleta de dados", progress: 77, owner: "Consultor Externo" },
+      { name: "Análise por área", progress: 56, owner: "Arthur Bueno" },
+      { name: "Comitê / recomendações", progress: 18, owner: "Ciro Ribeiro" }
+    ],
+    contingencies: [
+      { title: "Provisionamento ANS e glosas", type: "Regulatório", area: "Operacional", value: 9800000, probability: "Provável", impact: "Alto", status: "Aberta", owner: "Consultor Externo", updatedAt: "13 Abr 2026", x: 86, y: 82 },
+      { title: "Discussão trabalhista com corpo clínico", type: "Trabalhista", area: "Jurídico", value: 4600000, probability: "Possível", impact: "Alto", status: "Em análise", owner: "Bruna Cristina", updatedAt: "12 Abr 2026", x: 67, y: 76 },
+      { title: "Autuação de ISS em filiais", type: "Tributária", area: "Fiscal", value: 2800000, probability: "Possível", impact: "Médio", status: "Mitigada", owner: "Arthur Bueno", updatedAt: "11 Abr 2026", x: 58, y: 57 }
+    ],
+    tasks: {
+      todo: [
+        { title: "Concluir diligência de LGPD", owner: "Consultor Externo", phase: "ESG" },
+        { title: "Revisar earn-out proposto", owner: "Arthur Bueno", phase: "Comitê" }
+      ],
+      doing: [
+        { title: "Reconciliar glosas e provisões", owner: "Bruna Cristina", phase: "Financeiro" },
+        { title: "Mapear exposição contratual médica", owner: "Consultor Externo", phase: "Jurídico" }
+      ],
+      done: [
+        { title: "Kickoff com advisors", owner: "Ciro Ribeiro", phase: "Planejamento" },
+        { title: "Leitura preliminar das unidades", owner: "Arthur Bueno", phase: "Operacional" }
+      ]
+    },
+    insights: [
+      "Tema crítico está na integração operacional e no risco regulatório das unidades.",
+      "Estrutura de contingências reduz materialmente o EV ajustado.",
+      "Recomendação: seguir apenas com retenções robustas e plano de 100 dias disciplinado."
+    ]
+  },
+  {
+    id: "atlas-logistica",
+    name: "Atlas Logística Frigorificada",
+    companyCode: "AL",
+    status: "Concluído",
+    risk: "Baixo",
+    progress: 100,
+    startDate: "10 Fev 2026",
+    deadline: "29 Mar 2026",
+    enterpriseValue: 275000000,
+    equityValue: 188000000,
+    adjustedEnterpriseValue: 269000000,
+    adjustedEquityValue: 182000000,
+    adjustedEbitda: 41800000,
+    team: ["Bruna Cristina", "Gabriela Reis", "Arthur Bueno"],
+    tags: ["Logística", "Aquisição", "Mercosul"],
+    sector: "Logística",
+    transaction: "Aquisição",
+    geography: "Mercosul",
+    summary: "Aquisição com diligência concluída e risco residual baixo, concentrado em contratos cíveis e eficiência de malha.",
+    areaRisks: [
+      { area: "Financeiro", score: 38, severity: "Baixo", note: "QoE concluída sem ajustes materiais adicionais." },
+      { area: "Jurídico", score: 42, severity: "Baixo", note: "Contratos revisados com poucos pontos de atenção." },
+      { area: "Fiscal", score: 35, severity: "Baixo", note: "Compliance tributário regular." },
+      { area: "Operacional", score: 44, severity: "Baixo", note: "Melhoria de ocupação de frota como upside, não red flag." },
+      { area: "ESG", score: 29, severity: "Baixo", note: "Boas práticas de governança e segurança já implementadas." }
+    ],
+    phases: [
+      { name: "Planejamento", progress: 100, owner: "Bruna Cristina" },
+      { name: "Coleta de dados", progress: 100, owner: "Gabriela Reis" },
+      { name: "Análise por área", progress: 100, owner: "Arthur Bueno" },
+      { name: "Comitê / recomendações", progress: 100, owner: "Ciro Ribeiro" }
+    ],
+    contingencies: [
+      { title: "Discussão cível com operador regional", type: "Cível", area: "Jurídico", value: 1100000, probability: "Remota", impact: "Baixo", status: "Resolvida", owner: "Gabriela Reis", updatedAt: "29 Mar 2026", x: 24, y: 28 },
+      { title: "Renovação de licença ambiental", type: "Ambiental", area: "ESG", value: 800000, probability: "Possível", impact: "Baixo", status: "Mitigada", owner: "Arthur Bueno", updatedAt: "27 Mar 2026", x: 42, y: 36 }
+    ],
+    tasks: {
+      todo: [
+        { title: "Arquivar closing binder", owner: "Bruna Cristina", phase: "Fechamento" }
+      ],
+      doing: [],
+      done: [
+        { title: "Emitir relatório final de DD", owner: "Gabriela Reis", phase: "Comitê" },
+        { title: "Aprovação de investment memo", owner: "Arthur Bueno", phase: "Comitê" }
+      ]
+    },
+    insights: [
+      "Projeto concluído com baixo nível de red flags e recomendação positiva.",
+      "Risco residual está adequadamente mitigado para fechamento.",
+      "Caso de referência para playbook de buy-side da Rito."
+    ]
+  }
+];
+
+function diligenceProjects() {
+  return DILIGENCE_PROJECTS;
+}
+
+function activeDiligenceProject() {
+  const selectedId = state?.selectedProjectId?.diligence;
+  return diligenceProjects().find((project) => project.id === selectedId) || diligenceProjects()[0];
+}
+
+function selectDiligenceProject(projectId) {
+  if (!diligenceProjects().some((project) => project.id === projectId)) return;
+  state.selectedProjectId.diligence = projectId;
+  saveState();
+  renderAppPreservingScroll();
+}
+
+function formatCurrencyBRL(value) {
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    maximumFractionDigits: 0
+  }).format(Number(value || 0));
+}
+
+const RITO_RITES_DATA = [
+  { id: "cafe", number: "01", category: "Rede", title: "Café Sem Pauta", frequency: "Quinzenal", owner: "Arthur ou Ciro", summary: "Conversa com fundador sem deck e sem pauta rígida. O foco é ouvir, aprender e registrar a leitura do encontro no mesmo dia." },
+  { id: "mesa", number: "02", category: "Rede", title: "Mesa do Centro-Oeste", frequency: "Trimestral", owner: "Arthur + Ciro", summary: "Jantar curado para fundadores, operadores e aliados estratégicos da região. A Rito define o tema, modera e faz a comunidade acontecer." },
+  { id: "porteira", number: "03", category: "Rede", title: "Porteira Aberta", frequency: "Trimestral", owner: "Arthur ou Ciro", summary: "Visita de campo para mostrar uma operação real e tornar tangível a forma como a Rito pensa e trabalha." },
+  { id: "alumni", number: "04", category: "Rede", title: "Jantar dos Alumni", frequency: "Semestral", owner: "Arthur + Ciro", summary: "Reunir fundadores com quem a Rito já se relacionou, inclusive os não investidos, para consolidar comunidade e reputação." },
+  { id: "primeira-mesa", number: "05", category: "Construção", title: "A Primeira Mesa", frequency: "Por investida", owner: "Arthur", summary: "Jantar de passagem que marca o momento em que fundador e investidor deixam de ser contraparte e passam a ser sócios." },
+  { id: "100-dias", number: "06", category: "Construção", title: "Os Primeiros 100 Dias", frequency: "Por investida", owner: "Arthur + equipe", summary: "Presença ativa na operação após o closing para construir confiança, gerar leitura real do negócio e criar vitórias rápidas." },
+  { id: "carta", number: "07", category: "Comunicação", title: "A Carta", frequency: "Mensal", owner: "Arthur", summary: "Peça de conteúdo mais importante da Rito: direta, pessoal, sem jargão e sempre baseada em histórias reais e aprendizados honestos." },
+  { id: "relatorio", number: "08", category: "Comunicação", title: "Relatório Centro-Oeste", frequency: "Anual", owner: "Equipe Rito", summary: "Documento autoral para consolidar tese, leitura regional e autoridade sobre o ecossistema do Centro-Oeste." },
+  { id: "ic", number: "09", category: "Governança", title: "Comitê de Investimentos", frequency: "Mensal", owner: "IC completo", summary: "Momento formal para decidir com método, tese e transparência sobre os deals em andamento." },
+  { id: "conselho", number: "10", category: "Governança", title: "Conselho Estratégico", frequency: "Trimestral", owner: "Conselho + Arthur", summary: "Trazer senioridade, provocação e visão externa para a Rito sem perder agilidade operacional." },
+  { id: "evento", number: "11", category: "Lançamento", title: "A Primeira Mesa — O Evento", frequency: "Especial", owner: "Arthur + Ciro", summary: "Evento manifesto da Rito. Uma experiência de marca desenhada para mostrar a tese e a cultura da casa na prática." }
+];
+
+const RITO_RITES_SCHEDULE = [
+  ["Café Sem Pauta", "Quinzenal", "Variável", "Arthur ou Ciro", "Rede"],
+  ["Mesa do Centro-Oeste", "Trimestral", "Mar, Jun, Set, Dez", "Arthur + Ciro", "Rede"],
+  ["Porteira Aberta", "Trimestral", "Fev, Mai, Ago, Nov", "Arthur ou Ciro", "Rede"],
+  ["Jantar dos Alumni", "Semestral", "Jun, Dez", "Arthur + Ciro", "Rede"],
+  ["A Primeira Mesa", "Por investida", "Pós-signing", "Arthur", "Construção"],
+  ["Primeiros 100 Dias", "Por investida", "Pós-closing", "Arthur + equipe", "Construção"],
+  ["A Carta", "Mensal", "Dia 15", "Arthur", "Comunicação"],
+  ["Relatório Centro-Oeste", "Anual", "Dezembro", "Equipe Rito", "Comunicação"],
+  ["Comitê de Investimentos", "Mensal", "1ª sexta do mês", "IC completo", "Governança"],
+  ["Conselho Estratégico", "Trimestral", "Mar, Jun, Set, Dez", "Conselho + Arthur", "Governança"],
+  ["A Primeira Mesa — O Evento", "Especial", "Mai/Jun 2026", "Arthur + Ciro", "Lançamento"]
+];
+
+const RITO_RITES_RULES = [
+  "Ritual não se cancela. Se houver exceção, ela precisa ser justificada.",
+  "Todo ritual precisa ter um dono claro.",
+  "Todo ritual precisa ser registrado depois de acontecer.",
+  "Rituais evoluem, mas não podem perder o propósito.",
+  "Se virou obrigação sem significado, precisa ser redesenhado."
+];
+
+let activeRitesSection = "overview";
+let activeRitesCategory = "all";
+let activeRitesQuery = "";
+let activeRitesFocusId = RITO_RITES_DATA[0]?.id || "";
 
 
 function workspaceLogoMarkup(workspaceId, variant = "default") {
@@ -663,6 +919,16 @@ function workspaceLogoMarkup(workspaceId, variant = "default") {
         <circle cx="50" cy="23" r="7" fill="#f4b400"/>
         <path d="M18 38 L18 66 L29 84 L71 84 L82 66 L82 38 L63 47 L50 38 L37 47 Z" fill="#f4b400"/>
         <rect x="30" y="89" width="40" height="7" fill="#f4b400"/>
+      </svg>
+    `;
+  }
+  if (workspaceId === "diligence") {
+    return `
+      <svg class="workspace-logo workspace-logo-diligence workspace-logo-${variant}" viewBox="0 0 180 100" aria-hidden="true">
+        <text x="20" y="56" font-size="44" font-family="Georgia, 'Times New Roman', serif" fill="#1e1d21">Rito</text>
+        <text x="24" y="80" font-size="18" font-family="Calibri, 'Segoe UI', sans-serif" letter-spacing="1.5" fill="#1e1d21">ventures</text>
+        <rect x="120" y="28" width="42" height="28" rx="8" fill="#f1efe8" stroke="#cfd5dd"/>
+        <text x="129" y="47" font-size="14" font-family="Calibri, 'Segoe UI', sans-serif" font-weight="700" letter-spacing="1.2" fill="#1e1d21">DD</text>
       </svg>
     `;
   }
@@ -1660,40 +1926,48 @@ function seedData() {
   const today = new Date();
   return {
     theme: "light",
-    workspaceOrder: ["rito", "fast"],
+    workspaceOrder: ["rito", "fast", "diligence"],
     currentWorkspace: "rito",
     currentView: {
       rito: "dashboard",
-      fast: "dashboard"
+      fast: "dashboard",
+      diligence: "dashboard"
     },
     selectedProjectId: {
       rito: "",
-      fast: ""
+      fast: "",
+      diligence: ""
     },
     projectReturnView: {
       rito: "crm",
-      fast: "dashboard"
+      fast: "dashboard",
+      diligence: "dashboard"
     },
     dashboardFilters: {
       rito: { stage: "Todos", temp: "Todos", query: "" },
-      fast: { stage: "Todos", temp: "Todos", query: "" }
+      fast: { stage: "Todos", temp: "Todos", query: "" },
+      diligence: { stage: "Todos", temp: "Todos", query: "" }
     },
     pipelineFilters: {
       rito: { temp: "Todos", query: "" },
-      fast: { temp: "Todos", query: "" }
+      fast: { temp: "Todos", query: "" },
+      diligence: { temp: "Todos", query: "" }
     },
     referenceViewModes: {
       rito: { crm: "cards", invested: "cards" },
-      fast: { crm: "cards", invested: "cards" }
+      fast: { crm: "cards", invested: "cards" },
+      diligence: { crm: "cards", invested: "cards" }
     },
     fastDashboardStatusFocus: "",
     calendarCursor: {
       rito: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`,
-      fast: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`
+      fast: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`,
+      diligence: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`
     },
     kanbanCompletedVisibility: {
       rito: {},
-      fast: {}
+      fast: {},
+      diligence: {}
     },
     sharedMembers: [],
     workspaces: {
@@ -1709,6 +1983,15 @@ function seedData() {
       fast: {
         taskThemes: [...DEFAULT_TASK_THEMES.fast],
         projectThemes: [...DEFAULT_PROJECT_THEMES.fast],
+        taskItems: [],
+        projectBoards: {},
+        documents: [],
+        members: []
+      },
+      diligence: {
+        crmItems: [],
+        taskThemes: [...DEFAULT_TASK_THEMES.diligence],
+        projectThemes: [...DEFAULT_PROJECT_THEMES.diligence],
         taskItems: [],
         projectBoards: {},
         documents: [],
@@ -2931,7 +3214,11 @@ function renderApp() {
   const landingTopbarMark = document.getElementById("landingTopbarMark");
   const workspaceHomeButton = document.getElementById("workspaceHomeButton");
   document.getElementById("sidebarWorkspaceTitle").textContent = config.name;
-  document.querySelector(".workspace-switcher .eyebrow").textContent = state.currentWorkspace === "rito" ? "Portfolio" : "Ambiente";
+  document.querySelector(".workspace-switcher .eyebrow").textContent = state.currentWorkspace === "rito"
+    ? "Portfolio"
+    : state.currentWorkspace === "diligence"
+      ? "Deal Room"
+      : "Ambiente";
   if (landing) {
     workspaceEyebrow.textContent = "WORKSPACE";
     pageCrumb.textContent = "";
@@ -2998,6 +3285,7 @@ function tabTitle(view) {
   if (state.currentWorkspace === "rito" && view === "settings") return "Configurações";
   if (state.currentWorkspace === "atica" && view === "tasks") return "Kanban Ática";
   if (state.currentWorkspace === "fast" && view === "tasks") return "Kanban Fast";
+  if (state.currentWorkspace === "diligence" && view === "tasks") return "Tracking";
   return viewLabels[view];
 }
 
@@ -3011,6 +3299,14 @@ function renderCurrentView() {
   try {
     const currentView = state.currentView[state.currentWorkspace];
     target.innerHTML = "";
+    if (state.currentWorkspace === "diligence") {
+      if (currentView === "dashboard") target.appendChild(renderDueDiligenceDashboard());
+      if (currentView === "tasks") target.appendChild(renderTasksBoard());
+      if (currentView === "documents") target.appendChild(renderDocuments());
+      if (currentView === "members") target.appendChild(renderMembers());
+      if (currentView === "settings") target.appendChild(renderRitoSettingsPage());
+      return;
+    }
     if (usingReferenceDashboard()) {
       if (currentView === "projectDetail") target.appendChild(renderRitoProjectDetailPage());
       if (currentView === "dashboard") target.appendChild(renderRitoReferenceDashboard());
@@ -3019,6 +3315,7 @@ function renderCurrentView() {
         if (currentView === "invested") target.appendChild(renderRitoInvestedPage());
         if (currentView === "tasks") target.appendChild(renderTasksBoard());
         if (currentView === "projectBoards") target.appendChild(renderProjectBoards());
+        if (currentView === "rites") target.appendChild(renderRitoRitesPage());
         if (currentView === "documents") target.appendChild(renderRitoDocumentsPage());
         if (currentView === "members") target.appendChild(renderRitoMembersPage());
         if (currentView === "settings") target.appendChild(renderRitoSettingsPage());
@@ -3136,8 +3433,233 @@ function tabTitleForWorkspace(workspaceId, view) {
   if (workspaceId === "rito" && view === "tasks") return "Kanban";
   if (workspaceId === "rito" && view === "projectBoards") return "Projetos";
   if (workspaceId === "fast" && view === "tasks") return "Kanban";
+  if (workspaceId === "diligence" && view === "tasks") return "Tracking";
   if (workspaceId === "atica" && view === "tasks") return "Kanban";
   return viewLabels[view];
+}
+
+function renderDueDiligenceDashboard() {
+  const panel = document.createElement("section");
+  panel.className = "content-grid ref-page workspace-soft-page diligence-page";
+
+  const projects = diligenceProjects();
+  const project = activeDiligenceProject();
+  const { areaRisks, phases, contingencies, tasks, insights } = project;
+  const totalExposure = contingencies.reduce((sum, item) => sum + item.value, 0);
+  const provisionedExposure = contingencies.reduce((sum, item) => {
+    const probabilityWeight = item.probability === "Provável" ? 1 : item.probability === "Possível" ? 0.5 : 0.2;
+    return sum + (item.value * probabilityWeight);
+  }, 0);
+  const overallRiskScore = Math.round(areaRisks.reduce((sum, item) => sum + item.score, 0) / areaRisks.length);
+  const weightedArea = areaRisks[0];
+
+  panel.innerHTML = `
+    <section class="panel diligence-hero">
+      <div class="diligence-hero-copy">
+        <span class="diligence-kicker">Rito Ventures • Due Diligence</span>
+        <h3>${project.name}</h3>
+        <p>${project.summary}</p>
+        <div class="diligence-chip-row">
+          <span class="soft-pill chip-blue">${project.status}</span>
+          <span class="soft-pill ${project.risk === "Alto" ? "chip-rose" : project.risk === "Médio" ? "chip-gold" : "chip-green"}">Risco ${project.risk}</span>
+          ${project.tags.map((tag) => `<span class="soft-pill chip-stone">${tag}</span>`).join("")}
+        </div>
+      </div>
+      <div class="diligence-hero-aside">
+        <div class="diligence-score-ring">
+          <div class="diligence-score-value">${overallRiskScore}</div>
+          <span>score geral</span>
+        </div>
+        <div class="diligence-hero-meta">
+          <div><strong>${project.progress}%</strong><span>progresso</span></div>
+          <div><strong>${project.deadline}</strong><span>deadline</span></div>
+          <div><strong>${weightedArea.area}</strong><span>área crítica</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header">
+        <div><h3>Projetos em auditoria</h3><p>Selecione um card para trocar todo o dashboard do workspace</p></div>
+        <span class="soft-pill chip-neutral">${projects.length} projetos</span>
+      </div>
+      <div class="diligence-project-grid diligence-project-grid-selector">
+        ${projects.map((item) => `
+          <button class="diligence-project-card diligence-project-selector ${item.id === project.id ? "is-active" : ""}" data-diligence-project="${item.id}" type="button">
+            <div class="diligence-project-top">
+              <strong>${item.name}</strong>
+              <span class="soft-pill ${item.risk === "Alto" ? "chip-rose" : item.risk === "Médio" ? "chip-gold" : "chip-green"}">${item.risk}</span>
+            </div>
+            <p>${item.sector} • ${item.transaction} • ${item.geography}</p>
+            <div class="diligence-chip-row">
+              <span class="soft-pill chip-stone">${item.companyCode}</span>
+              <span class="soft-pill chip-stone">${item.status}</span>
+            </div>
+            <div class="diligence-progress-track"><span style="width:${item.progress}%"></span></div>
+            <div class="diligence-project-meta"><span>Prazo ${item.deadline}</span><strong>${item.progress}%</strong></div>
+          </button>
+        `).join("")}
+      </div>
+    </section>
+
+    <section class="diligence-metric-grid">
+      <article class="metric-card"><p class="metric-label">Enterprise Value ajustado</p><strong class="metric-value">${formatCurrencyBRL(project.adjustedEnterpriseValue)}</strong><span class="metric-footnote">Base anterior: ${formatCurrencyBRL(project.enterpriseValue)}</span></article>
+      <article class="metric-card"><p class="metric-label">Equity Value impactado</p><strong class="metric-value">${formatCurrencyBRL(project.adjustedEquityValue)}</strong><span class="metric-footnote">Base anterior: ${formatCurrencyBRL(project.equityValue)}</span></article>
+      <article class="metric-card"><p class="metric-label">EBITDA ajustado</p><strong class="metric-value">${formatCurrencyBRL(project.adjustedEbitda)}</strong><span class="metric-footnote">QoE e normalizações concluídas em 68%</span></article>
+      <article class="metric-card"><p class="metric-label">Provisionamento estimado</p><strong class="metric-value">${formatCurrencyBRL(provisionedExposure)}</strong><span class="metric-footnote">Probabilidade x valor das contingências</span></article>
+    </section>
+
+    <section class="diligence-section-grid">
+      <section class="panel">
+        <div class="panel-header">
+          <div><h3>Resumo executivo</h3><p>Leitura rápida do projeto ativo no workspace da Rito</p></div>
+        </div>
+        <div class="diligence-project-grid">
+          ${[
+            ["Setor", project.sector, "Mandato"],
+            ["Tipo de transação", project.transaction, "Estrutura"],
+            ["Geografia", project.geography, "Escopo"],
+            ["Responsáveis", project.team.join(" • "), "Owners"]
+          ].map((item) => `
+            <article class="diligence-project-card">
+              <div class="diligence-project-top">
+                <strong>${item[0]}</strong>
+                <span class="soft-pill chip-neutral">${item[2]}</span>
+              </div>
+              <p>${item[1]}</p>
+              <div class="diligence-progress-track"><span style="width:${project.progress}%"></span></div>
+              <div class="diligence-project-meta"><span>${project.status}</span><strong>${project.progress}%</strong></div>
+            </article>
+          `).join("")}
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div><h3>Fases da DD</h3><p>Tracking macro do projeto principal</p></div>
+        </div>
+        <div class="diligence-phase-list">
+          ${phases.map((phase) => `
+            <article class="diligence-phase-row">
+              <div>
+                <strong>${phase.name}</strong>
+                <p>${phase.owner}</p>
+              </div>
+              <div class="diligence-phase-progress">
+                <div class="diligence-progress-track"><span style="width:${phase.progress}%"></span></div>
+                <strong>${phase.progress}%</strong>
+              </div>
+            </article>
+          `).join("")}
+        </div>
+      </section>
+    </section>
+
+    <section class="diligence-section-grid">
+      <section class="panel">
+        <div class="panel-header">
+          <div><h3>Risco por área</h3><p>Peso analítico com foco em impacto no deal</p></div>
+        </div>
+        <div class="diligence-risk-list">
+          ${areaRisks.map((item) => `
+            <article class="diligence-risk-row">
+              <div class="diligence-risk-main">
+                <div class="diligence-risk-head">
+                  <strong>${item.area}</strong>
+                  <span class="soft-pill ${item.severity === "Alto" ? "chip-rose" : item.severity === "Médio" ? "chip-gold" : "chip-green"}">${item.severity}</span>
+                </div>
+                <p>${item.note}</p>
+                <div class="diligence-progress-track"><span style="width:${item.score}%"></span></div>
+              </div>
+              <strong class="diligence-risk-score">${item.score}</strong>
+            </article>
+          `).join("")}
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div><h3>Matriz de risco</h3><p>Probabilidade no eixo X e impacto no eixo Y</p></div>
+        </div>
+        <div class="diligence-risk-matrix">
+          <div class="diligence-risk-matrix-bg"></div>
+          ${contingencies.map((item) => `
+            <button class="diligence-risk-dot ${item.x > 70 || item.y > 70 ? "is-danger" : item.x > 45 || item.y > 45 ? "is-warning" : "is-safe"}" style="left:${item.x}%; bottom:${item.y}%;" type="button" title="${item.title}">${item.type.slice(0, 2).toUpperCase()}</button>
+          `).join("")}
+          <span class="diligence-axis diligence-axis-x">Probabilidade</span>
+          <span class="diligence-axis diligence-axis-y">Impacto</span>
+        </div>
+      </section>
+    </section>
+
+    <section class="diligence-section-grid">
+      <section class="panel">
+        <div class="panel-header">
+          <div><h3>Dashboard de contingências</h3><p>Exposição total, status e responsáveis</p></div>
+          <span class="soft-pill chip-rose">${formatCurrencyBRL(totalExposure)}</span>
+        </div>
+        <div class="diligence-table">
+          ${contingencies.map((item) => `
+            <article class="diligence-table-row">
+              <div>
+                <strong>${item.title}</strong>
+                <p>${item.type} • ${item.area} • ${item.owner}</p>
+              </div>
+              <div><span>${item.probability}</span></div>
+              <div><span>${item.status}</span></div>
+              <div><strong>${formatCurrencyBRL(item.value)}</strong><p>${item.updatedAt}</p></div>
+            </article>
+          `).join("")}
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div><h3>Insights automáticos</h3><p>Red flags, recomendação e leitura executiva</p></div>
+        </div>
+        <div class="diligence-insights-list">
+          ${insights.map((item) => `<article class="diligence-insight-item"><strong>Insight</strong><p>${item}</p></article>`).join("")}
+        </div>
+        <div class="diligence-summary-card">
+          <strong>Sumário executivo</strong>
+          <p>A due diligence indica ativo com fundamentos operacionais consistentes, porém com risco financeiro e fiscal acima do apetite-base. A recomendação é seguir para comitê com ajuste de valuation, escrow tributário e plano de mitigação para clientes concentrados.</p>
+        </div>
+      </section>
+    </section>
+
+    <section class="diligence-section-grid">
+      <section class="panel">
+        <div class="panel-header">
+          <div><h3>Tasks e tracking</h3><p>Checklist operacional da DD por status</p></div>
+        </div>
+        <div class="diligence-task-board">
+          <div class="diligence-task-column"><strong>To do</strong>${tasks.todo.map((task) => `<article class="diligence-task-card"><h4>${task.title}</h4><p>${task.phase}</p><span>${task.owner}</span></article>`).join("")}</div>
+          <div class="diligence-task-column"><strong>Doing</strong>${tasks.doing.map((task) => `<article class="diligence-task-card"><h4>${task.title}</h4><p>${task.phase}</p><span>${task.owner}</span></article>`).join("")}</div>
+          <div class="diligence-task-column"><strong>Done</strong>${tasks.done.map((task) => `<article class="diligence-task-card"><h4>${task.title}</h4><p>${task.phase}</p><span>${task.owner}</span></article>`).join("")}</div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div><h3>Governança do projeto</h3><p>Patrocinadores, cronograma e ownership</p></div>
+        </div>
+        <div class="diligence-governance-list">
+          <article><strong>Responsáveis</strong><p>${project.team.join(" • ")}</p></article>
+          <article><strong>Início</strong><p>${project.startDate}</p></article>
+          <article><strong>Prazo final</strong><p>${project.deadline}</p></article>
+          <article><strong>Recomendação</strong><p>Prosseguir com ressalvas e mecanismos de proteção no SPA.</p></article>
+        </div>
+      </section>
+    </section>
+  `;
+
+  panel.querySelectorAll("[data-diligence-project]").forEach((button) => {
+    button.addEventListener("click", () => {
+      selectDiligenceProject(button.dataset.diligenceProject);
+    });
+  });
+
+  return panel;
 }
 
 function renderDashboard() {
@@ -4231,6 +4753,401 @@ function renderRitoProjectBoardsPage() {
     board.appendChild(col);
   });
   page.appendChild(board);
+  return page;
+}
+
+function ritoRitesDocuments() {
+  const documents = Array.isArray(workspaceData().documents) ? workspaceData().documents : [];
+  return documents.filter((doc) => {
+    const linkedTo = String(doc.linkedTo || "").trim().toLowerCase();
+    const category = String(doc.category || "").trim().toLowerCase();
+    return linkedTo === "rituais" || linkedTo.includes("ritual") || category.includes("ritual");
+  });
+}
+
+function ritoRitesCategoryClass(category = "") {
+  const key = String(category || "").trim().toLowerCase();
+  if (key === "rede") return "is-network";
+  if (key === "construção" || key === "construcao") return "is-build";
+  if (key === "comunicação" || key === "comunicacao") return "is-voice";
+  if (key === "governança" || key === "governanca") return "is-governance";
+  if (key === "lançamento" || key === "lancamento") return "is-launch";
+  return "is-neutral";
+}
+
+function ritoRitesCategories() {
+  return [...new Set(RITO_RITES_DATA.map((item) => item.category))];
+}
+
+function ritoRitesMatches(item) {
+  const query = normalizeText(activeRitesQuery);
+  const category = normalizeText(activeRitesCategory);
+  const haystack = normalizeText([
+    item.number,
+    item.category,
+    item.title,
+    item.frequency,
+    item.owner,
+    item.summary
+  ].join(" "));
+  const matchesCategory = !category || category === "all" || normalizeText(item.category) === category;
+  const matchesQuery = !query || haystack.includes(query);
+  return matchesCategory && matchesQuery;
+}
+
+function ritoFilteredRitesData() {
+  return RITO_RITES_DATA.filter(ritoRitesMatches);
+}
+
+function ritoFocusItem(items = ritoFilteredRitesData()) {
+  if (!items.length) return null;
+  const focused = items.find((item) => item.id === activeRitesFocusId);
+  return focused || items[0];
+}
+
+function ritoScheduleRowForItem(item) {
+  if (!item) return null;
+  return RITO_RITES_SCHEDULE.find((row) => normalizeText(row[0]) === normalizeText(item.title)) || null;
+}
+
+function renderRitoRitesToolbar() {
+  const section = document.createElement("section");
+  const categories = ritoRitesCategories();
+  const filteredItems = ritoFilteredRitesData();
+  section.className = "panel rites-toolbar";
+  section.innerHTML = `
+    <div class="rites-toolbar-row">
+      <label class="search-field top-search rites-search">
+        <span>Buscar rito</span>
+        <input type="search" value="${escapeAttr(activeRitesQuery)}" placeholder="Nome, dono, cadência ou frente" data-rites-input="query">
+      </label>
+      <div class="rites-toolbar-meta">
+        <strong>${filteredItems.length}</strong>
+        <span>ritos visíveis com os filtros atuais</span>
+      </div>
+    </div>
+    <div class="rites-toolbar-pills">
+      <button class="soft-pill ${activeRitesCategory === "all" ? "is-active" : ""}" data-rites-category="all" type="button">Todas</button>
+      ${categories.map((category) => `
+        <button class="soft-pill ${normalizeText(activeRitesCategory) === normalizeText(category) ? "is-active" : ""}" data-rites-category="${escapeAttr(category)}" type="button">${escapeHTML(category)}</button>
+      `).join("")}
+    </div>
+  `;
+  return section;
+}
+
+function renderRitoRitesDetailCard(item) {
+  const card = document.createElement("aside");
+  card.className = "panel rites-detail-card";
+  if (!item) {
+    card.innerHTML = `
+      <span class="rites-detail-label">Sem resultados</span>
+      <strong>Nenhum rito encontrado com o filtro atual.</strong>
+      <p>Limpe a busca ou troque a frente para voltar a navegar pelo operating system da Rito.</p>
+    `;
+    return card;
+  }
+  const schedule = ritoScheduleRowForItem(item);
+  const relatedDocuments = ritoRitesDocuments().filter((doc) => {
+    const source = normalizeText([doc.name || "", doc.title || "", doc.category || "", doc.linkedTo || ""].join(" "));
+    return source.includes(normalizeText(item.title)) || source.includes(normalizeText(item.category));
+  });
+  card.innerHTML = `
+    <div class="rites-detail-head">
+      <div>
+        <span class="rites-detail-label">Rito em foco</span>
+        <strong>${escapeHTML(item.number)}. ${escapeHTML(item.title)}</strong>
+      </div>
+      <span class="chip chip-neutral">${escapeHTML(item.category)}</span>
+    </div>
+    <p>${escapeHTML(item.summary)}</p>
+    <div class="rites-detail-meta">
+      <div><span>Cadência</span><strong>${escapeHTML(item.frequency)}</strong></div>
+      <div><span>Dono</span><strong>${escapeHTML(item.owner)}</strong></div>
+      <div><span>Quando</span><strong>${escapeHTML(schedule?.[2] || "A definir")}</strong></div>
+      <div><span>Suporte</span><strong>${relatedDocuments.length} documento${relatedDocuments.length === 1 ? "" : "s"}</strong></div>
+    </div>
+    <div class="rites-detail-actions">
+      <button class="ghost-button" data-rites-nav="calendar" type="button">Ver no calendário</button>
+      <button class="ghost-button" data-rites-nav="models" type="button">Abrir modelos</button>
+      <button class="action-button" data-rites-nav="library" type="button">Abrir biblioteca</button>
+    </div>
+  `;
+  return card;
+}
+
+function renderRitoRitesOverview() {
+  const documents = ritoRitesDocuments();
+  const filteredItems = ritoFilteredRitesData();
+  const categories = [...new Set(filteredItems.map((item) => item.category))];
+  const focusedItem = ritoFocusItem(filteredItems);
+  const page = document.createElement("section");
+  page.className = "rites-section rites-overview";
+  const spotlightItems = filteredItems.slice(0, 3);
+  page.innerHTML = `
+    <section class="panel rites-hero">
+      <div class="rites-hero-grid">
+        <div class="rites-hero-copy">
+          <p class="eyebrow">Operating system da marca</p>
+          <h3>Os ritos da Rito Ventures transformam tese em presença, comunidade e disciplina institucional.</h3>
+          <p>Esta frente organiza o calendário simbólico da casa, os materiais de apoio e a leitura operacional dos encontros que sustentam reputação, governança e construção de portfólio.</p>
+          <div class="rites-hero-tags">
+            <span>Marca</span>
+            <span>Comunidade</span>
+            <span>Governança</span>
+            <span>Portfólio</span>
+          </div>
+        </div>
+        <aside class="rites-manifesto-card">
+          <span class="rites-manifesto-label">Direção</span>
+          <strong>Rito não é cerimônia vazia.</strong>
+          <p>Cada encontro precisa carregar intenção, dono, registro e efeito claro na percepção da Rito e na relação com fundadores.</p>
+        </aside>
+      </div>
+      <div class="rites-stat-grid">
+        <article class="rites-stat-card"><strong>${filteredItems.length}</strong><span>Ritos visíveis</span><small>Arquitetura ativa no filtro atual</small></article>
+        <article class="rites-stat-card"><strong>${categories.length}</strong><span>Frentes operacionais</span><small>Rede, construção, voz e governança</small></article>
+        <article class="rites-stat-card"><strong>${documents.length}</strong><span>Modelos enviados</span><small>Cartas, convites, roteiros e suporte</small></article>
+        <article class="rites-stat-card"><strong>${RITO_RITES_SCHEDULE.length}</strong><span>Cadências-base</span><small>Rotina executiva organizada por dono</small></article>
+      </div>
+    </section>
+  `;
+  const spotlight = document.createElement("section");
+  spotlight.className = "rites-overview-grid";
+  const spotlightGrid = document.createElement("div");
+  spotlightGrid.className = "rites-spotlight-grid";
+  spotlightItems.forEach((item) => {
+    const card = document.createElement("article");
+    card.className = `panel rites-spotlight-card ${ritoRitesCategoryClass(item.category)} ${item.id === focusedItem?.id ? "is-active" : ""}`;
+    card.setAttribute("data-rites-focus", item.id);
+    card.innerHTML = `
+      <div class="rites-spotlight-top">
+        <span class="rites-spotlight-index">${escapeHTML(item.number)}</span>
+        <span class="chip chip-neutral">${escapeHTML(item.category)}</span>
+      </div>
+      <h4>${escapeHTML(item.title)}</h4>
+      <p>${escapeHTML(item.summary)}</p>
+      <div class="rites-spotlight-meta">
+        <div><span>Cadência</span><strong>${escapeHTML(item.frequency)}</strong></div>
+        <div><span>Dono</span><strong>${escapeHTML(item.owner)}</strong></div>
+      </div>
+    `;
+    spotlightGrid.appendChild(card);
+  });
+  spotlight.appendChild(spotlightGrid);
+  spotlight.appendChild(renderRitoRitesDetailCard(focusedItem));
+  page.appendChild(spotlight);
+  const grid = document.createElement("section");
+  grid.className = "rites-category-grid";
+  categories.forEach((category) => {
+    const items = filteredItems.filter((item) => item.category === category);
+    const card = document.createElement("article");
+    card.className = `panel rites-category-card ${ritoRitesCategoryClass(category)}`;
+    card.innerHTML = `
+      <div class="panel-header">
+        <div>
+          <h4>${escapeHTML(category)}</h4>
+          <p>${items.length} rito${items.length > 1 ? "s" : ""} nesta frente estratégica</p>
+        </div>
+      </div>
+      <div class="rites-bullet-list">
+        ${items.map((item) => `
+          <button class="rites-bullet-row ${item.id === focusedItem?.id ? "is-active" : ""}" data-rites-focus="${escapeAttr(item.id)}" type="button">
+            <strong>${escapeHTML(item.number)}. ${escapeHTML(item.title)}</strong>
+            <p>${escapeHTML(item.summary)}</p>
+            <span>${escapeHTML(item.frequency)}  •  ${escapeHTML(item.owner)}</span>
+          </button>
+        `).join("")}
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+  page.appendChild(grid);
+  return page;
+}
+
+function renderRitoRitesLibrary() {
+  const filteredItems = ritoFilteredRitesData();
+  const focusedItem = ritoFocusItem(filteredItems);
+  const section = document.createElement("section");
+  section.className = "rites-library-shell";
+  const grid = document.createElement("section");
+  grid.className = "rites-library-grid";
+  filteredItems.forEach((item) => {
+    const card = document.createElement("article");
+    card.className = `panel rites-library-card ${ritoRitesCategoryClass(item.category)} ${item.id === focusedItem?.id ? "is-active" : ""}`;
+    card.setAttribute("data-rites-focus", item.id);
+    card.innerHTML = `
+      <div class="rites-library-head">
+        <span class="chip chip-neutral">${escapeHTML(item.category)}</span>
+        <span class="rites-library-index">${escapeHTML(item.number)}</span>
+      </div>
+      <h4>${escapeHTML(item.title)}</h4>
+      <p>${escapeHTML(item.summary)}</p>
+      <div class="rites-library-meta">
+        <div><span>Frequência</span><strong>${escapeHTML(item.frequency)}</strong></div>
+        <div><span>Dono</span><strong>${escapeHTML(item.owner)}</strong></div>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+  if (!filteredItems.length) {
+    grid.innerHTML = `<article class="panel rites-empty-state"><strong>Nenhum rito encontrado.</strong><p class="subtle">Ajuste a busca ou troque a frente para ampliar a biblioteca.</p></article>`;
+  }
+  section.appendChild(grid);
+  section.appendChild(renderRitoRitesDetailCard(focusedItem));
+  return section;
+}
+
+function renderRitoRitesModels() {
+  const documents = ritoRitesDocuments();
+  const section = document.createElement("section");
+  section.className = "rites-models-shell";
+  section.innerHTML = `
+    <section class="panel rites-models-hero">
+      <div class="panel-header">
+        <div>
+          <h4>Modelos e materiais de apoio</h4>
+          <p>Central de documentos que dão consistência à comunicação da Rito: cartas, convites, roteiros, pautas, cronogramas e relatórios.</p>
+        </div>
+        <div class="page-head-actions">
+          <button class="ghost-button" data-rites-action="open-documents" type="button">Abrir biblioteca</button>
+          <button class="action-button" data-rites-action="upload-model" type="button">Upload de modelo</button>
+        </div>
+      </div>
+    </section>
+  `;
+  const list = document.createElement("section");
+  list.className = "rites-model-list";
+  if (!documents.length) {
+    list.innerHTML = `
+      <article class="panel rites-model-card">
+        <strong>Nenhum modelo enviado ainda.</strong>
+        <p class="subtle">Use o upload para começar a biblioteca dos ritos com cartas, convites, cronogramas e roteiros.</p>
+      </article>
+    `;
+  } else {
+    documents.forEach((doc) => {
+      const documentName = String(doc.name || doc.title || "Documento").trim();
+      const rawUrl = resolveDocumentUrl(doc);
+      const fileUrl = toFileHref(rawUrl);
+      const meta = [
+        String(doc.category || "Rituais").trim(),
+        String(doc.uploadedAt || "").trim()
+      ].filter(Boolean).join(" - ");
+      const card = document.createElement("article");
+      card.className = "panel rites-model-card";
+      card.innerHTML = `
+        <div class="rites-model-badge">Template</div>
+        <div class="rites-model-main">
+          <strong>${escapeHTML(documentName)}</strong>
+          <p class="subtle">${escapeHTML(meta || "Material da biblioteca de ritos")}</p>
+        </div>
+        <div class="inline-actions">
+          ${fileUrl
+            ? `<a class="ghost-button" href="${escapeAttr(fileUrl)}" target="_blank" rel="noreferrer">Abrir</a>
+               <a class="action-button" href="${escapeAttr(fileUrl)}" download="${escapeAttr(documentName)}" target="_blank" rel="noreferrer">Download</a>`
+            : `<button class="ghost-button" disabled>Abrir</button>
+               <button class="action-button" disabled>Download</button>`}
+        </div>
+      `;
+      list.appendChild(card);
+    });
+  }
+  section.appendChild(list);
+  return section;
+}
+
+function renderRitoRitesCalendar() {
+  const filteredItems = ritoFilteredRitesData();
+  const filteredTitles = new Set(filteredItems.map((item) => normalizeText(item.title)));
+  const filteredSchedule = RITO_RITES_SCHEDULE.filter((row) => filteredTitles.has(normalizeText(row[0])));
+  const focusedItem = ritoFocusItem(filteredItems);
+  const section = document.createElement("section");
+  section.className = "rites-calendar-shell";
+  const panel = document.createElement("section");
+  panel.className = "panel rites-calendar-panel";
+  panel.innerHTML = `
+    <div class="panel-header">
+      <div>
+        <h4>Calendário operacional</h4>
+        <p>Agenda executiva dos ritos que organizam presença de marca, rotina institucional e relacionamento com fundadores.</p>
+      </div>
+      <div class="rites-calendar-note">Base 2026</div>
+    </div>
+  `;
+  const table = document.createElement("div");
+  table.className = "rites-calendar-table";
+  table.innerHTML = `
+    <div class="rites-calendar-row rites-calendar-head">
+      <span>Rito</span>
+      <span>Cadência</span>
+      <span>Quando</span>
+      <span>Dono</span>
+      <span>Frente</span>
+    </div>
+    ${filteredSchedule.map((row) => {
+      const matchedItem = filteredItems.find((item) => normalizeText(item.title) === normalizeText(row[0]));
+      return `
+      <button class="rites-calendar-row ${ritoRitesCategoryClass(row[4])} ${matchedItem?.id === focusedItem?.id ? "is-active" : ""}" data-rites-focus="${escapeAttr(matchedItem?.id || "")}" type="button">
+        <strong>${escapeHTML(row[0])}</strong>
+        <span>${escapeHTML(row[1])}</span>
+        <span>${escapeHTML(row[2])}</span>
+        <span>${escapeHTML(row[3])}</span>
+        <span>${escapeHTML(row[4])}</span>
+      </button>
+    `;
+    }).join("")}
+  `;
+  panel.appendChild(table);
+  section.appendChild(panel);
+  section.appendChild(renderRitoRitesDetailCard(focusedItem));
+  return section;
+}
+
+function renderRitoRitesRules() {
+  const focusedItem = ritoFocusItem();
+  const section = document.createElement("section");
+  section.className = "rites-rules-shell";
+  const grid = document.createElement("section");
+  grid.className = "rites-rules-grid";
+  RITO_RITES_RULES.forEach((rule, index) => {
+    const card = document.createElement("article");
+    card.className = "panel rites-rule-card";
+    card.innerHTML = `
+      <span class="rites-rule-index">Regra ${index + 1}</span>
+      <p>${escapeHTML(rule)}</p>
+    `;
+    grid.appendChild(card);
+  });
+  section.appendChild(grid);
+  section.appendChild(renderRitoRitesDetailCard(focusedItem));
+  return section;
+}
+
+function renderRitoRitesPage() {
+  const page = document.createElement("section");
+  page.className = "content-grid ref-page rites-page";
+  page.innerHTML = `
+    <section class="page-head rites-page-head">
+      <div><h3>Ritos</h3><p>Arquitetura de marca, relacionamento e governança da Rito Ventures</p></div>
+      <div class="page-head-actions">
+        <div class="segmented rites-segmented">
+          <button class="${activeRitesSection === "overview" ? "is-active" : ""}" data-rites-section="overview" type="button">Visão Geral</button>
+          <button class="${activeRitesSection === "library" ? "is-active" : ""}" data-rites-section="library" type="button">Biblioteca</button>
+          <button class="${activeRitesSection === "models" ? "is-active" : ""}" data-rites-section="models" type="button">Modelos</button>
+          <button class="${activeRitesSection === "calendar" ? "is-active" : ""}" data-rites-section="calendar" type="button">Calendário</button>
+          <button class="${activeRitesSection === "rules" ? "is-active" : ""}" data-rites-section="rules" type="button">Regras</button>
+        </div>
+      </div>
+    </section>
+  `;
+  page.appendChild(renderRitoRitesToolbar());
+  if (activeRitesSection === "overview") page.appendChild(renderRitoRitesOverview());
+  if (activeRitesSection === "library") page.appendChild(renderRitoRitesLibrary());
+  if (activeRitesSection === "models") page.appendChild(renderRitoRitesModels());
+  if (activeRitesSection === "calendar") page.appendChild(renderRitoRitesCalendar());
+  if (activeRitesSection === "rules") page.appendChild(renderRitoRitesRules());
   return page;
 }
 
@@ -5650,10 +6567,62 @@ function bindStaticActions() {
   document.querySelectorAll("[data-action='export-tasks']").forEach((button) => { button.onclick = () => alert("Exportações locais foram desativadas."); });
   bindInlineEditing();
   bindReferenceActions();
+  bindRitoRitesActions();
   if (!window.__workspaceDropdownBound) {
     document.addEventListener("click", handleOutsideWorkspaceDropdown);
     window.__workspaceDropdownBound = true;
   }
+}
+
+function bindRitoRitesActions() {
+  const root = document.getElementById("appContent");
+  if (!root) return;
+  root.querySelectorAll("[data-rites-section]").forEach((button) => {
+    button.onclick = () => {
+      activeRitesSection = button.dataset.ritesSection || "overview";
+      renderApp();
+    };
+  });
+  root.querySelectorAll("[data-rites-category]").forEach((button) => {
+    button.onclick = () => {
+      activeRitesCategory = button.dataset.ritesCategory || "all";
+      const focused = ritoFocusItem();
+      activeRitesFocusId = focused?.id || "";
+      renderApp();
+    };
+  });
+  root.querySelectorAll("[data-rites-focus]").forEach((button) => {
+    button.onclick = () => {
+      const id = button.dataset.ritesFocus || "";
+      if (!id) return;
+      activeRitesFocusId = id;
+      renderApp();
+    };
+  });
+  root.querySelectorAll("[data-rites-nav]").forEach((button) => {
+    button.onclick = () => {
+      activeRitesSection = button.dataset.ritesNav || "overview";
+      renderApp();
+    };
+  });
+  root.querySelectorAll("[data-rites-input='query']").forEach((input) => {
+    input.oninput = () => {
+      activeRitesQuery = input.value || "";
+      const focused = ritoFocusItem();
+      activeRitesFocusId = focused?.id || "";
+      renderApp();
+    };
+  });
+  root.querySelectorAll("[data-rites-action='upload-model']").forEach((button) => {
+    button.onclick = () => openDocumentDialog("Rituais");
+  });
+  root.querySelectorAll("[data-rites-action='open-documents']").forEach((button) => {
+    button.onclick = () => {
+      state.currentView[state.currentWorkspace] = "documents";
+      saveState();
+      renderApp();
+    };
+  });
 }
 
 function bindReferenceActions() {
@@ -6655,6 +7624,14 @@ function syncInvestmentTag(item) {
 
 function normalizeProjectTagKey(tag) {
   return String(tag || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function normalizeText(value) {
+  return String(value || "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .trim()
