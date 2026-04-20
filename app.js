@@ -1396,11 +1396,48 @@ function referenceProjectAliases(project) {
   const primary = referenceProjectKey(project);
   if (primary) aliases.add(primary);
   String(project?.name || "")
-    .split("/")
+    .split(/\s+\/\s+|\s+-\s+/)
     .map((part) => normalizeReferenceIdentity(part))
     .filter(Boolean)
     .forEach((part) => aliases.add(part));
   return aliases;
+}
+
+function projectsShareReferenceIdentity(left, right) {
+  if (!left || !right) return false;
+  const leftAliases = [...referenceProjectAliases(left)];
+  const rightAliases = [...referenceProjectAliases(right)];
+  if (!leftAliases.length || !rightAliases.length) return false;
+  return leftAliases.some((leftAlias) =>
+    rightAliases.some((rightAlias) =>
+      leftAlias === rightAlias ||
+      leftAlias.includes(rightAlias) ||
+      rightAlias.includes(leftAlias)
+    )
+  );
+}
+
+function mergeRitoProjectLists(baseProjects = [], preferredProjects = []) {
+  const merged = Array.isArray(baseProjects) ? [...baseProjects] : [];
+  const preferredList = Array.isArray(preferredProjects) ? preferredProjects : [];
+  preferredList.forEach((project) => {
+    const existingIndex = merged.findIndex((existingProject) =>
+      projectsShareReferenceIdentity(existingProject, project)
+    );
+    if (existingIndex >= 0) {
+      merged[existingIndex] = project;
+    } else {
+      merged.push(project);
+    }
+  });
+  return merged;
+}
+
+function getRitoSourceProjects() {
+  const seededProjects = Array.isArray(window.__RITO_DEALS_SEED__) && window.__RITO_DEALS_SEED__.length
+    ? window.__RITO_DEALS_SEED__
+    : [];
+  return mergeRitoProjectLists(ritoReferenceProjects, seededProjects);
 }
 
 function hasMeaningfulProjectValue(value) {
@@ -1549,9 +1586,7 @@ function referenceProjectToCRMItem(project) {
 }
 
 function buildRitoReferenceCRMItems() {
-  const sourceProjects = Array.isArray(window.__RITO_DEALS_SEED__) && window.__RITO_DEALS_SEED__.length
-    ? window.__RITO_DEALS_SEED__
-    : ritoReferenceProjects;
+  const sourceProjects = getRitoSourceProjects();
   return sourceProjects.map(referenceProjectToCRMItem);
 }
 
@@ -1875,9 +1910,7 @@ function migrateRitoReferenceProjects(rootState) {
   rito.projectBoards = rito.projectBoards || {};
   rito.crmItems = Array.isArray(rito.crmItems) ? rito.crmItems : [];
   rito.crmItems.forEach((item) => ensureProjectShape(item));
-  const sourceProjects = Array.isArray(window.__RITO_DEALS_SEED__) && window.__RITO_DEALS_SEED__.length
-    ? window.__RITO_DEALS_SEED__
-    : ritoReferenceProjects;
+  const sourceProjects = getRitoSourceProjects();
   const seededItems = sourceProjects.map(referenceProjectToCRMItem);
   seededItems.forEach((seededItem, index) => {
     const seededProject = sourceProjects[index];
@@ -3511,32 +3544,6 @@ function tabTitle(view) {
 
 function renderCurrentView() {
   const target = document.getElementById("appContent");
-  const diagnostics = window.__PORTAL_RECOVERY_DIAGNOSTICS__ || {};
-  const shouldShowDiagnostics = Boolean(
-    diagnostics.finalScore ||
-    diagnostics.recoveredScore ||
-    diagnostics.remoteScore ||
-    (Array.isArray(diagnostics.notes) && diagnostics.notes.length)
-  );
-  const appendDiagnosticsBanner = () => {
-    if (!shouldShowDiagnostics || isLandingScreen()) return;
-    const banner = document.createElement("section");
-    banner.className = "panel";
-    banner.style.padding = "10px 12px";
-    banner.style.marginBottom = "12px";
-    banner.style.background = "rgba(255, 248, 230, 0.72)";
-    banner.style.borderColor = "rgba(181, 117, 7, 0.14)";
-    banner.innerHTML = `
-      <div class="panel-header" style="margin-bottom:0;">
-        <div>
-          <h3>Diagnóstico de carga</h3>
-          <p>Origem: ${escapeHTML(displayText(diagnostics.source || "desconhecida"))} • remoto ${diagnostics.remoteScore || 0} • backup ${diagnostics.recoveredScore || 0} • final ${diagnostics.finalScore || 0}</p>
-          <p>Rito deals: ${diagnostics.counts?.ritoDeals || 0} • Fast tarefas: ${diagnostics.counts?.fastTasks || 0} • Ática deals: ${diagnostics.counts?.aticaDeals || 0}</p>
-        </div>
-      </div>
-    `;
-    target.appendChild(banner);
-  };
   if (isLandingScreen()) {
     target.innerHTML = "";
     target.appendChild(renderWorkspaceLandingPage());
@@ -3545,7 +3552,6 @@ function renderCurrentView() {
   try {
     const currentView = state.currentView[state.currentWorkspace];
     target.innerHTML = "";
-    appendDiagnosticsBanner();
     if (usingReferenceDashboard()) {
       if (currentView === "projectDetail") target.appendChild(renderRitoProjectDetailPage());
       if (currentView === "dashboard") target.appendChild(renderRitoReferenceDashboard());
