@@ -585,15 +585,6 @@ const workspaceConfig = {
     views: ["dashboard", "tasks", "calendar", "documents", "members", "settings"],
     kanbanStages: ["ABF", "Pessoas", "Operacoes", "Estrategico", "Financeiro", "Marketing"],
     memberOptions: ["Bruna Cristina", "Arthur Bueno", "Ciro Ribeiro", "Mayra", "Eduardo", "Grace", "Rodrigo"]
-  },
-  diligence: {
-    id: "diligence",
-    name: "Due Diligence",
-    subtitle: "Análise executiva, riscos e contingências",
-    mark: "DD",
-    views: ["dashboard", "tasks", "documents", "members", "settings"],
-    kanbanStages: ["Planejamento", "Coleta", "Análise", "Comitê", "Fechamento"],
-    memberOptions: ["Bruna Cristina", "Arthur Bueno", "Ciro Ribeiro", "Gabriela Reis", "Consultor Externo"]
   }
 };
 
@@ -601,16 +592,14 @@ const RITO_DEAL_STATUS_OPTIONS = RITO_PIPELINE_STAGES;
 
 const DEFAULT_TASK_THEMES = {
   rito: ["Infra / CRM", "Marca e Marketing", "Digital", "Juridico", "Deals", "Governanca", "Marca", "Financeiro"],
-  fast: ["ABF", "Pessoas", "Operacoes", "Estrategico", "Financeiro", "Marketing"],
-  diligence: ["Planejamento", "Data Room", "Financeiro", "Juridico", "Fiscal", "Operacional", "ESG"]
+  fast: ["ABF", "Pessoas", "Operacoes", "Estrategico", "Financeiro", "Marketing"]
 };
 
 const FAST_DAILY_THEMES = ["ABF", "Felps", "Penog", "Prospecta", "Financeiro", "Estratégico", "Design Gráfico", "Operações", "Comercial", "Mayra"];
 
 const DEFAULT_PROJECT_THEMES = {
   rito: ["Operação", "Financeiro", "Comercial", "Jurídico", "Growth"],
-  fast: ["Operação", "Marketing", "Expansão", "Financeiro"],
-  diligence: ["Financeiro", "Juridico", "Fiscal", "Operacional", "ESG"]
+  fast: ["Operação", "Marketing", "Expansão", "Financeiro"]
 };
 
 const DEFAULT_KANBAN_THEME_COLORS = ["#8AAFCC", "#80CBC4", "#C87070", "#B0ACCE", "#F48FB1", "#FFCC80", "#FF8A65", "#B8A47A", "#4DB6AC", "#7986CB", "#BA68C8"];
@@ -663,12 +652,6 @@ const workspaceLaunchMeta = {
     shortLabel: "FM",
     descriptor: "Operações",
     greeting: "Operação, marketing e expansão da marca."
-  },
-  diligence: {
-    index: "03",
-    shortLabel: "DD",
-    descriptor: "Due Diligence",
-    greeting: "Workspace executivo para análise, riscos e contingências."
   }
 };
 
@@ -932,16 +915,6 @@ function workspaceLogoMarkup(workspaceId, variant = "default") {
         <circle cx="50" cy="23" r="7" fill="#f4b400"/>
         <path d="M18 38 L18 66 L29 84 L71 84 L82 66 L82 38 L63 47 L50 38 L37 47 Z" fill="#f4b400"/>
         <rect x="30" y="89" width="40" height="7" fill="#f4b400"/>
-      </svg>
-    `;
-  }
-  if (workspaceId === "diligence") {
-    return `
-      <svg class="workspace-logo workspace-logo-diligence workspace-logo-${variant}" viewBox="0 0 180 100" aria-hidden="true">
-        <text x="20" y="56" font-size="44" font-family="Georgia, 'Times New Roman', serif" fill="#1e1d21">Rito</text>
-        <text x="24" y="80" font-size="18" font-family="Calibri, 'Segoe UI', sans-serif" letter-spacing="1.5" fill="#1e1d21">ventures</text>
-        <rect x="120" y="28" width="42" height="28" rx="8" fill="#f1efe8" stroke="#cfd5dd"/>
-        <text x="129" y="47" font-size="14" font-family="Calibri, 'Segoe UI', sans-serif" font-weight="700" letter-spacing="1.2" fill="#1e1d21">DD</text>
       </svg>
     `;
   }
@@ -1510,7 +1483,7 @@ function mergeProjectRecords(target, source, seededProject = null) {
 }
 
 function referenceProjectToCRMItem(project) {
-  const subtitle = ritoSubtitle(project.sector, project.location, project.year);
+  const subtitle = project.subtitle || ritoSubtitle(project.sector, project.location, project.year);
   const investmentStatus = project.investmentStatus || "Nao investido";
   const temperature = project.temperature || "Morno";
   const statusLabel = referenceStatusLabel(project.status, investmentStatus);
@@ -1543,27 +1516,43 @@ function referenceProjectToCRMItem(project) {
     mainContact: project.contact || "",
     email: project.email || "",
     closeDate: project.closeDate || "",
-    founders: project.management || "",
-    management: project.management || "",
+    deadline: project.deadline || "",
+    founders: project.founders || project.management || project.managementTeam || "",
+    management: project.management || project.managementTeam || project.founders || "",
+    managementTeam: project.managementTeam || project.management || project.founders || "",
     businessModel: project.businessModel || "",
     competitors: project.competitors || "",
     advantages: project.advantages || "",
-    createdAt: "2026-03-16",
-    updatedAt: "2026-03-16",
-    frameworkDetails: {
-      tese: "",
-      opportunity: "",
-      risks: "",
-      nextSteps: "",
-      diligence: project.status,
-      strategicNotes: ""
-    },
-    history: [{ at: "17/03/2026 09:00", text: "Projeto carregado na base do CRM" }]
+    revenues: project.revenues || "",
+    fundraisingHistory: project.fundraisingHistory || "",
+    vcPeBacked: project.vcPeBacked || "",
+    notes: project.notes || "",
+    dealHistory: project.dealHistory || "",
+    projectStrengths: project.projectStrengths || "",
+    projectWeaknesses: project.projectWeaknesses || "",
+    createdAt: project.createdAt || "2026-04-20",
+    updatedAt: project.updatedAt || "2026-04-20",
+    frameworkDetails: project.frameworkDetails && typeof project.frameworkDetails === "object"
+      ? project.frameworkDetails
+      : {
+        tese: "",
+        opportunity: "",
+        risks: "",
+        nextSteps: "",
+        diligence: project.status,
+        strategicNotes: ""
+      },
+    history: Array.isArray(project.history) && project.history.length
+      ? project.history
+      : [{ at: "17/03/2026 09:00", text: "Projeto carregado na base do CRM" }]
   };
 }
 
 function buildRitoReferenceCRMItems() {
-  return ritoReferenceProjects.map(referenceProjectToCRMItem);
+  const sourceProjects = Array.isArray(window.__RITO_DEALS_SEED__) && window.__RITO_DEALS_SEED__.length
+    ? window.__RITO_DEALS_SEED__
+    : ritoReferenceProjects;
+  return sourceProjects.map(referenceProjectToCRMItem);
 }
 
 function ritoTaskOwner(owner) {
@@ -1886,6 +1875,23 @@ function migrateRitoReferenceProjects(rootState) {
   rito.projectBoards = rito.projectBoards || {};
   rito.crmItems = Array.isArray(rito.crmItems) ? rito.crmItems : [];
   rito.crmItems.forEach((item) => ensureProjectShape(item));
+  const sourceProjects = Array.isArray(window.__RITO_DEALS_SEED__) && window.__RITO_DEALS_SEED__.length
+    ? window.__RITO_DEALS_SEED__
+    : ritoReferenceProjects;
+  const seededItems = sourceProjects.map(referenceProjectToCRMItem);
+  seededItems.forEach((seededItem, index) => {
+    const seededProject = sourceProjects[index];
+    const matches = rito.crmItems.filter((item) => isLikelyReferenceProjectMatch(item, seededProject));
+    if (!matches.length) {
+      rito.crmItems.push(seededItem);
+      return;
+    }
+    const bestMatch = matches.reduce((best, candidate) => {
+      if (!best) return candidate;
+      return projectRecordScore(candidate, seededProject) > projectRecordScore(best, seededProject) ? candidate : best;
+    }, null);
+    mergeProjectRecords(bestMatch, seededItem, seededProject);
+  });
 }
 
 function migrateRitoKanbanTasks(rootState) {
@@ -1939,53 +1945,45 @@ function seedData() {
   const today = new Date();
   return {
     theme: "light",
-    workspaceOrder: ["rito", "fast", "diligence"],
+    workspaceOrder: ["rito", "fast"],
     currentWorkspace: "rito",
     currentView: {
       rito: "dashboard",
-      fast: "dashboard",
-      diligence: "dashboard"
+      fast: "dashboard"
     },
     selectedProjectId: {
       rito: "",
-      fast: "",
-      diligence: ""
+      fast: ""
     },
     projectReturnView: {
       rito: "crm",
-      fast: "dashboard",
-      diligence: "dashboard"
+      fast: "dashboard"
     },
     dashboardFilters: {
       rito: { stage: "Todos", temp: "Todos", query: "" },
-      fast: { stage: "Todos", temp: "Todos", query: "" },
-      diligence: { stage: "Todos", temp: "Todos", query: "" }
+      fast: { stage: "Todos", temp: "Todos", query: "" }
     },
     pipelineFilters: {
       rito: { temp: "Todos", query: "" },
-      fast: { temp: "Todos", query: "" },
-      diligence: { temp: "Todos", query: "" }
+      fast: { temp: "Todos", query: "" }
     },
     referenceViewModes: {
       rito: { crm: "cards", invested: "cards" },
-      fast: { crm: "cards", invested: "cards" },
-      diligence: { crm: "cards", invested: "cards" }
+      fast: { crm: "cards", invested: "cards" }
     },
     fastDashboardStatusFocus: "",
     calendarCursor: {
       rito: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`,
-      fast: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`,
-      diligence: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`
+      fast: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`
     },
     kanbanCompletedVisibility: {
       rito: {},
-      fast: {},
-      diligence: {}
+      fast: {}
     },
     sharedMembers: [],
     workspaces: {
       rito: {
-        crmItems: [],
+        crmItems: buildRitoReferenceCRMItems(),
         taskItems: [],
         taskThemes: [...DEFAULT_TASK_THEMES.rito],
         projectThemes: [...DEFAULT_PROJECT_THEMES.rito],
@@ -1996,15 +1994,6 @@ function seedData() {
       fast: {
         taskThemes: [...DEFAULT_TASK_THEMES.fast],
         projectThemes: [...DEFAULT_PROJECT_THEMES.fast],
-        taskItems: [],
-        projectBoards: {},
-        documents: [],
-        members: []
-      },
-      diligence: {
-        crmItems: [],
-        taskThemes: [...DEFAULT_TASK_THEMES.diligence],
-        projectThemes: [...DEFAULT_PROJECT_THEMES.diligence],
         taskItems: [],
         projectBoards: {},
         documents: [],
@@ -2021,15 +2010,17 @@ syncWorkspaceMemberOptions(state);
 function pruneDeprecatedWorkspaces(rootState) {
   if (!rootState || typeof rootState !== "object") return;
   delete rootState.workspaces?.atica;
+  delete rootState.workspaces?.diligence;
   if (Array.isArray(rootState.workspaceOrder)) {
-    rootState.workspaceOrder = rootState.workspaceOrder.filter((id) => id !== "atica");
+    rootState.workspaceOrder = rootState.workspaceOrder.filter((id) => id !== "atica" && id !== "diligence");
   }
-  if (rootState.currentWorkspace === "atica" || !workspaceConfig[rootState.currentWorkspace]) {
+  if (rootState.currentWorkspace === "atica" || rootState.currentWorkspace === "diligence" || !workspaceConfig[rootState.currentWorkspace]) {
     rootState.currentWorkspace = "rito";
   }
   ["currentView", "selectedProjectId", "projectReturnView", "dashboardFilters", "pipelineFilters", "referenceViewModes", "kanbanCompletedVisibility"].forEach((key) => {
     if (rootState[key] && typeof rootState[key] === "object") {
       delete rootState[key].atica;
+      delete rootState[key].diligence;
     }
   });
 }
@@ -2332,7 +2323,13 @@ async function loadState() {
         }
         return restoredState;
       }
-      return finalizeLoadedPortalState(remoteState, "remote-empty-seeded");
+      const seededState = finalizeLoadedPortalState(remoteState, "remote-empty-seeded");
+      try {
+        await saveSharedPortalState(seededState);
+      } catch (error) {
+        console.warn("Não foi possível publicar o estado seeded no Supabase.", error);
+      }
+      return seededState;
     } catch (error) {
       if (attempt === 2) {
         const recoveredState = await loadBundledPortalBackup();
@@ -2838,8 +2835,15 @@ function pipelineFilterState() {
   return state.pipelineFilters[state.currentWorkspace];
 }
 
+function normalizeRitoFilterTemperature(value = "") {
+  const normalized = String(value || "").trim();
+  if (normalized === "Declinada") return "Frio";
+  if (normalized === "Investida" || normalized === "Exit") return "Morno";
+  return normalized;
+}
+
 function cardTemperature(card) {
-  if (card.temperature) return card.temperature;
+  if (card.temperature) return normalizeRitoFilterTemperature(card.temperature);
   if ((card.tags || []).includes("Quente")) return "Quente";
   if ((card.tags || []).includes("Morno")) return "Morno";
   return "Frio";
@@ -3067,7 +3071,7 @@ function referenceDashboardRows() {
     ensureProjectShape(item);
     const normalizedStage = normalizeReferenceDashboardStage(item);
     const normalizedTemperature = ["Quente", "Morno", "Frio", "Investida", "Declinada", "Exit"].includes(String(item.temperature || "").trim())
-      ? String(item.temperature).trim()
+      ? normalizeRitoFilterTemperature(String(item.temperature).trim())
       : temperatureFromRitoDealStatus(item.status);
     const companyName = displayText(item.name || item.company || "Deal sem nome").trim() || "Deal sem nome";
     return {
@@ -3435,9 +3439,7 @@ function renderApp() {
   document.getElementById("sidebarWorkspaceTitle").textContent = config.name;
   document.querySelector(".workspace-switcher .eyebrow").textContent = state.currentWorkspace === "rito"
     ? "Portfolio"
-    : state.currentWorkspace === "diligence"
-      ? "Deal Room"
-      : "Ambiente";
+    : "Ambiente";
   if (landing) {
     workspaceEyebrow.textContent = "WORKSPACE";
     pageCrumb.textContent = "";
@@ -3504,7 +3506,6 @@ function tabTitle(view) {
   if (state.currentWorkspace === "rito" && view === "settings") return "Configurações";
   if (state.currentWorkspace === "atica" && view === "tasks") return "Kanban Ática";
   if (state.currentWorkspace === "fast" && view === "tasks") return "Kanban Fast";
-  if (state.currentWorkspace === "diligence" && view === "tasks") return "Tracking";
   return viewLabels[view];
 }
 
@@ -3545,14 +3546,6 @@ function renderCurrentView() {
     const currentView = state.currentView[state.currentWorkspace];
     target.innerHTML = "";
     appendDiagnosticsBanner();
-    if (state.currentWorkspace === "diligence") {
-      if (currentView === "dashboard") target.appendChild(renderDueDiligenceDashboard());
-      if (currentView === "tasks") target.appendChild(renderTasksBoard());
-      if (currentView === "documents") target.appendChild(renderDocuments());
-      if (currentView === "members") target.appendChild(renderMembers());
-      if (currentView === "settings") target.appendChild(renderRitoSettingsPage());
-      return;
-    }
     if (usingReferenceDashboard()) {
       if (currentView === "projectDetail") target.appendChild(renderRitoProjectDetailPage());
       if (currentView === "dashboard") target.appendChild(renderRitoReferenceDashboard());
@@ -3679,7 +3672,6 @@ function tabTitleForWorkspace(workspaceId, view) {
   if (workspaceId === "rito" && view === "tasks") return "Kanban";
   if (workspaceId === "rito" && view === "projectBoards") return "Projetos";
   if (workspaceId === "fast" && view === "tasks") return "Kanban";
-  if (workspaceId === "diligence" && view === "tasks") return "Tracking";
   if (workspaceId === "atica" && view === "tasks") return "Kanban";
   return viewLabels[view];
 }
