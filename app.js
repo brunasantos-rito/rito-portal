@@ -1636,9 +1636,18 @@ function ritoTaskPriority(marker) {
   return "Baixa";
 }
 
+function seededRitoTaskId(stage, title) {
+  return `rito-task-${stableTaskSeedSlug(stage)}-${stableTaskSeedSlug(title)}`;
+}
+
+function ritoSeedTaskTitleKey(taskOrTitle = "") {
+  const title = typeof taskOrTitle === "string" ? taskOrTitle : taskOrTitle?.title;
+  return normalizeColumnKey(title);
+}
+
 function ritoTask(title, stage, owner, marker, notes = "") {
   return {
-    id: uid("task"),
+    id: seededRitoTaskId(stage, title),
     title,
     description: [notes, marker ? `Prazo: ${marker}` : ""].filter(Boolean).join(" - "),
     stage,
@@ -1659,7 +1668,7 @@ function ritoWorkflowStatus(rawStatus = "") {
 
 function ritoTaskSeed(title, stage, owner, rawStatus = "Nao iniciado", note = "", priority = "Media") {
   return {
-    id: uid("task"),
+    id: seededRitoTaskId(stage, title),
     title,
     description: [rawStatus, note].filter(Boolean).join(" - "),
     stage,
@@ -1962,9 +1971,18 @@ function migrateRitoReferenceProjects(rootState) {
 function migrateRitoKanbanTasks(rootState) {
   const rito = rootState.workspaces?.rito;
   if (!rito) return;
-  rito.taskItems = Array.isArray(rito.taskItems) ? rito.taskItems : [];
+  const seededTasks = buildRitoKanbanTasks();
+  const currentTasks = Array.isArray(rito.taskItems) ? rito.taskItems : [];
+  rito.taskItems = rebuildSeededKanbanTasks(currentTasks, seededTasks, ritoSeedTaskTitleKey);
   const currentThemes = Array.isArray(rito.taskThemes) ? rito.taskThemes.map((theme) => String(theme || "").trim()).filter(Boolean) : [];
-  rito.taskThemes = currentThemes.length ? [...new Set(currentThemes)] : [...DEFAULT_TASK_THEMES.rito];
+  const inferredThemes = [...new Set(
+    rito.taskItems
+      .map((task) => String(task?.stage || "").trim())
+      .filter(Boolean)
+  )];
+  rito.taskThemes = currentThemes.length
+    ? [...new Set([...currentThemes, ...inferredThemes])]
+    : [...new Set([...DEFAULT_TASK_THEMES.rito, ...inferredThemes])];
 }
 
 function migrateFastWorkspace(rootState) {
@@ -1989,7 +2007,7 @@ function migrateFastWorkspace(rootState) {
   const currentThemes = Array.isArray(fast.taskThemes) && fast.taskThemes.length
     ? fast.taskThemes.map((theme) => String(theme || "").trim()).filter(Boolean)
     : [];
-  const nextTasks = currentTasks;
+  const nextTasks = rebuildSeededKanbanTasks(currentTasks, [...seededTasks, ...dailyTasks], fastSeedTaskTitleKey);
   nextTasks.forEach((task) => {
     task.stage = normalizeFastTaskThemeName(task.stage);
   });
@@ -2431,6 +2449,38 @@ function mergeKanbanTaskRecords(previousTask = {}, nextTask = {}) {
     }
   });
   return merged;
+}
+
+function mergeSeededKanbanTaskRecords(existingTask = {}, seededTask = {}) {
+  const merged = { ...existingTask, ...seededTask, id: seededTask.id };
+  ["status", "dueDate", "completionDate", "completedAt", "archivedAt"].forEach((field) => {
+    const value = existingTask?.[field];
+    if (typeof value === "string" ? value.trim() : value) {
+      merged[field] = value;
+    }
+  });
+  if (Array.isArray(existingTask?.history) && existingTask.history.length) {
+    merged.history = existingTask.history;
+  }
+  return merged;
+}
+
+function rebuildSeededKanbanTasks(existingTasks = [], seededTasks = [], titleKeyResolver = (task) => normalizeColumnKey(task?.title)) {
+  const remainingTasks = Array.isArray(existingTasks) ? [...existingTasks] : [];
+  const mergedSeededTasks = seededTasks.map((seededTask) => {
+    const seededId = String(seededTask?.id || "").trim();
+    const seededTitleKey = titleKeyResolver(seededTask);
+    const matchIndex = remainingTasks.findIndex((task) => {
+      if (!task || typeof task !== "object") return false;
+      const taskId = String(task.id || "").trim();
+      if (seededId && taskId && taskId === seededId) return true;
+      return seededTitleKey && titleKeyResolver(task) === seededTitleKey;
+    });
+    if (matchIndex === -1) return seededTask;
+    const [matchedTask] = remainingTasks.splice(matchIndex, 1);
+    return mergeSeededKanbanTaskRecords(matchedTask, seededTask);
+  });
+  return dedupeKanbanTasks([...mergedSeededTasks, ...remainingTasks]);
 }
 
 function dedupeKanbanTasks(tasks = []) {
