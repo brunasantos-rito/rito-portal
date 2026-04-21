@@ -965,8 +965,9 @@ function reorderWorkspaces(draggedId, targetId) {
   renderApp();
 }
 
-function reorderCRMItems(draggedId, targetId) {
+async function reorderCRMItems(draggedId, targetId) {
   if (!draggedId || !targetId || draggedId === targetId) return;
+  const rollbackState = clonePortalState(state);
   const items = [...(workspaceData().crmItems || [])];
   const draggedIndex = items.findIndex((item) => item.id === draggedId);
   const targetIndex = items.findIndex((item) => item.id === targetId);
@@ -974,8 +975,23 @@ function reorderCRMItems(draggedId, targetId) {
   const [draggedItem] = items.splice(draggedIndex, 1);
   items.splice(targetIndex, 0, draggedItem);
   state.workspaces[state.currentWorkspace].crmItems = items;
-  saveState();
   renderApp();
+  try {
+    await persistPortalStateImmediately(state);
+  } catch (error) {
+    console.error("[crm-save] Falha ao reordenar deals", {
+      workspaceId: state.currentWorkspace,
+      draggedId,
+      targetId,
+      message: error?.message || String(error),
+      details: error?.details || null,
+      hint: error?.hint || null,
+      code: error?.code || null
+    });
+    state = buildPortalState(rollbackState);
+    renderApp();
+    alert("Não foi possível salvar a nova ordem dos deals no banco de dados. A ordem anterior foi restaurada.");
+  }
 }
 
 const ritoDashboardRows = [
@@ -1058,6 +1074,55 @@ const ritoMembersList = [
   { initials: "BC", color: "#465b4d", name: "Bruna Cristina", info: "bruna.santos@ritoventures.com.br - Buy-Side", tags: ["Usuario", "Rito"] }
 ];
 
+function defaultPortalMembers() {
+  const seededMembers = ritoMembersList.map((member) => {
+    const [email = "", role = ""] = String(member.info || "").split(" - ");
+    return {
+      name: member.name,
+      role: role.trim(),
+      email: email.includes("@") ? email.trim() : "",
+      tags: Array.isArray(member.tags) ? member.tags : [],
+      color: member.color || memberColor(member.name),
+      photo: defaultMemberPhoto(member.name) || ""
+    };
+  });
+  const configuredMembers = Object.values(workspaceConfig || {}).flatMap((workspace) =>
+    (Array.isArray(workspace?.memberOptions) ? workspace.memberOptions : []).map((name) => ({
+      name,
+      role: "",
+      email: "",
+      tags: [workspaceDisplayName(workspace.id || "")].filter(Boolean),
+      color: memberColor(name),
+      photo: defaultMemberPhoto(name) || ""
+    }))
+  );
+  return dedupeMembersByName([...seededMembers, ...configuredMembers]);
+}
+
+function collectPortalMembers(rootState = state) {
+  if (!rootState || typeof rootState !== "object") return [];
+  const shared = Array.isArray(rootState.sharedMembers) ? rootState.sharedMembers : [];
+  const workspaceMembers = Object.values(rootState.workspaces || {}).flatMap((workspace) =>
+    Array.isArray(workspace?.members) ? workspace.members : []
+  );
+  return dedupeMembersByName([...shared, ...workspaceMembers]);
+}
+
+function hasPortalMembers(rootState = state) {
+  return collectPortalMembers(rootState).length > 0;
+}
+
+function mergePortalMembersFromFallback(primarySnapshot = null, fallbackSnapshot = null) {
+  const primary = unwrapPortalSnapshot(primarySnapshot);
+  const fallback = unwrapPortalSnapshot(fallbackSnapshot);
+  if (!primary || typeof primary !== "object") return primarySnapshot;
+  if (hasPortalMembers(primary)) return primarySnapshot;
+  const fallbackMembers = collectPortalMembers(fallback);
+  if (!fallbackMembers.length) return primarySnapshot;
+  primary.sharedMembers = fallbackMembers;
+  return primarySnapshot;
+}
+
 function memberColor(name) {
   const palette = ["#44406c", "#7d4b44", "#465b4d", "#774f4b", "#706247", "#446170", "#546146"];
   const value = String(name || "").split("").reduce((total, char) => total + char.charCodeAt(0), 0);
@@ -1103,7 +1168,8 @@ function syncSharedMembersState(rootState = state) {
     Array.isArray(workspace?.members) ? workspace.members : []
   );
   const currentSharedMembers = Array.isArray(rootState.sharedMembers) ? rootState.sharedMembers : [];
-  rootState.sharedMembers = dedupeMembersByName([...workspaceMembers, ...currentSharedMembers]);
+  const recoveredMembers = dedupeMembersByName([...workspaceMembers, ...currentSharedMembers]);
+  rootState.sharedMembers = recoveredMembers.length ? recoveredMembers : defaultPortalMembers();
   Object.values(rootState.workspaces || {}).forEach((workspace) => {
     if (workspace && typeof workspace === "object") workspace.members = [];
   });
@@ -1199,8 +1265,17 @@ function memberCardData(member) {
 function syncWorkspaceMemberOptions(rootState = state) {
   const memberNames = sharedMembersData(rootState).map((member) => member.name);
   Object.values(workspaceConfig).forEach((workspace) => {
-    workspace.memberOptions = [...memberNames];
+    const defaultOptions = Array.isArray(workspace.memberOptions) ? workspace.memberOptions : [];
+    workspace.memberOptions = [...new Set([...defaultOptions, ...memberNames].filter(Boolean))];
   });
+}
+
+function workspaceOwnerOptions(workspaceId = state.currentWorkspace, currentOwner = "") {
+  const configuredOptions = Array.isArray(workspaceConfig[workspaceId]?.memberOptions)
+    ? workspaceConfig[workspaceId].memberOptions
+    : [];
+  const sharedOptions = sharedMembersData().map((member) => member.name);
+  return [...new Set([...configuredOptions, ...sharedOptions, String(currentOwner || "").trim()].filter(Boolean))];
 }
 
 function applyDefaultMemberPhotos(rootState) {
@@ -1294,11 +1369,11 @@ function progressFromRitoDealStatus(status) {
     Pipeline: 20,
     NDA: 30,
     IRL: 40,
-    LOI: 50,
-    NBO: 60,
-    Proposta: 70,
-    "Due Diligence": 80,
-    Signing: 90,
+    LOI: 55,
+    NBO: 65,
+    Proposta: 75,
+    "Due Diligence": 85,
+    Signing: 95,
     Closing: 100,
     Aporte: 100,
     "Portfólio": 100,
@@ -1403,6 +1478,10 @@ function normalizeReferenceIdentity(value) {
 
 function referenceProjectKey(project) {
   return normalizeReferenceIdentity(project?.referenceKey || project?.name || "");
+}
+
+function seededRitoDealId(project) {
+  return `rito-deal-${stableTaskSeedSlug(referenceProjectKey(project) || project?.name || "")}`;
 }
 
 function referenceProjectAliases(project) {
@@ -1563,6 +1642,29 @@ function mergeProjectRecords(target, source, seededProject = null) {
   return target;
 }
 
+function dedupeCRMItemsById(items = []) {
+  const uniqueItems = [];
+  const itemIndexById = new Map();
+  (items || []).forEach((item) => {
+    if (!item || typeof item !== "object") return;
+    const itemId = String(item.id || "").trim();
+    if (!itemId) {
+      uniqueItems.push(item);
+      return;
+    }
+    if (!itemIndexById.has(itemId)) {
+      itemIndexById.set(itemId, uniqueItems.length);
+      uniqueItems.push(item);
+      return;
+    }
+    const index = itemIndexById.get(itemId);
+    const merged = { ...uniqueItems[index] };
+    mergeProjectRecords(merged, item);
+    uniqueItems[index] = merged;
+  });
+  return uniqueItems;
+}
+
 function referenceProjectToCRMItem(project) {
   const subtitle = project.subtitle || ritoSubtitle(project.sector, project.location, project.year);
   const investmentStatus = project.investmentStatus || "Nao investido";
@@ -1570,7 +1672,7 @@ function referenceProjectToCRMItem(project) {
   const statusLabel = referenceStatusLabel(project.status, investmentStatus);
   const normalizedStatus = normalizeRitoDealStatus(project.status, investmentStatus);
   return {
-    id: uid("deal"),
+    id: seededRitoDealId(project),
     referenceKey: referenceProjectKey(project),
     name: project.name,
     logo: project.logo || "",
@@ -1971,24 +2073,24 @@ function migrateRitoReferenceProjects(rootState) {
   rito.projectBoards = rito.projectBoards || {};
   const existingItems = Array.isArray(rito.crmItems) ? rito.crmItems : [];
   existingItems.forEach((item) => ensureProjectShape(item));
+  const remainingItems = [...existingItems];
   const sourceProjects = getRitoSourceProjects();
   const seededItems = sourceProjects.map((project) => {
     const seededItem = referenceProjectToCRMItem(project);
-    const matches = existingItems.filter((item) => isLikelyReferenceProjectMatch(item, project));
+    const matches = remainingItems.filter((item) => isLikelyReferenceProjectMatch(item, project));
     if (!matches.length) return seededItem;
     const bestMatch = matches.reduce((best, candidate) => {
       if (!best) return candidate;
       return projectRecordScore(candidate, project) > projectRecordScore(best, project) ? candidate : best;
     }, null);
+    const bestMatchIndex = remainingItems.findIndex((item) => item?.id === bestMatch?.id);
+    if (bestMatchIndex >= 0) remainingItems.splice(bestMatchIndex, 1);
     const mergedItem = { ...bestMatch };
     mergeProjectRecords(mergedItem, seededItem, project);
     mergedItem.id = bestMatch?.id || mergedItem.id;
     return mergedItem;
   });
-  const extraItems = existingItems.filter((item) =>
-    !sourceProjects.some((project) => isLikelyReferenceProjectMatch(item, project))
-  );
-  rito.crmItems = [...seededItems, ...extraItems];
+  rito.crmItems = dedupeCRMItemsById([...seededItems, ...remainingItems]);
 }
 
 function migrateRitoKanbanTasks(rootState) {
@@ -2086,7 +2188,7 @@ function seedData() {
       rito: {},
       fast: {}
     },
-    sharedMembers: [],
+    sharedMembers: defaultPortalMembers(),
     workspaces: {
       rito: {
         crmItems: buildRitoReferenceCRMItems(),
@@ -2406,7 +2508,8 @@ async function loadState() {
       });
 
       if (hasMeaningfulPortalData(remoteState)) {
-        return finalizeLoadedPortalState(remoteState, "remote-state");
+        const hydratedRemoteState = mergePortalMembersFromFallback(remoteState, recoveredState);
+        return finalizeLoadedPortalState(hydratedRemoteState, "remote-state");
       }
       if (recoveredState) {
         console.warn("Estado remoto vazio. Restaurando portal a partir do backup local empacotado.");
@@ -2442,10 +2545,10 @@ async function loadState() {
 
 function saveState(options = {}) {
   state.lastSavedAt = new Date().toISOString();
-  if (options.instant) {
-    return triggerInstantRemoteSave(state);
+  if (options.instant === false) {
+    return queueImmediateRemoteSave(state);
   }
-  return queueImmediateRemoteSave(state);
+  return persistPortalStateImmediately(state);
 }
 
 function mergeKanbanTaskRecords(previousTask = {}, nextTask = {}) {
@@ -3190,7 +3293,8 @@ function updateRitoPipelineView() {
 
 function dashboardStageMatches(row, stage) {
   if (stage === "Todos") return true;
-  if (stage === "Investidos") return ["Aporte", "Portfólio", "Exit"].includes(row.stage);
+  if (stage === "Investidos" || stage === "Investidas") return ["Aporte", "Portfólio", "Exit"].includes(row.stage);
+  if (stage === "100% concluída") return Number(row.progress || 0) >= 100;
   if (stage === "Declinados") return row.stage === "Declinado";
   return normalizeRitoDealStatus(row.stage) === normalizeRitoDealStatus(stage);
 }
@@ -3224,6 +3328,7 @@ function referenceDashboardRows() {
       projectWeaknesses: displayText(item.projectWeaknesses || ""),
       stage: normalizedStage,
       temp: normalizedTemperature,
+      progress: Number(item.progress || 0),
       owner: displayText(item.owner || "-") || "-",
       close: item.deadline || item.closeDate || "-",
       initials: item.logoText || initials(companyName),
@@ -3332,6 +3437,9 @@ function ensureProjectShape(item) {
   if (!item.investmentAmount) item.investmentAmount = 0;
   if (!item.priority) item.priority = "Media";
   if (!item.origin) item.origin = "Inbound";
+  if (!String(item.owner || "").trim()) {
+    item.owner = workspaceOwnerOptions(state.currentWorkspace)[0] || "Arthur Bueno";
+  }
   if (!item.subtitle) item.subtitle = `${item.sector || ""} - ${item.location || ""} - ${item.year || ""}`.replace(/^ - | - $/g, "");
   if (!item.history) item.history = [{ at: todayISO(), text: "Projeto criado no CRM" }];
   item.progress = progressFromRitoDealStatus(item.status);
@@ -4205,6 +4313,8 @@ function renderRitoFunnel() {
 
   const summaryRows = [
     { label: "Todos", count: totalCount, accent: "#8f877d", all: true },
+    { label: "Investidas", count: referenceDashboardRows().filter((row) => ["Aporte", "Portfólio", "Exit"].includes(row.stage)).length, accent: "#41a047" },
+    { label: "100% concluída", count: referenceDashboardRows().filter((row) => Number(row.progress || 0) >= 100).length, accent: "#2c9a72" },
     ...stages.map((stage) => ({ label: stage.label, count: stage.count, accent: stage.accent }))
   ];
 
@@ -4434,7 +4544,7 @@ function renderRitoDashboardTable(rows = referenceDashboardRows()) {
       row.addEventListener("drop", (event) => {
         event.preventDefault();
         row.classList.remove("is-drop-target");
-        reorderCRMItems(event.dataTransfer.getData("text/plain"), linked.id);
+        void reorderCRMItems(event.dataTransfer.getData("text/plain"), linked.id);
       });
       row.onclick = () => {
         if (row.dataset.justDragged === "1") return;
@@ -4725,7 +4835,7 @@ function renderRitoProjectDetailPage() {
       ${renderProjectMetaCard("Contato principal", `<input data-drawer-field="mainContact" value="${escapeAttr(item.mainContact || "")}">`)}
       ${renderProjectMetaCard("Telefone", `<input data-drawer-field="phone" value="${escapeAttr(item.phone || "")}">`)}
       ${renderProjectMetaCard("E-mail", `<input data-drawer-field="email" type="email" value="${escapeAttr(item.email || "")}">`)}
-      ${renderProjectMetaCard("Responsável", `<select data-drawer-field="owner">${workspaceConfig[state.currentWorkspace].memberOptions.map((owner) => `<option ${owner === item.owner ? "selected" : ""}>${owner}</option>`).join("")}</select>`)}
+      ${renderProjectMetaCard("Responsável", `<select data-drawer-field="owner">${workspaceOwnerOptions(state.currentWorkspace, item.owner).map((owner) => `<option value="${escapeAttr(owner)}" ${owner === item.owner ? "selected" : ""}>${displayText(owner)}</option>`).join("")}</select>`)}
       ${renderProjectMetaCard("Temperatura", `<input data-drawer-field="temperature" value="${escapeAttr(item.temperature || "")}" readonly>`)}
       ${renderProjectMetaCard("Prioridade", `<select data-drawer-field="priority"><option ${item.priority === "Alta" ? "selected" : ""}>Alta</option><option ${item.priority === "Media" ? "selected" : ""}>Média</option><option ${item.priority === "Baixa" ? "selected" : ""}>Baixa</option></select>`)}
       ${renderProjectMetaCard("VC/PE Backed", `<input data-drawer-field="vcPeBacked" value="${escapeAttr(item.vcPeBacked || "")}">`)}
@@ -5744,7 +5854,7 @@ function createReferenceProjectCard(card, invested = false, sourceView = "crm") 
     article.addEventListener("drop", (event) => {
       event.preventDefault();
       article.classList.remove("is-drop-target");
-      reorderCRMItems(event.dataTransfer.getData("text/plain"), linked.id);
+      void reorderCRMItems(event.dataTransfer.getData("text/plain"), linked.id);
     });
     article.addEventListener("click", () => {
       if (article.dataset.justDragged === "1") return;
@@ -6150,7 +6260,7 @@ function renderCRM() {
     </div>
     <div class="filters-row">
       <label class="field"><span>Status</span><select id="crmFilterStatus"><option value="">Todos</option>${workspaceConfig[state.currentWorkspace].pipelineStages.map((stage) => `<option>${stage}</option>`).join("")}</select></label>
-      <label class="field"><span>Responsável</span><select id="crmFilterOwner"><option value="">Todos</option>${workspaceConfig[state.currentWorkspace].memberOptions.map((owner) => `<option>${displayText(owner)}</option>`).join("")}</select></label>
+      <label class="field"><span>Responsável</span><select id="crmFilterOwner"><option value="">Todos</option>${workspaceOwnerOptions(state.currentWorkspace).map((owner) => `<option value="${escapeAttr(owner)}">${displayText(owner)}</option>`).join("")}</select></label>
       <label class="field"><span>Tag</span><input id="crmFilterTag" placeholder="Ex: Investido"></label>
     </div>
   `;
@@ -6291,7 +6401,7 @@ function createCRMCard(item) {
   article.addEventListener("drop", (event) => {
     event.preventDefault();
     article.classList.remove("is-drop-target");
-    reorderCRMItems(event.dataTransfer.getData("text/plain"), item.id);
+    void reorderCRMItems(event.dataTransfer.getData("text/plain"), item.id);
   });
   article.addEventListener("click", (event) => {
     if (article.dataset.justDragged === "1") return;
@@ -7121,7 +7231,7 @@ function openCRMDialog(item) {
     year: new Date().getFullYear().toString(),
     status: "Pipeline",
     tags: [],
-    owner: workspaceConfig[state.currentWorkspace].memberOptions[0],
+    owner: workspaceOwnerOptions(state.currentWorkspace)[0] || "Arthur Bueno",
     estimatedValue: 0,
     framework: "",
     progress: 20,
@@ -7146,7 +7256,7 @@ function openCRMDialog(item) {
         <label class="field"><span>Setor</span><input name="sector" value="${current.sector}"></label>
         <label class="field"><span>Localização</span><input name="location" value="${current.location}"></label>
         <label class="field"><span>Ano</span><input name="year" value="${current.year}"></label>
-        <label class="field"><span>Responsável</span><select name="owner">${workspaceConfig[state.currentWorkspace].memberOptions.map((owner) => `<option ${owner === current.owner ? "selected" : ""}>${owner}</option>`).join("")}</select></label>
+        <label class="field"><span>Responsável</span><select name="owner">${workspaceOwnerOptions(state.currentWorkspace, current.owner).map((owner) => `<option value="${escapeAttr(owner)}" ${owner === current.owner ? "selected" : ""}>${displayText(owner)}</option>`).join("")}</select></label>
         <label class="field"><span>Valor estimado</span><input name="estimatedValue" type="number" value="${current.estimatedValue}"></label>
         <label class="field"><span>Valor da operação</span><input name="investmentAmount" type="number" value="${current.investmentAmount || 0}"></label>
         <label class="field"><span>Progresso</span><input name="progress" type="number" min="0" max="100" value="${current.progress}"></label>
@@ -7230,7 +7340,7 @@ function openOpportunityDialog() {
     year: new Date().getFullYear().toString(),
     status: "Pipeline",
     tags: [],
-    owner: workspaceConfig[state.currentWorkspace].memberOptions[0],
+    owner: workspaceOwnerOptions(state.currentWorkspace)[0] || "Arthur Bueno",
     estimatedValue: 0,
     framework: "",
     progress: 20,
@@ -7266,7 +7376,7 @@ function openOpportunityDialog() {
         <label class="field"><span>Valor da operação (R$)</span><input name="investmentAmount" type="number" value="0"></label>
         <label class="field"><span>Estágio</span><select name="status">${ritoStatusOptionsMarkup(current.status)}</select></label>
         <label class="field"><span>Temperatura</span><select name="temperature">${["Frio", "Morno", "Quente"].map((temp) => `<option ${temp === current.temperature ? "selected" : ""}>${temp}</option>`).join("")}</select></label>
-        <label class="field"><span>Responsável Rito</span><select name="owner">${workspaceConfig[state.currentWorkspace].memberOptions.map((owner) => `<option ${owner === current.owner ? "selected" : ""}>${displayText(owner)}</option>`).join("")}</select></label>
+        <label class="field"><span>Responsável Rito</span><select name="owner">${workspaceOwnerOptions(state.currentWorkspace, current.owner).map((owner) => `<option value="${escapeAttr(owner)}" ${owner === current.owner ? "selected" : ""}>${displayText(owner)}</option>`).join("")}</select></label>
         <label class="field"><span>Contato principal</span><input name="mainContact"></label>
         <label class="field"><span>Telefone</span><input name="phone"></label>
         <label class="field"><span>E-mail</span><input name="email"></label>
@@ -7473,7 +7583,7 @@ function openProjectDrawer(projectId) {
           <label class="field"><span>Status de investimento</span><select data-drawer-field="investmentStatus"><option ${item.investmentStatus === "Nao investido" ? "selected" : ""}>Não investido</option><option ${item.investmentStatus === "Investido" ? "selected" : ""}>Investido</option></select></label>
           <label class="field"><span>Valor estimado</span><input type="number" data-drawer-field="estimatedValue" value="${item.estimatedValue || 0}"></label>
           <label class="field"><span>Valor da operação</span><input type="number" data-drawer-field="investmentAmount" value="${item.investmentAmount || 0}"></label>
-          <label class="field"><span>Responsável</span><select data-drawer-field="owner">${workspaceConfig[state.currentWorkspace].memberOptions.map((owner) => `<option ${owner === item.owner ? "selected" : ""}>${displayText(owner)}</option>`).join("")}</select></label>
+        <label class="field"><span>Responsável</span><select data-drawer-field="owner">${workspaceOwnerOptions(state.currentWorkspace, item.owner).map((owner) => `<option value="${escapeAttr(owner)}" ${owner === item.owner ? "selected" : ""}>${displayText(owner)}</option>`).join("")}</select></label>
           <label class="field"><span>Prioridade</span><select data-drawer-field="priority"><option ${item.priority === "Alta" ? "selected" : ""}>Alta</option><option ${item.priority === "Media" ? "selected" : ""}>Média</option><option ${item.priority === "Baixa" ? "selected" : ""}>Baixa</option></select></label>
           <label class="field"><span>Origem do deal</span><input data-drawer-field="origin" value="${escapeAttr(item.origin || "")}"></label>
           <label class="field full-span"><span>Histórico do deal / Resumo do status</span><textarea data-drawer-field="dealHistory">${displayText(item.dealHistory || "")}</textarea></label>
@@ -7534,7 +7644,7 @@ function openProjectDrawer(projectId) {
           <button class="action-button" id="saveDrawerChanges">Salvar alterações</button>
           <button class="ghost-button" id="duplicateDrawerCard">Duplicar card</button>
           <button class="ghost-button" id="moveDrawerStage">Mover de estágio</button>
-          <button class="ghost-button" id="markDrawerInvested">Marcar como investido</button>
+          <button class="ghost-button" id="markDrawerInvested">${item.investmentStatus === "Investido" ? "Marcar como não investido" : "Marcar como investido"}</button>
           <button class="ghost-button" id="archiveDrawerCard">Arquivar</button>
           <button class="ghost-button" id="deleteDrawerCard">Excluir card</button>
         </div>
@@ -7556,8 +7666,9 @@ function closeProjectDrawer() {
 }
 
 function bindProjectDrawer(item) {
+  const drawerRoot = document.getElementById("entityDrawer");
   document.getElementById("saveDrawerChanges").onclick = async () => {
-    await persistDrawerProject(item);
+    await persistDrawerProject(item, drawerRoot);
     renderApp();
     openProjectDrawer(item.id);
   };
@@ -7565,27 +7676,44 @@ function bindProjectDrawer(item) {
     await duplicateCRMItem(item, state.projectReturnView[state.currentWorkspace] || "crm");
   };
   document.getElementById("moveDrawerStage").onclick = async () => {
-    await persistDrawerProject(item);
+    await persistDrawerProject(item, drawerRoot);
     const stages = workspaceConfig[state.currentWorkspace].pipelineStages;
     const nextIndex = (stages.indexOf(item.status) + 1) % stages.length;
     item.status = stages[nextIndex];
+    item.temperature = temperatureFromRitoDealStatus(item.status);
+    item.updatedAt = new Date().toISOString();
     pushHistory(item, `Estágio alterado para ${displayText(item.status)}`);
-    saveState();
+    await upsertCRMItem(item, {
+      skipRender: true,
+      renderOnSuccess: false
+    });
     renderApp();
     openProjectDrawer(item.id);
   };
   document.getElementById("markDrawerInvested").onclick = async () => {
-    await persistDrawerProject(item);
-    item.investmentStatus = "Investido";
+    persistProjectDraft(item, drawerRoot);
+    const nextInvestmentStatus = item.investmentStatus === "Investido" ? "Nao investido" : "Investido";
+    item.investmentStatus = nextInvestmentStatus;
     syncInvestmentTag(item);
-    pushHistory(item, "Projeto marcado como investido");
-    await upsertCRMItem(item);
+    item.updatedAt = new Date().toISOString();
+    pushHistory(item, nextInvestmentStatus === "Investido" ? "Projeto marcado como investido" : "Projeto marcado como nao investido");
+    renderApp();
     openProjectDrawer(item.id);
+    await upsertCRMItem(item, {
+      skipRender: true,
+      renderOnSuccess: false,
+      silentError: false,
+      preserveLocalOnError: false
+    });
   };
-  document.getElementById("archiveDrawerCard").onclick = () => {
+  document.getElementById("archiveDrawerCard").onclick = async () => {
     item.archived = true;
+    item.updatedAt = new Date().toISOString();
     pushHistory(item, "Projeto arquivado");
-    saveState();
+    await upsertCRMItem(item, {
+      skipRender: true,
+      renderOnSuccess: false
+    });
     closeProjectDrawer();
     renderApp();
   };
@@ -7598,21 +7726,29 @@ function bindProjectDrawer(item) {
   };
   document.getElementById("drawerAddTask").onclick = () => openTaskDialog(item.name);
   document.getElementById("drawerUploadDoc").onclick = () => openDocumentDialog(item.name);
-  document.getElementById("newTagInput").addEventListener("keydown", (event) => {
+  document.getElementById("newTagInput").addEventListener("keydown", async (event) => {
     if (event.key !== "Enter") return;
     event.preventDefault();
     const value = event.target.value.trim();
     if (!value) return;
     item.tags.push(value);
+    item.updatedAt = new Date().toISOString();
     pushHistory(item, `Tag adicionada: ${value}`);
-    saveState();
+    await upsertCRMItem(item, {
+      skipRender: true,
+      renderOnSuccess: false
+    });
     openProjectDrawer(item.id);
   });
   document.querySelectorAll("[data-remove-tag]").forEach((button) => {
-    button.onclick = () => {
+    button.onclick = async () => {
       item.tags = item.tags.filter((tag) => tag !== button.dataset.removeTag);
+      item.updatedAt = new Date().toISOString();
       pushHistory(item, `Tag removida: ${button.dataset.removeTag}`);
-      saveState();
+      await upsertCRMItem(item, {
+        skipRender: true,
+        renderOnSuccess: false
+      });
       openProjectDrawer(item.id);
     };
   });
@@ -7621,16 +7757,24 @@ function bindProjectDrawer(item) {
       const doc = workspaceData().documents.find((entry) => entry.id === button.dataset.deleteDoc);
       await removeFileFromStorage(PORTAL_DOCUMENTS_BUCKET, doc?.filePath);
       workspaceData().documents = workspaceData().documents.filter((entry) => entry.id !== button.dataset.deleteDoc);
+      item.updatedAt = new Date().toISOString();
       pushHistory(item, "Documento relacionado removido");
-      saveState();
+      await upsertCRMItem(item, {
+        skipRender: true,
+        renderOnSuccess: false
+      });
       openProjectDrawer(item.id);
     };
   });
   document.getElementById("drawerCoverUpload").onchange = async (event) => {
     try {
       item.cover = await imageFileToProjectDataURL(event.target.files[0], "cover", item.cover);
+      item.updatedAt = new Date().toISOString();
       pushHistory(item, "Capa atualizada");
-      saveState();
+      await upsertCRMItem(item, {
+        skipRender: true,
+        renderOnSuccess: false
+      });
       openProjectDrawer(item.id);
     } catch (error) {
       alert(error?.message || "Não foi possível atualizar a capa.");
@@ -7639,8 +7783,12 @@ function bindProjectDrawer(item) {
   document.getElementById("drawerLogoUpload").onchange = async (event) => {
     try {
       item.logo = await imageFileToProjectDataURL(event.target.files[0], "logo", item.logo);
+      item.updatedAt = new Date().toISOString();
       pushHistory(item, "Logo atualizada");
-      saveState();
+      await upsertCRMItem(item, {
+        skipRender: true,
+        renderOnSuccess: false
+      });
       openProjectDrawer(item.id);
     } catch (error) {
       alert(error?.message || "Não foi possível atualizar a logo.");
@@ -7654,8 +7802,12 @@ function bindProjectDrawer(item) {
         if (!imageType) continue;
         const blob = await clipItem.getType(imageType);
         item.cover = await imageFileToProjectDataURL(new File([blob], "clipboard-image.png", { type: blob.type }), "cover", item.cover);
+        item.updatedAt = new Date().toISOString();
         pushHistory(item, "Imagem colada na capa");
-        saveState();
+        await upsertCRMItem(item, {
+          skipRender: true,
+          renderOnSuccess: false
+        });
         openProjectDrawer(item.id);
         return;
       }
@@ -7866,7 +8018,7 @@ function openProjectEditDialog(item, sourceView) {
         <label class="field full-span"><span>Nome</span><input name="name" value="${escapeAttr(item.name || "")}"></label>
         <label class="field full-span"><span>Descrição da empresa</span><textarea name="description">${displayText(item.description || "")}</textarea></label>
         <label class="field"><span>Estágio</span><select name="status">${workspaceConfig[state.currentWorkspace].pipelineStages.map((stage) => `<option ${isRitoDealInStage(item, stage) ? "selected" : ""}>${displayText(stage)}</option>`).join("")}</select></label>
-        <label class="field"><span>Responsável</span><select name="owner">${workspaceConfig[state.currentWorkspace].memberOptions.map((owner) => `<option ${item.owner === owner ? "selected" : ""}>${displayText(owner)}</option>`).join("")}</select></label>
+        <label class="field"><span>Responsável</span><select name="owner">${workspaceOwnerOptions(state.currentWorkspace, item.owner).map((owner) => `<option value="${escapeAttr(owner)}" ${item.owner === owner ? "selected" : ""}>${displayText(owner)}</option>`).join("")}</select></label>
         <label class="field"><span>Prazo</span><input name="deadline" type="date" value="${escapeAttr(item.deadline || "")}"></label>
         <label class="field"><span>Valor (R$)</span><input name="estimatedValue" type="number" value="${escapeAttr(item.estimatedValue || 0)}"></label>
         <label class="field"><span>Valor da operação (R$)</span><input name="investmentAmount" type="number" value="${escapeAttr(item.investmentAmount || 0)}"></label>
