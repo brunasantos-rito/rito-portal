@@ -391,6 +391,74 @@ async function loadPortalStateForDatabaseWrite() {
   }
 }
 
+async function persistCRMOrderToDatabase(orderedItems, {
+  workspaceId = state.currentWorkspace,
+  attempts = 3
+} = {}) {
+  queuedSaveVersion += 1;
+  await pendingRemoteSave.catch(() => null);
+  pendingRemoteSave = Promise.resolve();
+
+  let lastError = null;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      console.info("[crm-order-save] Persistindo ordem real dos deals", {
+        attempt: attempt + 1,
+        workspaceId,
+        totalDeals: Array.isArray(orderedItems) ? orderedItems.length : 0
+      });
+      const nextState = await loadPortalStateForDatabaseWrite();
+      const workspace = workspaceStateSnapshot(nextState, workspaceId);
+      workspace.crmItems = clonePortalState(Array.isArray(orderedItems) ? orderedItems : []);
+      nextState.lastSavedAt = new Date().toISOString();
+
+      const savedRow = await saveSharedPortalState(nextState);
+      let savedState = buildPortalState(savedRow?.data && typeof savedRow.data === "object" ? savedRow.data : nextState);
+      const savedIds = (savedState.workspaces?.[workspaceId]?.crmItems || []).map((item) => item.id);
+      const expectedIds = (workspace.crmItems || []).map((item) => item.id);
+
+      if (savedIds.length === expectedIds.length && savedIds.every((id, index) => id === expectedIds[index])) {
+        state = savedState;
+        return savedState;
+      }
+
+      try {
+        savedState = await confirmRemotePortalState(nextState, 3);
+      } catch (confirmError) {
+        console.warn("[crm-order-save] Confirmacao pos-save nao refletiu a nova ordem ainda.", {
+          workspaceId,
+          message: confirmError?.message || String(confirmError)
+        });
+      }
+
+      const confirmedIds = (savedState.workspaces?.[workspaceId]?.crmItems || []).map((item) => item.id);
+      if (confirmedIds.length === expectedIds.length && confirmedIds.every((id, index) => id === expectedIds[index])) {
+        state = savedState;
+        return savedState;
+      }
+
+      state = buildPortalState(nextState);
+      schedulePortalStateVerification(nextState);
+      return state;
+    } catch (error) {
+      lastError = error;
+      console.error("[crm-order-save] Falha na persistencia da ordem dos deals", {
+        attempt: attempt + 1,
+        workspaceId,
+        message: error?.message || String(error),
+        details: error?.details || null,
+        hint: error?.hint || null,
+        code: error?.code || null
+      });
+      if (attempt < attempts - 1) {
+        await delay(250 * (attempt + 1));
+      }
+    }
+  }
+
+  throw lastError || new Error("Não foi possível persistir a ordem dos deals no banco de dados.");
+}
+
 async function persistCRMItemToDatabase(item, {
   workspaceId = state.currentWorkspace,
   remove = false,
@@ -975,9 +1043,13 @@ async function reorderCRMItems(draggedId, targetId) {
   const [draggedItem] = items.splice(draggedIndex, 1);
   items.splice(targetIndex, 0, draggedItem);
   state.workspaces[state.currentWorkspace].crmItems = items;
+  state.lastSavedAt = new Date().toISOString();
   renderApp();
   try {
-    await persistPortalStateImmediately(state);
+    await persistCRMOrderToDatabase(items, {
+      workspaceId: state.currentWorkspace
+    });
+    renderApp();
   } catch (error) {
     console.error("[crm-save] Falha ao reordenar deals", {
       workspaceId: state.currentWorkspace,
