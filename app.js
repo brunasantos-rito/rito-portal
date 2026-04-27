@@ -1435,10 +1435,8 @@ function renderOwnerAvatar(name, className = "owner-badge") {
 function renderCompanyBadge({ name = "", logo = "", logoText = "", logoBg = "" } = {}) {
   const safeName = escapeAttr(displayText(name || "Empresa"));
   const fallback = logoText || initials(name || "");
-  const transparentBg = logoBg && ["#ffffff", "#fff", "white", "transparent", "rgba(255,255,255,0)", "rgba(255, 255, 255, 0)"].includes(String(logoBg).trim().toLowerCase())
-    ? "transparent"
-    : (logoBg || "transparent");
-  return `<span class="company-badge" style="background:${transparentBg}">${logo ? `<img src="${logo}" alt="${safeName}">` : fallback}</span>`;
+  const resolvedBg = logo ? "#ffffff" : (logoBg || "#ffffff");
+  return `<span class="company-badge" style="background:${resolvedBg}">${logo ? `<img src="${logo}" alt="${safeName}">` : fallback}</span>`;
 }
 
 function memberCardData(member) {
@@ -1578,10 +1576,12 @@ function progressFromRitoDealStatus(status) {
 function temperatureFromRitoDealStatus(status) {
   const normalized = normalizeRitoDealStatus(status);
   if (normalized === "Lead") return "Frio";
-  if (["Pipeline", "NDA", "IRL"].includes(normalized)) return "Morno";
-  if (["LOI", "NBO", "Proposta", "Due Diligence", "Signing", "Closing"].includes(normalized)) return "Quente";
-  if (["Aporte", "Portfólio"].includes(normalized)) return "Investida";
-  if (normalized === "Declinado") return "Declinada";
+  if (normalized === "Pipeline") return "Frio";
+  if (["NDA", "IRL"].includes(normalized)) return "Morno";
+  if (["LOI", "NBO", "Proposta"].includes(normalized)) return "Quente";
+  if (["Due Diligence", "Signing", "Closing"].includes(normalized)) return "Fechamento";
+  if (["Aporte", "Portfólio"].includes(normalized)) return "Investido";
+  if (normalized === "Declinado") return "Declinado";
   if (normalized === "Exit") return "Exit";
   return "Frio";
 }
@@ -1762,6 +1762,9 @@ function projectRecordScore(item, seededProject) {
 function mergeProjectRecords(target, source, seededProject = null) {
   if (!target || !source || target === source) return target;
   const targetIsNewerThanSeed = recordTimestampValue(target) > recordTimestampValue(source);
+  const sourceTimestamp = recordTimestampValue(source);
+  const targetTimestamp = recordTimestampValue(target);
+  const sourceIsNewerOrEqual = sourceTimestamp >= targetTimestamp;
   const sourceOfTruthFields = [
     "name",
     "subtitle",
@@ -1824,7 +1827,19 @@ function mergeProjectRecords(target, source, seededProject = null) {
     }
   });
   target.estimatedValue = Math.max(Number(target.estimatedValue || 0), Number(source.estimatedValue || 0));
-  target.investmentAmount = Math.max(Number(target.investmentAmount || 0), Number(source.investmentAmount || 0));
+  const targetInvestmentAmount = Number(target.investmentAmount || 0);
+  const sourceInvestmentAmount = Number(source.investmentAmount || 0);
+  if (seededProject) {
+    if (!targetIsNewerThanSeed) {
+      target.investmentAmount = Number.isFinite(sourceInvestmentAmount) ? sourceInvestmentAmount : targetInvestmentAmount;
+    } else {
+      target.investmentAmount = Number.isFinite(targetInvestmentAmount) ? targetInvestmentAmount : 0;
+    }
+  } else if (sourceIsNewerOrEqual) {
+    target.investmentAmount = Number.isFinite(sourceInvestmentAmount) ? sourceInvestmentAmount : targetInvestmentAmount;
+  } else {
+    target.investmentAmount = Number.isFinite(targetInvestmentAmount) ? targetInvestmentAmount : sourceInvestmentAmount;
+  }
   target.progress = Math.max(Number(target.progress || 0), Number(source.progress || 0));
   target.tags = [...new Set([...(target.tags || []), ...(source.tags || [])])];
   target.history = [...(target.history || []), ...(source.history || [])]
@@ -2765,10 +2780,10 @@ async function loadState() {
 
 function saveState(options = {}) {
   state.lastSavedAt = new Date().toISOString();
-  if (options.instant === false) {
-    return queueImmediateRemoteSave(state);
+  if (options.instant === true) {
+    return persistPortalStateImmediately(state);
   }
-  return persistPortalStateImmediately(state);
+  return queueImmediateRemoteSave(state);
 }
 
 function mergeKanbanTaskRecords(previousTask = {}, nextTask = {}) {
@@ -3323,15 +3338,20 @@ function pipelineFilterState() {
 
 function normalizeRitoFilterTemperature(value = "") {
   const normalized = String(value || "").trim();
-  if (normalized === "Declinada") return "Frio";
-  if (normalized === "Investida" || normalized === "Exit") return "Morno";
+  if (normalized === "Declinada") return "Declinado";
+  if (normalized === "Investida") return "Investido";
   return normalized;
 }
 
 function cardTemperature(card) {
+  if (card.status) return temperatureFromRitoDealStatus(card.status);
   if (card.temperature) return normalizeRitoFilterTemperature(card.temperature);
   if ((card.tags || []).includes("Quente")) return "Quente";
+  if ((card.tags || []).includes("Fechamento")) return "Fechamento";
   if ((card.tags || []).includes("Morno")) return "Morno";
+  if ((card.tags || []).includes("Investido") || (card.tags || []).includes("Investida")) return "Investido";
+  if ((card.tags || []).includes("Declinado") || (card.tags || []).includes("Declinada")) return "Declinado";
+  if ((card.tags || []).includes("Exit")) return "Exit";
   return "Frio";
 }
 
@@ -3557,7 +3577,9 @@ function referenceDashboardRows() {
     .map((item) => {
     ensureProjectShape(item);
     const normalizedStage = normalizeReferenceDashboardStage(item);
-    const normalizedTemperature = ["Quente", "Morno", "Frio", "Investida", "Declinada", "Exit"].includes(String(item.temperature || "").trim())
+    const normalizedTemperature = item.status
+      ? temperatureFromRitoDealStatus(item.status)
+      : ["Quente", "Morno", "Frio", "Fechamento", "Investido", "Investida", "Declinado", "Declinada", "Exit"].includes(String(item.temperature || "").trim())
       ? normalizeRitoFilterTemperature(String(item.temperature).trim())
       : temperatureFromRitoDealStatus(item.status);
     const companyName = displayText(item.name || item.company || "Deal sem nome").trim() || "Deal sem nome";
@@ -5199,11 +5221,12 @@ function bindRitoProjectDetailPage(page, item) {
     item.media.logoScale = sizes[(currentIndex + 1) % sizes.length];
     item.updatedAt = new Date().toISOString();
     pushHistory(item, `Escala da logo ajustada para ${item.media.logoScale}%`);
-    await upsertCRMItem(item, {
+    const persistPromise = upsertCRMItem(item, {
       skipRender: true,
       renderOnSuccess: false
     });
     openProjectDetail(item.id, sourceView);
+    await persistPromise;
     })().catch((error) => {
       alert(error?.message || "Não foi possível atualizar a logo.");
     });
@@ -5215,11 +5238,12 @@ function bindRitoProjectDetailPage(page, item) {
       item.logo = await imageFileToProjectDataURL(event.target.files[0], "logo", item.logo);
       item.updatedAt = new Date().toISOString();
       pushHistory(item, "Logo atualizada");
-      await upsertCRMItem(item, {
+      const persistPromise = upsertCRMItem(item, {
         skipRender: true,
         renderOnSuccess: false
       });
       openProjectDetail(item.id, sourceView);
+      await persistPromise;
     } catch (error) {
       alert(error?.message || "Não foi possível atualizar a logo.");
     }
@@ -5229,11 +5253,12 @@ function bindRitoProjectDetailPage(page, item) {
       item.cover = await imageFileToProjectDataURL(event.target.files[0], "cover", item.cover);
       item.updatedAt = new Date().toISOString();
       pushHistory(item, "Capa atualizada");
-      await upsertCRMItem(item, {
+      const persistPromise = upsertCRMItem(item, {
         skipRender: true,
         renderOnSuccess: false
       });
       openProjectDetail(item.id, sourceView);
+      await persistPromise;
     } catch (error) {
       alert(error?.message || "Não foi possível atualizar a capa.");
     }
@@ -6029,7 +6054,7 @@ function createReferenceProjectCard(card, invested = false, sourceView = "crm") 
   const displayCover = linked?.cover || card.cover;
   const displayLogo = linked?.logo || card.logo || "";
   const displayLogoText = linked?.logoText || card.logoText || "";
-  const displayLogoBg = displayLogo ? "transparent" : (linked?.logoBg || card.logoBg || "transparent");
+  const displayLogoBg = displayLogo ? "#ffffff" : (linked?.logoBg || card.logoBg || "#ffffff");
   const displayTags = normalizeProjectTagList(linked?.tags?.length ? linked.tags : card.tags, linked || card);
   const displayStatus = linked ? linked.status : card.status;
   const displayOwner = linked?.owner || card.owner;
@@ -6560,7 +6585,7 @@ function createCRMCard(item) {
       </div>
       <div class="status-badge">${displayText(item.tags.includes("Investido") ? "Investido" : item.status)}</div>
     </div>
-    <div class="card-logo ${item.logo ? "has-image" : ""}" style="${item.logo ? "background:transparent" : ""}">${item.logo ? `<img src="${item.logo}" alt="${item.name}">` : initials(item.name)}</div>
+    <div class="card-logo ${item.logo ? "has-image" : ""}" style="${item.logo ? "background:#ffffff" : ""}">${item.logo ? `<img src="${item.logo}" alt="${item.name}">` : initials(item.name)}</div>
     <div class="card-content">
       <div class="card-copy-block">
         <h4>${displayText(item.name)}</h4>
@@ -8239,11 +8264,16 @@ async function applyProjectImageFile(item, target, file, sourceView, options = {
       pushHistory(item, "Capa colada da área de transferência");
     }
     item.updatedAt = new Date().toISOString();
-    await upsertCRMItem(item, {
+    const persistPromise = upsertCRMItem(item, {
       skipRender: true,
       renderOnSuccess: false
     });
-    if (reopen) openProjectDetail(item.id, sourceView);
+    if (reopen) {
+      openProjectDetail(item.id, sourceView);
+    } else {
+      renderAppPreservingScroll();
+    }
+    await persistPromise;
     return true;
   } catch (error) {
     throw new Error(error?.message || "Não foi possível salvar a imagem no projeto.");
@@ -9081,6 +9111,24 @@ function persistKanbanColumnDraft(kind, index, nextName) {
 
 function loadImageFromFile(file) {
   return new Promise((resolve, reject) => {
+    if (typeof createImageBitmap === "function") {
+      createImageBitmap(file)
+        .then(resolve)
+        .catch(() => {
+          const objectUrl = URL.createObjectURL(file);
+          const image = new Image();
+          image.onload = () => {
+            URL.revokeObjectURL(objectUrl);
+            resolve(image);
+          };
+          image.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
+            reject(new Error("Falha ao processar imagem"));
+          };
+          image.src = objectUrl;
+        });
+      return;
+    }
     const objectUrl = URL.createObjectURL(file);
     const image = new Image();
     image.onload = () => {
@@ -9102,6 +9150,16 @@ function canvasToBlob(canvas, mimeType, quality) {
       else reject(new Error("Falha ao converter a imagem para upload."));
     }, mimeType, quality);
   });
+}
+
+function disposeImageSource(image) {
+  if (image && typeof image.close === "function") {
+    try {
+      image.close();
+    } catch (error) {
+      console.warn("Não foi possível liberar o bitmap da imagem.", error);
+    }
+  }
 }
 
 function estimateDataURLBytes(dataUrl) {
@@ -9178,61 +9236,65 @@ async function imageFileToProjectDataURL(file, target, fallback) {
   }
 
   const image = await loadImageFromFile(file);
-  const isLogo = target === "logo";
-  const maxWidth = isLogo ? 320 : 960;
-  const maxHeight = isLogo ? 320 : 540;
-  const scale = Math.min(1, maxWidth / image.width, maxHeight / image.height);
-  const width = Math.max(1, Math.round(image.width * scale));
-  const height = Math.max(1, Math.round(image.height * scale));
-
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-
-  const context = canvas.getContext("2d");
-  if (!context) {
-    const uploadedUrl = await uploadProjectImageWithFallback(file, PORTAL_MEDIA_BUCKET, workspaceFolder, {
-      prefix: target
-    });
-    return uploadedUrl || fallback;
-  }
-
-  if (isLogo) {
-    context.clearRect(0, 0, width, height);
-  } else {
-    context.fillStyle = "#f4f4f2";
-    context.fillRect(0, 0, width, height);
-  }
-
-  context.drawImage(image, 0, 0, width, height);
-
-  const mimeType = "image/webp";
-  const targetBytes = isLogo ? 80 * 1024 : 180 * 1024;
-  const qualitySteps = isLogo ? [0.86, 0.74, 0.62, 0.52, 0.44] : [0.82, 0.72, 0.62, 0.54, 0.46, 0.38];
-
   try {
-    let chosenBlob = null;
-    for (const quality of qualitySteps) {
-      const candidateBlob = await canvasToBlob(canvas, mimeType, quality);
-      chosenBlob = candidateBlob;
-      if (candidateBlob.size <= targetBytes) break;
+    const isLogo = target === "logo";
+    const maxWidth = isLogo ? 240 : 720;
+    const maxHeight = isLogo ? 240 : 420;
+    const scale = Math.min(1, maxWidth / image.width, maxHeight / image.height);
+    const width = Math.max(1, Math.round(image.width * scale));
+    const height = Math.max(1, Math.round(image.height * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext("2d");
+    if (!context) {
+      const uploadedUrl = await uploadProjectImageWithFallback(file, PORTAL_MEDIA_BUCKET, workspaceFolder, {
+        prefix: target
+      });
+      return uploadedUrl || fallback;
     }
-    if (!chosenBlob) {
-      chosenBlob = await canvasToBlob(canvas, "image/jpeg", isLogo ? 0.62 : 0.54);
+
+    if (isLogo) {
+      context.clearRect(0, 0, width, height);
+    } else {
+      context.fillStyle = "#f4f4f2";
+      context.fillRect(0, 0, width, height);
     }
-    const optimizedFile = new File([chosenBlob], `${target}.${chosenBlob.type.includes("png") ? "png" : chosenBlob.type.includes("jpeg") ? "jpg" : "webp"}`, {
-      type: chosenBlob.type || mimeType
-    });
-    const uploadedUrl = await uploadProjectImageWithFallback(optimizedFile, PORTAL_MEDIA_BUCKET, workspaceFolder, {
-      prefix: target,
-      contentType: optimizedFile.type
-    });
-    return uploadedUrl || fallback;
-  } catch {
-    const uploadedUrl = await uploadProjectImageWithFallback(file, PORTAL_MEDIA_BUCKET, workspaceFolder, {
-      prefix: target
-    });
-    return uploadedUrl || fallback;
+
+    context.drawImage(image, 0, 0, width, height);
+
+    const mimeType = "image/webp";
+    const targetBytes = isLogo ? 48 * 1024 : 120 * 1024;
+    const qualitySteps = isLogo ? [0.78, 0.62, 0.48] : [0.76, 0.6, 0.46];
+
+    try {
+      let chosenBlob = null;
+      for (const quality of qualitySteps) {
+        const candidateBlob = await canvasToBlob(canvas, mimeType, quality);
+        chosenBlob = candidateBlob;
+        if (candidateBlob.size <= targetBytes) break;
+      }
+      if (!chosenBlob) {
+        chosenBlob = await canvasToBlob(canvas, "image/jpeg", isLogo ? 0.56 : 0.5);
+      }
+      const optimizedFile = new File([chosenBlob], `${target}.${chosenBlob.type.includes("png") ? "png" : chosenBlob.type.includes("jpeg") ? "jpg" : "webp"}`, {
+        type: chosenBlob.type || mimeType
+      });
+      const uploadedUrl = await uploadProjectImageWithFallback(optimizedFile, PORTAL_MEDIA_BUCKET, workspaceFolder, {
+        prefix: target,
+        contentType: optimizedFile.type
+      });
+      return uploadedUrl || fallback;
+    } catch {
+      const uploadedUrl = await uploadProjectImageWithFallback(file, PORTAL_MEDIA_BUCKET, workspaceFolder, {
+        prefix: target
+      });
+      return uploadedUrl || fallback;
+    }
+  } finally {
+    disposeImageSource(image);
   }
 }
 
@@ -9248,54 +9310,58 @@ async function imageFileToMemberPhotoURL(file, fallback = "") {
   }
 
   const image = await loadImageFromFile(file);
-  const maxWidth = 360;
-  const maxHeight = 360;
-  const scale = Math.min(1, maxWidth / image.width, maxHeight / image.height);
-  const width = Math.max(1, Math.round(image.width * scale));
-  const height = Math.max(1, Math.round(image.height * scale));
-
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-
-  const context = canvas.getContext("2d");
-  if (!context) {
-    const uploadedUrl = await uploadProjectImageWithFallback(file, PORTAL_MEDIA_BUCKET, workspaceFolder, {
-      prefix: "member-photo"
-    });
-    return uploadedUrl || fallback;
-  }
-
-  context.clearRect(0, 0, width, height);
-  context.drawImage(image, 0, 0, width, height);
-
-  const mimeType = "image/webp";
-  const targetBytes = 90 * 1024;
-  const qualitySteps = [0.88, 0.76, 0.64, 0.54, 0.46];
-
   try {
-    let chosenBlob = null;
-    for (const quality of qualitySteps) {
-      const candidateBlob = await canvasToBlob(canvas, mimeType, quality);
-      chosenBlob = candidateBlob;
-      if (candidateBlob.size <= targetBytes) break;
+    const maxWidth = 280;
+    const maxHeight = 280;
+    const scale = Math.min(1, maxWidth / image.width, maxHeight / image.height);
+    const width = Math.max(1, Math.round(image.width * scale));
+    const height = Math.max(1, Math.round(image.height * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext("2d");
+    if (!context) {
+      const uploadedUrl = await uploadProjectImageWithFallback(file, PORTAL_MEDIA_BUCKET, workspaceFolder, {
+        prefix: "member-photo"
+      });
+      return uploadedUrl || fallback;
     }
-    if (!chosenBlob) {
-      chosenBlob = await canvasToBlob(canvas, "image/jpeg", 0.62);
+
+    context.clearRect(0, 0, width, height);
+    context.drawImage(image, 0, 0, width, height);
+
+    const mimeType = "image/webp";
+    const targetBytes = 64 * 1024;
+    const qualitySteps = [0.76, 0.6, 0.48];
+
+    try {
+      let chosenBlob = null;
+      for (const quality of qualitySteps) {
+        const candidateBlob = await canvasToBlob(canvas, mimeType, quality);
+        chosenBlob = candidateBlob;
+        if (candidateBlob.size <= targetBytes) break;
+      }
+      if (!chosenBlob) {
+        chosenBlob = await canvasToBlob(canvas, "image/jpeg", 0.56);
+      }
+      const optimizedFile = new File([chosenBlob], `member-photo.${chosenBlob.type.includes("jpeg") ? "jpg" : "webp"}`, {
+        type: chosenBlob.type || mimeType
+      });
+      const uploadedUrl = await uploadProjectImageWithFallback(optimizedFile, PORTAL_MEDIA_BUCKET, workspaceFolder, {
+        prefix: "member-photo",
+        contentType: optimizedFile.type
+      });
+      return uploadedUrl || fallback;
+    } catch {
+      const uploadedUrl = await uploadProjectImageWithFallback(file, PORTAL_MEDIA_BUCKET, workspaceFolder, {
+        prefix: "member-photo"
+      });
+      return uploadedUrl || fallback;
     }
-    const optimizedFile = new File([chosenBlob], `member-photo.${chosenBlob.type.includes("jpeg") ? "jpg" : "webp"}`, {
-      type: chosenBlob.type || mimeType
-    });
-    const uploadedUrl = await uploadProjectImageWithFallback(optimizedFile, PORTAL_MEDIA_BUCKET, workspaceFolder, {
-      prefix: "member-photo",
-      contentType: optimizedFile.type
-    });
-    return uploadedUrl || fallback;
-  } catch {
-    const uploadedUrl = await uploadProjectImageWithFallback(file, PORTAL_MEDIA_BUCKET, workspaceFolder, {
-      prefix: "member-photo"
-    });
-    return uploadedUrl || fallback;
+  } finally {
+    disposeImageSource(image);
   }
 }
 
