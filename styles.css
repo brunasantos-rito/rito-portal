@@ -968,6 +968,12 @@ body[data-theme="dark"] .chip-morno {
   color: #d9c097;
 }
 
+body[data-theme="dark"] .chip-fechamento {
+  background: rgba(63, 128, 108, 0.16);
+  color: #9fd2c4;
+}
+
+body[data-theme="dark"] .chip-investido,
 body[data-theme="dark"] .chip-investida,
 body[data-theme="dark"] .chip-portfolio {
   background: rgba(181, 117, 7, 0.16);
@@ -1272,17 +1278,18 @@ body[data-theme="dark"] .card-cover::after {
   width: 58px;
   height: 58px;
   border-radius: 18px;
-  background: white;
+  background: #ffffff;
   display: grid;
   place-items: center;
   font-weight: 600;
   box-shadow: var(--shadow-soft);
   overflow: hidden;
+  border: 1px solid rgba(17, 24, 39, 0.08);
 }
 
 .card-logo.has-image {
-  background: transparent !important;
-  box-shadow: none;
+  background: #ffffff !important;
+  box-shadow: var(--shadow-soft);
 }
 
 .card-logo img {
@@ -1876,6 +1883,12 @@ body[data-theme="dark"] .card-cover::after {
   color: #7f9fc9;
 }
 
+.chip-fechamento {
+  background: #e6f4ef;
+  color: #2f7d68;
+}
+
+.chip-investido,
 .chip-investida,
 .chip-portfolio {
   background: #fff1c8;
@@ -2204,7 +2217,7 @@ body[data-theme="dark"] .card-cover::after {
   width: 42px;
   height: 42px;
   border-radius: 0;
-  background: transparent;
+  background: #ffffff;
   display: grid;
   place-items: center;
   color: #808995;
@@ -2214,6 +2227,7 @@ body[data-theme="dark"] .card-cover::after {
   flex-shrink: 0;
   overflow: hidden;
   box-shadow: none;
+  border: 1px solid rgba(17, 24, 39, 0.08);
 }
 
 .company-badge img {
@@ -3650,7 +3664,7 @@ body[data-theme="dark"] .paste-dropzone {
   width: 46px;
   height: 46px;
   border-radius: 12px;
-  background: white;
+  background: #ffffff;
   display: grid;
   place-items: center;
   box-shadow: var(--shadow-soft);
@@ -3659,6 +3673,7 @@ body[data-theme="dark"] .paste-dropzone {
   margin-left: 12px;
   font-weight: 700;
   font-size: 0.86rem;
+  border: 1px solid rgba(17, 24, 39, 0.08);
 }
 
 .drawer-header {
@@ -4301,16 +4316,18 @@ body[data-theme="dark"] .workspace-soft-page .kanban-card {
   width: 34px;
   height: 34px;
   border-radius: 10px;
+  background: #ffffff;
   display: grid;
   place-items: center;
   box-shadow: var(--shadow-soft);
   font-weight: 600;
   font-size: 0.82rem;
+  border: 1px solid rgba(17, 24, 39, 0.08);
 }
 
 .reference-logo.has-image {
-  background: transparent !important;
-  box-shadow: none;
+  background: #ffffff !important;
+  box-shadow: var(--shadow-soft);
 }
 
 .reference-logo img {
@@ -4935,7 +4952,7 @@ label {
   width: 72px;
   height: 72px;
   border-radius: 18px;
-  background: var(--surface-strong);
+  background: #ffffff;
   border: 1px solid var(--border);
   box-shadow: var(--shadow-soft);
   display: grid;
