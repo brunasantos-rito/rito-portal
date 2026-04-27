@@ -233,6 +233,26 @@ function clonePortalState(snapshot = state) {
   return JSON.parse(JSON.stringify(snapshot));
 }
 
+function saveLocalPortalState(snapshot = state) {
+  try {
+    window.localStorage?.setItem(STORAGE_KEY, JSON.stringify(clonePortalState(snapshot)));
+  } catch (error) {
+    console.warn("Não foi possível salvar o snapshot local do portal.", error);
+  }
+}
+
+function loadLocalPortalState() {
+  try {
+    const raw = window.localStorage?.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch (error) {
+    console.warn("Não foi possível ler o snapshot local do portal.", error);
+    return null;
+  }
+}
+
 function delay(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
@@ -245,6 +265,25 @@ function portalStateVersion(snapshot = null) {
 function recordTimestampValue(record = null) {
   const timestamp = Date.parse(String(record?.updatedAt || record?.createdAt || "").trim());
   return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+function choosePreferredPortalState(primarySnapshot = null, secondarySnapshot = null) {
+  const primary = unwrapPortalSnapshot(primarySnapshot);
+  const secondary = unwrapPortalSnapshot(secondarySnapshot);
+  const primaryHasData = hasMeaningfulPortalData(primary);
+  const secondaryHasData = hasMeaningfulPortalData(secondary);
+  if (primaryHasData && !secondaryHasData) return primarySnapshot;
+  if (secondaryHasData && !primaryHasData) return secondarySnapshot;
+
+  const primaryVersion = portalStateVersion(primary);
+  const secondaryVersion = portalStateVersion(secondary);
+  if (primaryVersion !== secondaryVersion) {
+    return secondaryVersion > primaryVersion ? secondarySnapshot : primarySnapshot;
+  }
+
+  const primaryScore = portalDataScore(primary);
+  const secondaryScore = portalDataScore(secondary);
+  return secondaryScore > primaryScore ? secondarySnapshot : primarySnapshot;
 }
 
 async function saveSharedPortalStateSafely(snapshot) {
@@ -300,6 +339,7 @@ function schedulePortalStateVerification(expectedState) {
 
 function queueImmediateRemoteSave(snapshot = state) {
   const payload = clonePortalState(snapshot);
+  saveLocalPortalState(payload);
   const currentVersion = ++queuedSaveVersion;
   pendingRemoteSave = pendingRemoteSave
     .catch(() => null)
@@ -319,6 +359,7 @@ function queueImmediateRemoteSave(snapshot = state) {
 
 async function persistPortalStateImmediately(snapshot = state) {
   const payload = clonePortalState(snapshot);
+  saveLocalPortalState(payload);
   queuedSaveVersion += 1;
   try {
     await pendingRemoteSave.catch(() => null);
@@ -327,6 +368,7 @@ async function persistPortalStateImmediately(snapshot = state) {
       ? result.data
       : payload;
     state = buildPortalState(resolvedState);
+    saveLocalPortalState(state);
     pendingRemoteSave = Promise.resolve(result);
     console.log("Portal salvo imediatamente no banco.");
     triggerKeepalivePortalSave(payload);
@@ -642,6 +684,7 @@ function flushOpenEditors() {
   }
 
   state.lastSavedAt = new Date().toISOString();
+  saveLocalPortalState(state);
   queueImmediateRemoteSave(state);
 }
 
@@ -1063,6 +1106,78 @@ async function reorderCRMItems(draggedId, targetId) {
     state = buildPortalState(rollbackState);
     renderApp();
     alert("Não foi possível salvar a nova ordem dos deals no banco de dados. A ordem anterior foi restaurada.");
+  }
+}
+
+function wireDealReorderInteractions(node, dealId, {
+  dropTargetSelector,
+  onOpen
+} = {}) {
+  if (!node || !dealId || !dropTargetSelector) return;
+  node.draggable = true;
+  node.dataset.crmId = dealId;
+  node.classList.add("is-reorderable-deal");
+
+  const interactiveSelectors = [
+    "input",
+    "select",
+    "textarea",
+    "button",
+    "a",
+    "[contenteditable='true']",
+    "[data-no-drag]"
+  ];
+
+  node.querySelectorAll(interactiveSelectors.join(",")).forEach((element) => {
+    ["click", "mousedown", "mouseup", "touchstart", "touchend"].forEach((eventName) => {
+      element.addEventListener(eventName, (event) => event.stopPropagation());
+    });
+  });
+
+  node.querySelectorAll("img").forEach((image) => {
+    image.draggable = false;
+  });
+
+  node.addEventListener("dragstart", (event) => {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", dealId);
+    node.classList.add("is-dragging");
+    node.dataset.justDragged = "0";
+  });
+
+  node.addEventListener("dragend", () => {
+    node.classList.remove("is-dragging");
+    node.dataset.justDragged = "1";
+    document.querySelectorAll(dropTargetSelector).forEach((targetNode) => targetNode.classList.remove("is-drop-target"));
+    window.setTimeout(() => {
+      node.dataset.justDragged = "0";
+    }, 60);
+  });
+
+  node.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    document.querySelectorAll(dropTargetSelector).forEach((targetNode) => {
+      if (targetNode !== node) targetNode.classList.remove("is-drop-target");
+    });
+    node.classList.add("is-drop-target");
+  });
+
+  node.addEventListener("dragleave", () => {
+    node.classList.remove("is-drop-target");
+  });
+
+  node.addEventListener("drop", (event) => {
+    event.preventDefault();
+    node.classList.remove("is-drop-target");
+    void reorderCRMItems(event.dataTransfer.getData("text/plain"), dealId);
+  });
+
+  if (typeof onOpen === "function") {
+    node.addEventListener("click", () => {
+      if (node.dataset.justDragged === "1") return;
+      onOpen();
+    });
   }
 }
 
@@ -2570,22 +2685,39 @@ async function loadState() {
     try {
       const data = await loadSharedPortalState();
       const remoteState = data?.data && Object.keys(data.data).length ? data.data : null;
+      const localState = loadLocalPortalState();
       const recoveredState = await loadBundledPortalBackup();
       const remoteScore = portalDataScore(remoteState);
+      const localScore = portalDataScore(localState);
       const recoveredScore = portalDataScore(recoveredState);
       updateRecoveryDiagnostics({
         remoteScore,
+        localScore,
         recoveredScore,
-        notes: [`Tentativa ${attempt + 1}: remoto=${remoteScore}, backup=${recoveredScore}`]
+        notes: [`Tentativa ${attempt + 1}: remoto=${remoteScore}, local=${localScore}, backup=${recoveredScore}`]
       });
 
-      if (hasMeaningfulPortalData(remoteState)) {
-        const hydratedRemoteState = mergePortalMembersFromFallback(remoteState, recoveredState);
-        return finalizeLoadedPortalState(hydratedRemoteState, "remote-state");
+      const hydratedRemoteState = mergePortalMembersFromFallback(remoteState, recoveredState);
+      const hydratedLocalState = mergePortalMembersFromFallback(localState, recoveredState);
+      const preferredState = choosePreferredPortalState(hydratedRemoteState, hydratedLocalState);
+
+      if (hasMeaningfulPortalData(preferredState)) {
+        const sourceLabel = preferredState === hydratedLocalState ? "local-state" : "remote-state";
+        const finalizedState = finalizeLoadedPortalState(preferredState, sourceLabel);
+        saveLocalPortalState(finalizedState);
+        if (preferredState === hydratedLocalState && portalStateVersion(hydratedLocalState) > portalStateVersion(hydratedRemoteState)) {
+          try {
+            await saveSharedPortalState(finalizedState);
+          } catch (error) {
+            console.warn("Não foi possível sincronizar o snapshot local mais novo com o Supabase.", error);
+          }
+        }
+        return finalizedState;
       }
       if (recoveredState) {
         console.warn("Estado remoto vazio. Restaurando portal a partir do backup local empacotado.");
         const restoredState = finalizeLoadedPortalState(recoveredState, "backup-remote-empty");
+        saveLocalPortalState(restoredState);
         try {
           await saveSharedPortalState(restoredState);
         } catch (error) {
@@ -2594,6 +2726,7 @@ async function loadState() {
         return restoredState;
       }
       const seededState = finalizeLoadedPortalState(remoteState, "remote-empty-seeded");
+      saveLocalPortalState(seededState);
       try {
         await saveSharedPortalState(seededState);
       } catch (error) {
@@ -2602,6 +2735,13 @@ async function loadState() {
       return seededState;
     } catch (error) {
       if (attempt === 2) {
+        const localState = loadLocalPortalState();
+        if (hasMeaningfulPortalData(localState)) {
+          console.warn("Leitura remota falhou. Carregando portal a partir do snapshot local.");
+          const finalizedLocalState = finalizeLoadedPortalState(localState, "local-after-remote-failure");
+          saveLocalPortalState(finalizedLocalState);
+          return finalizedLocalState;
+        }
         const recoveredState = await loadBundledPortalBackup();
         if (recoveredState) {
           console.warn("Leitura remota falhou. Carregando portal a partir do backup local empacotado.");
@@ -2857,103 +2997,126 @@ function formatLocaleNumber(value) {
   }).format(parseLocaleNumber(value));
 }
 
+const PORTAL_PT_BR_REPLACEMENTS = [
+  [/\bAtica\b/g, "Ática"],
+  [/\bGestao\b/g, "Gestão"],
+  [/\bgestao\b/g, "gestão"],
+  [/\bPortfolio\b/g, "Portfólio"],
+  [/\bOperacao\b/g, "Operação"],
+  [/\boperacao\b/g, "operação"],
+  [/\bOperacoes\b/g, "Operações"],
+  [/\boperacoes\b/g, "operações"],
+  [/\bExpansao\b/g, "Expansão"],
+  [/\bexpansao\b/g, "expansão"],
+  [/\bCalendario\b/g, "Calendário"],
+  [/\bConfiguracoes\b/g, "Configurações"],
+  [/\bDescricao\b/g, "Descrição"],
+  [/\bdescricao\b/g, "descrição"],
+  [/\bSubtitulo\b/g, "Subtítulo"],
+  [/\bTitulo\b/g, "Título"],
+  [/\btitulo\b/g, "título"],
+  [/\bEstagio\b/g, "Estágio"],
+  [/\bestagio\b/g, "estágio"],
+  [/\bLocalizacao\b/g, "Localização"],
+  [/\blocalizacao\b/g, "localização"],
+  [/\bResponsavel\b/g, "Responsável"],
+  [/\bresponsavel\b/g, "responsável"],
+  [/\bConclusao\b/g, "Conclusão"],
+  [/\bconclusao\b/g, "conclusão"],
+  [/\bJuridico\b/g, "Jurídico"],
+  [/\bEstrategico\b/g, "Estratégico"],
+  [/\bGovernanca\b/g, "Governança"],
+  [/\bRevisao\b/g, "Revisão"],
+  [/\bConcluido\b/g, "Concluído"],
+  [/\bConcluidos\b/g, "Concluídos"],
+  [/\bHistorico\b/g, "Histórico"],
+  [/\bcaptacao\b/g, "captação"],
+  [/\bCaptacao\b/g, "Captação"],
+  [/\bInformacoes\b/g, "Informações"],
+  [/\bNegocio\b/g, "Negócio"],
+  [/\bnegocio\b/g, "negócio"],
+  [/\bObservacoes\b/g, "Observações"],
+  [/\bProjecao\b/g, "Projeção"],
+  [/\bMidia\b/g, "Mídia"],
+  [/\bmidia\b/g, "mídia"],
+  [/\bNao\b/g, "Não"],
+  [/\bnao\b/g, "não"],
+  [/\bMedia\b/g, "Média"],
+  [/\bmedia\b/g, "média"],
+  [/\bGoiania\b/g, "Goiânia"],
+  [/\bGoias\b/g, "Goiás"],
+  [/\bMarcio\b/g, "Márcio"],
+  [/\bAndre\b/g, "André"],
+  [/\bSao\b/g, "São"],
+  [/\bCosmeticos\b/g, "Cosméticos"],
+  [/\bEducacao\b/g, "Educação"],
+  [/\bNutricao\b/g, "Nutrição"],
+  [/\bServicos\b/g, "Serviços"],
+  [/\bservicos\b/g, "serviços"],
+  [/\bImobiliario\b/g, "Imobiliário"],
+  [/\bGraos\b/g, "Grãos"],
+  [/\bgraos\b/g, "grãos"],
+  [/\bLiofilizacao\b/g, "Liofilização"],
+  [/\btecnologica\b/g, "tecnológica"],
+  [/\btecnologico\b/g, "tecnológico"],
+  [/\bSaude\b/g, "Saúde"],
+  [/\bsaude\b/g, "saúde"],
+  [/\bserao\b/g, "serão"],
+  [/\bOrcar\b/g, "Orçar"],
+  [/\borcar\b/g, "orçar"],
+  [/\bestagiario\b/g, "estagiário"],
+  [/\bfuncionarias\b/g, "funcionárias"],
+  [/\bgrafico\b/g, "gráfico"],
+  [/\bregiao\b/g, "região"],
+  [/\boleos\b/g, "óleos"],
+  [/\bmaquina\b/g, "máquina"],
+  [/\bautomatico\b/g, "automático"],
+  [/\bbancarias\b/g, "bancárias"],
+  [/\bdiario\b/g, "diário"],
+  [/\bposicao\b/g, "posição"],
+  [/\btransacao\b/g, "transação"],
+  [/\blogistica\b/g, "logística"],
+  [/\bconcentracao\b/g, "concentração"],
+  [/\bdinamicos\b/g, "dinâmicos"],
+  [/\bacoes\b/g, "ações"],
+  [/\brapidas\b/g, "rápidas"],
+  [/\bproximos\b/g, "próximos"],
+  [/\breuniao\b/g, "reunião"],
+  [/\bdeliberacao\b/g, "deliberação"],
+  [/\btecnica\b/g, "técnica"],
+  [/\btecnico\b/g, "técnico"],
+  [/\btributario\b/g, "tributário"],
+  [/\bconversao\b/g, "conversão"],
+  [/\bdistribuicao\b/g, "distribuição"],
+  [/\bvisao\b/g, "visão"],
+  [/\bCriticas\b/g, "Críticas"],
+  [/\bcriticas\b/g, "críticas"],
+  [/\brapido\b/g, "rápido"],
+  [/\bsensiveis\b/g, "sensíveis"],
+  [/\bconcluidas\b/g, "concluídas"],
+  [/\bExperiencia\b/g, "Experiência"],
+  [/\bexperiencia\b/g, "experiência"],
+  [/\bLinguistica\b/g, "Linguística"],
+  [/\blinguistica\b/g, "linguística"],
+  [/\bFranquias \/ Wellness\b/g, "Franquias / Wellness"],
+  [/\bBuy-side\b/g, "Buy-side"],
+  [/\bSell Side\b/g, "Sell-side"]
+];
+
+function normalizePortalPortugueseText(value) {
+  let text = String(value ?? "");
+  PORTAL_PT_BR_REPLACEMENTS.forEach(([pattern, replacement]) => {
+    text = text.replace(pattern, replacement);
+  });
+  return text
+    .replace(/[^\S\r\n]+([,.;:!?])/g, "$1")
+    .replace(/([(\[{])[^\S\r\n]+/g, "$1")
+    .replace(/[^\S\r\n]+([)\]}])/g, "$1")
+    .replace(/[^\S\r\n]{2,}/g, " ");
+}
+
 function displayText(value) {
-  return String(value || "")
-    .replaceAll("Atica", "Ática")
-    .replaceAll("Gestao", "Gestão")
-    .replaceAll("gestao", "gestão")
-    .replaceAll("Portfolio", "Portfólio")
-    .replaceAll("Operacao", "Operação")
-    .replaceAll("operacao", "operação")
-    .replaceAll("Operacoes", "Operações")
-    .replaceAll("operacoes", "operações")
-    .replaceAll("Expansao", "Expansão")
-    .replaceAll("expansao", "expansão")
-    .replaceAll("Calendario", "Calendário")
-    .replaceAll("Configuracoes", "Configurações")
-    .replaceAll("Descricao", "Descrição")
-    .replaceAll("descricao", "descrição")
-    .replaceAll("Subtitulo", "Subtítulo")
-    .replaceAll("Titulo", "Título")
-    .replaceAll("titulo", "título")
-    .replaceAll("Estagio", "Estágio")
-    .replaceAll("estagio", "estágio")
-    .replaceAll("Localizacao", "Localização")
-    .replaceAll("localizacao", "localização")
-    .replaceAll("Responsavel", "Responsável")
-    .replaceAll("responsavel", "responsável")
-    .replaceAll("Conclusao", "Conclusão")
-    .replaceAll("conclusao", "conclusão")
-    .replaceAll("Juridico", "Jurídico")
-    .replaceAll("Estrategico", "Estratégico")
-    .replaceAll("Governanca", "Governança")
-    .replaceAll("Revisao", "Revisão")
-    .replaceAll("Concluido", "Concluído")
-    .replaceAll("Concluidos", "Concluídos")
-    .replaceAll("Historico", "Histórico")
-    .replaceAll("captacao", "captação")
-    .replaceAll("Captacao", "Captação")
-    .replaceAll("Informacoes", "Informações")
-    .replaceAll("Negocio", "Negócio")
-    .replaceAll("negocio", "negócio")
-    .replaceAll("Observacoes", "Observações")
-    .replaceAll("Projecao", "Projeção")
-    .replaceAll("Midia", "Mídia")
-    .replaceAll("midia", "mídia")
-    .replaceAll("Nao", "Não")
-    .replaceAll("nao", "não")
-    .replaceAll("Media", "Média")
-    .replaceAll("media", "média")
-    .replaceAll("Goiania", "Goiânia")
-    .replaceAll("Goias", "Goiás")
-    .replaceAll("Marcio", "Márcio")
-    .replaceAll("Andre", "André")
-    .replaceAll("Sao", "São")
-    .replaceAll("Cosmeticos", "Cosméticos")
-    .replaceAll("Educacao", "Educação")
-    .replaceAll("Nutricao", "Nutrição")
-    .replaceAll("Servicos", "Serviços")
-    .replaceAll("servicos", "serviços")
-    .replaceAll("Imobiliario", "Imobiliário")
-    .replaceAll("Graos", "Grãos")
-    .replaceAll("graos", "grãos")
-    .replaceAll("Liofilizacao", "Liofilização")
-    .replaceAll("tecnologica", "tecnológica")
-    .replaceAll("Saude", "Saúde")
-    .replaceAll("saude", "saúde")
-    .replaceAll("serao", "serão")
-    .replaceAll("Orcar", "Orçar")
-    .replaceAll("orcar", "orçar")
-    .replaceAll("estagiario", "estagiário")
-    .replaceAll("funcionarias", "funcionárias")
-    .replaceAll("grafico", "gráfico")
-    .replaceAll("regiao", "região")
-    .replaceAll("oleos", "óleos")
-    .replaceAll("maquina", "máquina")
-    .replaceAll("automatico", "automático")
-    .replaceAll("bancarias", "bancárias")
-    .replaceAll("diario", "diário")
-    .replaceAll("posicao", "posição")
-    .replaceAll("transacao", "transação")
-    .replaceAll("logistica", "logística")
-    .replaceAll("concentracao", "concentração")
-    .replaceAll("dinamicos", "dinâmicos")
-    .replaceAll("acoes", "ações")
-    .replaceAll("rapidas", "rápidas")
-    .replaceAll("proximos", "próximos")
-    .replaceAll("reuniao", "reunião")
-    .replaceAll("deliberacao", "deliberação")
-    .replaceAll("tecnica", "técnica")
-    .replaceAll("tecnico", "técnico")
-    .replaceAll("tributario", "tributário")
-    .replaceAll("conversao", "conversão")
-    .replaceAll("distribuicao", "distribuição")
-    .replaceAll("visao", "visão")
-    .replaceAll("Criticas", "Críticas")
-    .replaceAll("criticas", "críticas")
-    .replaceAll("rapido", "rápido")
-    .replaceAll("sensiveis", "sensíveis")
-    .replaceAll("concluidas", "concluídas");
+  return normalizePortalPortugueseText(value);
 }
 
 function initials(name) {
@@ -5022,29 +5185,50 @@ function bindRitoProjectDetailPage(page, item) {
     openProjectPasteDialog(item, "logo", sourceView);
   };
   page.querySelector("[data-project-action='resize-logo']").onclick = () => {
+    void (async () => {
     const sizes = [90, 100, 110, 120];
     const currentIndex = sizes.indexOf(item.media.logoScale || 100);
     item.media.logoScale = sizes[(currentIndex + 1) % sizes.length];
-    item.updatedAt = todayISO();
+    item.updatedAt = new Date().toISOString();
     pushHistory(item, `Escala da logo ajustada para ${item.media.logoScale}%`);
-    saveState();
+    await upsertCRMItem(item, {
+      skipRender: true,
+      renderOnSuccess: false
+    });
     openProjectDetail(item.id, sourceView);
+    })().catch((error) => {
+      alert(error?.message || "Não foi possível atualizar a logo.");
+    });
   };
   page.querySelector("[data-project-action='new-task']").onclick = () => openTaskDialog(item.name);
   page.querySelector("[data-project-action='new-doc']").onclick = () => openDocumentDialog(item.name);
   page.querySelector("#detailLogoUpload").onchange = async (event) => {
-    item.logo = await imageFileToProjectDataURL(event.target.files[0], "logo", item.logo);
-    item.updatedAt = todayISO();
-    pushHistory(item, "Logo atualizada");
-    saveState();
-    openProjectDetail(item.id, sourceView);
+    try {
+      item.logo = await imageFileToProjectDataURL(event.target.files[0], "logo", item.logo);
+      item.updatedAt = new Date().toISOString();
+      pushHistory(item, "Logo atualizada");
+      await upsertCRMItem(item, {
+        skipRender: true,
+        renderOnSuccess: false
+      });
+      openProjectDetail(item.id, sourceView);
+    } catch (error) {
+      alert(error?.message || "Não foi possível atualizar a logo.");
+    }
   };
   page.querySelector("#detailCoverUpload").onchange = async (event) => {
-    item.cover = await imageFileToProjectDataURL(event.target.files[0], "cover", item.cover);
-    item.updatedAt = todayISO();
-    pushHistory(item, "Capa atualizada");
-    saveState();
-    openProjectDetail(item.id, sourceView);
+    try {
+      item.cover = await imageFileToProjectDataURL(event.target.files[0], "cover", item.cover);
+      item.updatedAt = new Date().toISOString();
+      pushHistory(item, "Capa atualizada");
+      await upsertCRMItem(item, {
+        skipRender: true,
+        renderOnSuccess: false
+      });
+      openProjectDetail(item.id, sourceView);
+    } catch (error) {
+      alert(error?.message || "Não foi possível atualizar a capa.");
+    }
   };
   page.querySelectorAll("input[data-drawer-field='progress']").forEach((field) => {
     field.addEventListener("input", () => {
@@ -5847,12 +6031,11 @@ function createReferenceProjectCard(card, invested = false, sourceView = "crm") 
   const statusSummary = dealStatusSummaryPreview(statusSummarySource, 160);
   const statusSummaryLabel = normalizeReferenceDashboardStage(statusSummarySource) === "Declinado" ? "Motivo do declínio" : "Resumo do status";
   if (linked) {
-    article.draggable = true;
     article.dataset.crmId = linked.id;
   }
   article.innerHTML = `
     <div class="reference-cover" style="background-image:url('${displayCover}')">
-      <button class="cover-dot">...</button>
+      <span class="cover-dot reference-drag-handle" data-no-drag="false" aria-hidden="true">⋮⋮</span>
       <span class="status-badge">${displayText(displayStatus)}</span>
     </div>
     <div class="reference-logo ${displayLogo ? "has-image" : ""}" style="background:${displayLogoBg}">${displayLogo ? `<img src="${displayLogo}" alt="${card.name}" style="width:100%;height:100%;object-fit:contain">` : displayLogoText}</div>
@@ -5878,59 +6061,40 @@ function createReferenceProjectCard(card, invested = false, sourceView = "crm") 
   `;
   if (linked) {
     const investmentInput = article.querySelector("[data-card-investment]");
-    ["click", "mousedown", "mouseup", "touchstart", "touchend"].forEach((eventName) => {
-      investmentInput.addEventListener(eventName, (event) => event.stopPropagation());
-    });
     const syncInvestmentAmount = () => {
       linked.investmentAmount = Math.max(0, parseLocaleNumber(investmentInput.value || 0));
-      linked.updatedAt = todayISO();
+      linked.updatedAt = new Date().toISOString();
       syncInvestmentTag(linked);
+      linked.__draftDirty = true;
+      saveLocalPortalState(state);
     };
-    const commitInvestmentAmount = () => {
+    const commitInvestmentAmount = async () => {
+      if (article.dataset.investmentSavePending === "1") return;
+      article.dataset.investmentSavePending = "1";
       syncInvestmentAmount();
       investmentInput.value = formatLocaleNumber(linked.investmentAmount);
-      saveState();
-      renderApp();
+      try {
+        await upsertCRMItem(linked, {
+          skipRender: true,
+          renderOnSuccess: false
+        });
+        renderAppPreservingScroll();
+      } finally {
+        article.dataset.investmentSavePending = "0";
+      }
     };
     investmentInput.addEventListener("input", () => {
       syncInvestmentAmount();
-      saveState();
     });
-    investmentInput.addEventListener("change", commitInvestmentAmount);
-    investmentInput.addEventListener("blur", commitInvestmentAmount);
-    article.addEventListener("dragstart", (event) => {
-      event.dataTransfer.effectAllowed = "move";
-      event.dataTransfer.setData("text/plain", linked.id);
-      article.classList.add("is-dragging");
-      article.dataset.justDragged = "0";
+    investmentInput.addEventListener("change", () => {
+      void commitInvestmentAmount();
     });
-    article.addEventListener("dragend", () => {
-      article.classList.remove("is-dragging");
-      article.dataset.justDragged = "1";
-      document.querySelectorAll(".reference-project-card").forEach((cardNode) => cardNode.classList.remove("is-drop-target"));
-      setTimeout(() => {
-        article.dataset.justDragged = "0";
-      }, 60);
+    investmentInput.addEventListener("blur", () => {
+      void commitInvestmentAmount();
     });
-    article.addEventListener("dragover", (event) => {
-      event.preventDefault();
-      event.dataTransfer.dropEffect = "move";
-      document.querySelectorAll(".reference-project-card").forEach((cardNode) => {
-        if (cardNode !== article) cardNode.classList.remove("is-drop-target");
-      });
-      article.classList.add("is-drop-target");
-    });
-    article.addEventListener("dragleave", () => {
-      article.classList.remove("is-drop-target");
-    });
-    article.addEventListener("drop", (event) => {
-      event.preventDefault();
-      article.classList.remove("is-drop-target");
-      void reorderCRMItems(event.dataTransfer.getData("text/plain"), linked.id);
-    });
-    article.addEventListener("click", () => {
-      if (article.dataset.justDragged === "1") return;
-      openProjectDetail(linked.id, sourceView);
+    wireDealReorderInteractions(article, linked.id, {
+      dropTargetSelector: ".reference-project-card.is-reorderable-deal",
+      onOpen: () => openProjectDetail(linked.id, sourceView)
     });
   }
   return article;
@@ -6881,7 +7045,7 @@ function openMemberDialog(memberName = "") {
         <div class="field full-span member-photo-field">
           <span>Foto do perfil</span>
           <div class="member-photo-upload">
-            <div class="member-photo-preview" aria-hidden="true">
+            <div class="member-photo-preview" id="memberPhotoPreview" aria-hidden="true">
               ${memberPreviewPhoto ? `<img src="${memberPreviewPhoto}" alt="${escapeAttr(current.name || "Membro")}">` : `<strong>${memberPreviewInitials || "M"}</strong>`}
             </div>
             <label class="member-photo-picker">
@@ -6889,10 +7053,11 @@ function openMemberDialog(memberName = "") {
               <span>Escolher imagem</span>
             </label>
             <div class="member-photo-copy">
-              <strong>${memberPreviewPhoto ? "Foto atual carregada" : "Adicionar foto"}</strong>
-              <small>PNG ou JPG para o avatar do membro.</small>
+              <strong id="memberPhotoStatus">${memberPreviewPhoto ? "Foto atual carregada" : "Adicionar foto"}</strong>
+              <small>PNG ou JPG para o avatar do membro. Você também pode usar <strong>Ctrl+V</strong>.</small>
             </div>
           </div>
+          <button class="paste-dropzone member-photo-paste" id="memberPhotoPasteDropzone" type="button">Ctrl+V para colar a foto</button>
         </div>
         <fieldset class="field full-span member-workspaces-fieldset">
           <span>Workspaces</span>
@@ -6923,12 +7088,92 @@ function openMemberDialog(memberName = "") {
     };
   });
   const form = document.getElementById("memberForm");
+  const nameInput = form.querySelector("input[name='name']");
+  const photoInput = form.querySelector("input[name='photo']");
+  const photoPreview = document.getElementById("memberPhotoPreview");
+  const photoStatus = document.getElementById("memberPhotoStatus");
+  const pasteDropzone = document.getElementById("memberPhotoPasteDropzone");
+  const defaultPasteText = "Ctrl+V para colar a foto";
+  let pendingPhotoValue = current.photo || "";
+  let photoUpdatePromise = Promise.resolve();
+
+  const renderMemberPhotoPreview = () => {
+    const previewName = String(nameInput?.value || current.name || "Membro").trim() || "Membro";
+    const previewInitials = initials(previewName || "M");
+    photoPreview.innerHTML = pendingPhotoValue
+      ? `<img src="${pendingPhotoValue}" alt="${escapeAttr(previewName)}">`
+      : `<strong>${previewInitials || "M"}</strong>`;
+    photoStatus.textContent = pendingPhotoValue ? "Foto pronta para salvar" : "Adicionar foto";
+  };
+
+  const setPhotoLoadingState = (loading, label = "") => {
+    if (pasteDropzone) {
+      pasteDropzone.disabled = loading;
+      pasteDropzone.textContent = loading ? (label || "Aplicando foto...") : defaultPasteText;
+    }
+    if (photoInput) photoInput.disabled = loading;
+    if (photoStatus && loading && label) photoStatus.textContent = label;
+  };
+
+  const applyMemberPhotoFile = async (file) => {
+    if (!file) return pendingPhotoValue;
+    setPhotoLoadingState(true, "Aplicando foto...");
+    try {
+      pendingPhotoValue = await imageFileToMemberPhotoURL(file, pendingPhotoValue || current.photo || "");
+      renderMemberPhotoPreview();
+      return pendingPhotoValue;
+    } finally {
+      setPhotoLoadingState(false);
+    }
+  };
+
+  const queueMemberPhotoUpdate = (file) => {
+    photoUpdatePromise = photoUpdatePromise
+      .catch(() => null)
+      .then(() => applyMemberPhotoFile(file));
+    return photoUpdatePromise;
+  };
+
+  const handleMemberPhotoPaste = async (event) => {
+    const file = clipboardImageFromPasteEvent(event);
+    if (!file) return;
+    event.preventDefault();
+    try {
+      await queueMemberPhotoUpdate(file);
+    } catch (error) {
+      alert(error?.message || "Não foi possível colar a foto agora.");
+    }
+  };
+
+  nameInput?.addEventListener("input", () => {
+    if (!pendingPhotoValue) renderMemberPhotoPreview();
+  });
+
+  photoInput?.addEventListener("change", async () => {
+    const selectedFile = photoInput.files?.[0];
+    if (!selectedFile) return;
+    try {
+      await queueMemberPhotoUpdate(selectedFile);
+      photoInput.value = "";
+    } catch (error) {
+      photoInput.value = "";
+      alert(error?.message || "Não foi possível carregar a foto selecionada.");
+    }
+  });
+
+  pasteDropzone?.addEventListener("click", () => {
+    pasteDropzone.focus();
+  });
+  pasteDropzone?.addEventListener("paste", handleMemberPhotoPaste);
+  form.addEventListener("paste", handleMemberPhotoPaste);
+  renderMemberPhotoPreview();
+
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    await photoUpdatePromise.catch(() => null);
     const formData = new FormData(form);
     const workspaceTags = form.querySelectorAll("input[name='memberWorkspace']:checked");
     const selectedWorkspaceTags = Array.from(workspaceTags).map((input) => input.value);
-    const photoFile = form.querySelector("input[name='photo']").files[0];
     const payload = {
       name: String(formData.get("name") || "").trim(),
       role: String(formData.get("role") || "").trim(),
@@ -6938,7 +7183,7 @@ function openMemberDialog(memberName = "") {
         ...selectedWorkspaceTags
       ].filter(Boolean),
       color: current.color || memberColor(String(formData.get("name") || "")),
-      photo: await imageFileToProjectDataURL(photoFile, "logo", current.photo || "")
+      photo: pendingPhotoValue || current.photo || ""
     };
     if (!payload.name) return;
     if (currentMember) {
@@ -7964,6 +8209,7 @@ function persistProjectDraft(item, root = document) {
   else items.unshift(item);
   if (JSON.stringify(item) !== before) {
     item.__draftDirty = true;
+    saveLocalPortalState(state);
   }
 }
 
@@ -7984,8 +8230,11 @@ async function applyProjectImageFile(item, target, file, sourceView, options = {
       item.cover = await imageFileToProjectDataURL(file, "cover", item.cover);
       pushHistory(item, "Capa colada da área de transferência");
     }
-    item.updatedAt = todayISO();
-    saveState();
+    item.updatedAt = new Date().toISOString();
+    await upsertCRMItem(item, {
+      skipRender: true,
+      renderOnSuccess: false
+    });
     if (reopen) openProjectDetail(item.id, sourceView);
     return true;
   } catch (error) {
@@ -8974,6 +9223,69 @@ async function imageFileToProjectDataURL(file, target, fallback) {
   } catch {
     const uploadedUrl = await uploadProjectImageWithFallback(file, PORTAL_MEDIA_BUCKET, workspaceFolder, {
       prefix: target
+    });
+    return uploadedUrl || fallback;
+  }
+}
+
+async function imageFileToMemberPhotoURL(file, fallback = "") {
+  if (!file) return fallback;
+  const workspaceFolder = `${state.currentWorkspace}/members`;
+  if (!file.type || !file.type.startsWith("image/") || file.type === "image/svg+xml") {
+    const uploadedUrl = await uploadProjectImageWithFallback(file, PORTAL_MEDIA_BUCKET, workspaceFolder, {
+      prefix: "member-photo",
+      defaultExtension: "bin"
+    });
+    return uploadedUrl || fallback;
+  }
+
+  const image = await loadImageFromFile(file);
+  const maxWidth = 360;
+  const maxHeight = 360;
+  const scale = Math.min(1, maxWidth / image.width, maxHeight / image.height);
+  const width = Math.max(1, Math.round(image.width * scale));
+  const height = Math.max(1, Math.round(image.height * scale));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+
+  const context = canvas.getContext("2d");
+  if (!context) {
+    const uploadedUrl = await uploadProjectImageWithFallback(file, PORTAL_MEDIA_BUCKET, workspaceFolder, {
+      prefix: "member-photo"
+    });
+    return uploadedUrl || fallback;
+  }
+
+  context.clearRect(0, 0, width, height);
+  context.drawImage(image, 0, 0, width, height);
+
+  const mimeType = "image/webp";
+  const targetBytes = 90 * 1024;
+  const qualitySteps = [0.88, 0.76, 0.64, 0.54, 0.46];
+
+  try {
+    let chosenBlob = null;
+    for (const quality of qualitySteps) {
+      const candidateBlob = await canvasToBlob(canvas, mimeType, quality);
+      chosenBlob = candidateBlob;
+      if (candidateBlob.size <= targetBytes) break;
+    }
+    if (!chosenBlob) {
+      chosenBlob = await canvasToBlob(canvas, "image/jpeg", 0.62);
+    }
+    const optimizedFile = new File([chosenBlob], `member-photo.${chosenBlob.type.includes("jpeg") ? "jpg" : "webp"}`, {
+      type: chosenBlob.type || mimeType
+    });
+    const uploadedUrl = await uploadProjectImageWithFallback(optimizedFile, PORTAL_MEDIA_BUCKET, workspaceFolder, {
+      prefix: "member-photo",
+      contentType: optimizedFile.type
+    });
+    return uploadedUrl || fallback;
+  } catch {
+    const uploadedUrl = await uploadProjectImageWithFallback(file, PORTAL_MEDIA_BUCKET, workspaceFolder, {
+      prefix: "member-photo"
     });
     return uploadedUrl || fallback;
   }
