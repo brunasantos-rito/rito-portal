@@ -2803,6 +2803,11 @@ body[data-theme="dark"] .card-cover::after {
   line-height: 1.45;
 }
 
+.member-photo-paste {
+  width: 100%;
+  min-height: 48px;
+}
+
 .member-workspaces-fieldset {
   grid-column: 1 / -1;
   border: 0;
@@ -4235,6 +4240,8 @@ body[data-theme="dark"] .workspace-soft-page .kanban-card {
   overflow: hidden;
   min-height: 268px;
   cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .reference-project-card.is-dragging {
@@ -4265,6 +4272,26 @@ body[data-theme="dark"] .workspace-soft-page .kanban-card {
   background: rgba(255,255,255,0.86);
   color: var(--text-soft);
   font-size: 0.7rem;
+}
+
+.reference-drag-handle {
+  display: grid;
+  place-items: center;
+  letter-spacing: -0.1em;
+  font-weight: 700;
+  cursor: grab;
+  pointer-events: none;
+}
+
+.reference-project-card.is-dragging .reference-drag-handle {
+  cursor: grabbing;
+}
+
+.reference-project-card input,
+.reference-project-card textarea,
+.reference-project-card select {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .reference-logo {
