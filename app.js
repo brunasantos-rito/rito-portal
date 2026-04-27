@@ -453,6 +453,7 @@ async function persistCRMOrderToDatabase(orderedItems, {
       const workspace = workspaceStateSnapshot(nextState, workspaceId);
       workspace.crmItems = clonePortalState(Array.isArray(orderedItems) ? orderedItems : []);
       nextState.lastSavedAt = new Date().toISOString();
+      saveLocalPortalState(nextState);
 
       const savedRow = await saveSharedPortalState(nextState);
       let savedState = buildPortalState(savedRow?.data && typeof savedRow.data === "object" ? savedRow.data : nextState);
@@ -461,6 +462,7 @@ async function persistCRMOrderToDatabase(orderedItems, {
 
       if (savedIds.length === expectedIds.length && savedIds.every((id, index) => id === expectedIds[index])) {
         state = savedState;
+        saveLocalPortalState(state);
         return savedState;
       }
 
@@ -476,10 +478,12 @@ async function persistCRMOrderToDatabase(orderedItems, {
       const confirmedIds = (savedState.workspaces?.[workspaceId]?.crmItems || []).map((item) => item.id);
       if (confirmedIds.length === expectedIds.length && confirmedIds.every((id, index) => id === expectedIds[index])) {
         state = savedState;
+        saveLocalPortalState(state);
         return savedState;
       }
 
       state = buildPortalState(nextState);
+      saveLocalPortalState(state);
       schedulePortalStateVerification(nextState);
       return state;
     } catch (error) {
@@ -1087,6 +1091,7 @@ async function reorderCRMItems(draggedId, targetId) {
   items.splice(targetIndex, 0, draggedItem);
   state.workspaces[state.currentWorkspace].crmItems = items;
   state.lastSavedAt = new Date().toISOString();
+  saveLocalPortalState(state);
   renderApp();
   try {
     await persistCRMOrderToDatabase(items, {
@@ -2260,24 +2265,27 @@ function migrateRitoReferenceProjects(rootState) {
   rito.projectBoards = rito.projectBoards || {};
   const existingItems = Array.isArray(rito.crmItems) ? rito.crmItems : [];
   existingItems.forEach((item) => ensureProjectShape(item));
-  const remainingItems = [...existingItems];
   const sourceProjects = getRitoSourceProjects();
-  const seededItems = sourceProjects.map((project) => {
-    const seededItem = referenceProjectToCRMItem(project);
-    const matches = remainingItems.filter((item) => isLikelyReferenceProjectMatch(item, project));
-    if (!matches.length) return seededItem;
-    const bestMatch = matches.reduce((best, candidate) => {
-      if (!best) return candidate;
-      return projectRecordScore(candidate, project) > projectRecordScore(best, project) ? candidate : best;
-    }, null);
-    const bestMatchIndex = remainingItems.findIndex((item) => item?.id === bestMatch?.id);
-    if (bestMatchIndex >= 0) remainingItems.splice(bestMatchIndex, 1);
-    const mergedItem = { ...bestMatch };
-    mergeProjectRecords(mergedItem, seededItem, project);
-    mergedItem.id = bestMatch?.id || mergedItem.id;
+  const matchedSourceKeys = new Set();
+  const nextItems = existingItems.map((existingItem) => {
+    const matchingProject = sourceProjects.find((project) =>
+      !matchedSourceKeys.has(referenceProjectKey(project)) &&
+      isLikelyReferenceProjectMatch(existingItem, project)
+    );
+    if (!matchingProject) return existingItem;
+    matchedSourceKeys.add(referenceProjectKey(matchingProject));
+    const seededItem = referenceProjectToCRMItem(matchingProject);
+    const mergedItem = { ...existingItem };
+    mergeProjectRecords(mergedItem, seededItem, matchingProject);
+    mergedItem.id = existingItem?.id || seededItem.id;
     return mergedItem;
   });
-  rito.crmItems = dedupeCRMItemsById([...seededItems, ...remainingItems]);
+  sourceProjects.forEach((project) => {
+    const projectKey = referenceProjectKey(project);
+    if (matchedSourceKeys.has(projectKey)) return;
+    nextItems.push(referenceProjectToCRMItem(project));
+  });
+  rito.crmItems = dedupeCRMItemsById(nextItems);
 }
 
 function migrateRitoKanbanTasks(rootState) {
