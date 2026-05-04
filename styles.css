@@ -994,9 +994,11 @@ body[data-theme="light"].landing-mode .workspace-launch-arrow {
   min-height: 100vh;
   display: grid;
   grid-template-columns: minmax(420px, 0.9fr) minmax(0, 1.1fr);
-  background:
-    radial-gradient(circle at 16% 20%, rgba(112, 63, 255, 0.18), transparent 26%),
-    linear-gradient(180deg, #060915 0%, #090d1a 100%);
+  background-color: #090d1a;
+  background-image: var(--portal-cover-image-remote), var(--portal-cover-image-local);
+  background-position: center center, center center;
+  background-size: cover, cover;
+  background-repeat: no-repeat, no-repeat;
   color: #f4f6fb;
   font-family: "Segoe UI", Calibri, sans-serif;
 }
@@ -1013,9 +1015,8 @@ body[data-theme="light"].landing-mode .workspace-launch-arrow {
   justify-content: center;
   padding: 28px 32px;
   border-right: 1px solid rgba(255, 255, 255, 0.08);
-  background:
-    radial-gradient(circle at 24% 24%, rgba(112, 63, 255, 0.08), transparent 30%),
-    linear-gradient(180deg, rgba(7, 10, 22, 0.985), rgba(8, 11, 22, 0.97));
+  background: rgba(6, 9, 21, 0.84);
+  backdrop-filter: blur(8px);
 }
 
 .portal-login-panel-inner {
@@ -1137,14 +1138,7 @@ body[data-theme="light"].landing-mode .workspace-launch-arrow {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #090d1a;
-  background-image:
-    linear-gradient(180deg, rgba(4, 8, 24, 0.18), rgba(7, 11, 28, 0.12)),
-    var(--portal-cover-image-remote),
-    var(--portal-cover-image-local);
-  background-position: center center, center center, center center;
-  background-size: auto, cover, cover;
-  background-repeat: no-repeat, no-repeat, no-repeat;
+  background: transparent;
 }
 
 .portal-login-stage-grid {
