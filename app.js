@@ -1047,11 +1047,14 @@ function workspaceLogoMarkup(workspaceId, variant = "default") {
       </svg>
     `;
   }
+  if (variant === "landing") {
+    return `<img class="workspace-logo workspace-logo-rito workspace-logo-${variant} workspace-logo-landing-mark ${state.theme === "dark" ? "is-dark" : "is-light"}" src="./Logo-Rito-Mark-Transparent.png" alt="" aria-hidden="true">`;
+  }
   return `
     <svg class="workspace-logo workspace-logo-rito workspace-logo-${variant}" viewBox="0 0 180 100" aria-hidden="true">
-      <text x="20" y="56" font-size="44" font-family="Georgia, 'Times New Roman', serif" fill="#1e1d21">Rito</text>
-      <text x="24" y="80" font-size="18" font-family="Calibri, 'Segoe UI', sans-serif" letter-spacing="1.5" fill="#1e1d21">ventures</text>
-      <path d="M156 49 l7 7 l-7 7 l-7 -7 Z" fill="none" stroke="#1e1d21" stroke-width="3"/>
+      <text x="20" y="56" font-size="44" font-family="Georgia, 'Times New Roman', serif" fill="currentColor">Rito</text>
+      <text x="24" y="80" font-size="18" font-family="Calibri, 'Segoe UI', sans-serif" letter-spacing="1.5" fill="currentColor">ventures</text>
+      <path d="M156 49 l7 7 l-7 7 l-7 -7 Z" fill="none" stroke="currentColor" stroke-width="3"/>
     </svg>
   `;
 }
@@ -3607,24 +3610,24 @@ function referenceDashboardRows() {
 function referenceDashboardStages() {
   const rows = referenceDashboardRows();
   const palette = {
-    Lead: { tone: "#e1e4ea", accent: "#6f7788" },
-    Pipeline: { tone: "#f5edcf", accent: "#c09205" },
-    NDA: { tone: "#dce8fa", accent: "#4c88c8" },
-    IRL: { tone: "#d8e1fb", accent: "#6d86d8" },
-    LOI: { tone: "#ddd4fb", accent: "#7a5cf0" },
-    NBO: { tone: "#e3d8f6", accent: "#8a67d9" },
-    Proposta: { tone: "#f6e0d7", accent: "#c27a4d" },
-    "Due Diligence": { tone: "#d7e1f8", accent: "#4d7ef6" },
-    Signing: { tone: "#e7dcc8", accent: "#9b7e4f" },
-    Closing: { tone: "#d8ebde", accent: "#2c9a72" },
-    Aporte: { tone: "#d9eddc", accent: "#4a9b63" },
-    "Portfólio": { tone: "#d8edd8", accent: "#41a047" },
-    Declinado: { tone: "#f5d7d7", accent: "#dc3535" },
-    Exit: { tone: "#d7efe6", accent: "#1f8f6a" }
+    Lead: { tone: "linear-gradient(135deg, #8b95a8 0%, #616d83 100%)", accent: "#d8deea" },
+    Pipeline: { tone: "linear-gradient(135deg, #ffd24d 0%, #f5a300 100%)", accent: "#fff2bf" },
+    NDA: { tone: "linear-gradient(135deg, #4dc7ff 0%, #1f8bff 100%)", accent: "#e1f6ff" },
+    IRL: { tone: "linear-gradient(135deg, #7bb1ff 0%, #4a74ff 100%)", accent: "#e8efff" },
+    LOI: { tone: "linear-gradient(135deg, #8f6bff 0%, #6c3cff 100%)", accent: "#efe7ff" },
+    NBO: { tone: "linear-gradient(135deg, #b175ff 0%, #7b3dff 100%)", accent: "#f1e7ff" },
+    Proposta: { tone: "linear-gradient(135deg, #ffae6b 0%, #ff6f3c 100%)", accent: "#fff0df" },
+    "Due Diligence": { tone: "linear-gradient(135deg, #57a2ff 0%, #2451ff 100%)", accent: "#e5edff" },
+    Signing: { tone: "linear-gradient(135deg, #d6b16a 0%, #9a6d2f 100%)", accent: "#f8e9c9" },
+    Closing: { tone: "linear-gradient(135deg, #3ed598 0%, #149a6d 100%)", accent: "#ddfff2" },
+    Aporte: { tone: "linear-gradient(135deg, #54d97f 0%, #2fa95d 100%)", accent: "#e4ffe8" },
+    "Portfólio": { tone: "linear-gradient(135deg, #67dc63 0%, #2e9f4c 100%)", accent: "#e9ffe2" },
+    Declinado: { tone: "linear-gradient(135deg, #ff7b93 0%, #dc2d4f 100%)", accent: "#ffe5ea" },
+    Exit: { tone: "linear-gradient(135deg, #1fd0a2 0%, #0e8b78 100%)", accent: "#defff6" }
   };
   return RITO_PIPELINE_STAGES.map((stage) => {
     const count = rows.filter((row) => normalizeRitoDealStatus(row.stage) === stage).length;
-    const colors = palette[stage] || { tone: "#e8ebf0", accent: "#7b8491" };
+    const colors = palette[stage] || { tone: "linear-gradient(135deg, #9099aa 0%, #6c7789 100%)", accent: "#e6eaf1" };
     return { label: stage, count, tone: colors.tone, accent: colors.accent, deals: `${count} deals` };
   });
 }
@@ -3954,14 +3957,16 @@ function renderApp() {
     ? "Portfolio"
     : "Ambiente";
   if (landing) {
-    workspaceEyebrow.textContent = "WORKSPACE";
+    workspaceEyebrow.textContent = "Portal de Gestão";
     pageCrumb.textContent = "";
     pageTitle.textContent = "Workspace";
     pageCrumb.classList.add("hidden");
     breadcrumbSep.classList.add("hidden");
+    landingTopbarMark.innerHTML = `<img class="landing-topbar-mark-image ${state.theme === "dark" ? "is-dark" : "is-light"}" src="./Logo-Rito-Mark-Transparent.png" alt="Rito">`;
     landingTopbarMark.classList.remove("hidden");
     workspaceHomeButton.classList.add("hidden");
   } else {
+    landingTopbarMark.textContent = "W";
     workspaceEyebrow.textContent = config.name;
     pageCrumb.textContent = detailItem
       ? `${tabTitle(state.projectReturnView[state.currentWorkspace] || "crm").toUpperCase()} > ${detailItem.name.toUpperCase()}`
@@ -4087,15 +4092,39 @@ function renderWorkspaceLandingPage() {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Bom dia." : hour < 18 ? "Boa tarde." : "Boa noite.";
   page.innerHTML = `
+    <div class="workspace-launch-scene" aria-hidden="true">
+      <span class="workspace-launch-orb workspace-launch-orb-a"></span>
+      <span class="workspace-launch-orb workspace-launch-orb-b"></span>
+      <span class="workspace-launch-grid"></span>
+    </div>
     <section class="workspace-launch-hero">
-      <span class="workspace-launch-kicker">Plataforma</span>
-      <h3>${greeting}</h3>
-      <p>Selecione um workspace para continuar.</p>
+      <div class="workspace-launch-brand">
+        <div class="workspace-launch-brand-copy">
+          <h3>${greeting}</h3>
+        </div>
+      </div>
+      <div class="workspace-launch-theme-picker" aria-label="Escolher tema da landing">
+        <button type="button" class="workspace-theme-button ${state.theme === "dark" ? "is-active" : ""}" data-landing-theme="dark">
+          <span class="workspace-theme-swatch workspace-theme-swatch-dark"></span>
+          <span>Dark</span>
+        </button>
+        <button type="button" class="workspace-theme-button ${state.theme === "light" ? "is-active" : ""}" data-landing-theme="light">
+          <span class="workspace-theme-swatch workspace-theme-swatch-light"></span>
+          <span>Light</span>
+        </button>
+      </div>
     </section>
   `;
 
   const list = document.createElement("section");
   list.className = "workspace-launch-list";
+
+  const listHead = document.createElement("div");
+  listHead.className = "workspace-launch-list-head";
+  listHead.innerHTML = `
+    <strong>Workspaces</strong>
+  `;
+  list.appendChild(listHead);
 
   orderedWorkspaces().forEach((workspace) => {
     const meta = workspaceLaunchMeta[workspace.id] || {
@@ -4111,13 +4140,14 @@ function renderWorkspaceLandingPage() {
     item.dataset.workspaceId = workspace.id;
     item.innerHTML = `
       <span class="workspace-launch-index">${meta.index}</span>
-      <span class="workspace-launch-mark">${workspaceLogoMarkup(workspace.id, "landing")}</span>
+      <span class="workspace-launch-mark ${workspace.id === "rito" ? "workspace-launch-mark-rito" : ""}">${workspaceLogoMarkup(workspace.id, "landing")}</span>
       <span class="workspace-launch-main">
         <strong>${workspace.name}</strong>
         <span class="workspace-launch-subtitle">${meta.descriptor}</span>
+        <span class="workspace-launch-summary">${meta.greeting}</span>
       </span>
       <span class="workspace-launch-links">${workspace.views.slice(0, 5).map((view) => `<span>${tabTitleForWorkspace(workspace.id, view)}</span>`).join("")}</span>
-      <span class="workspace-launch-arrow">↗</span>
+      <span class="workspace-launch-arrow">Entrar</span>
     `;
     item.addEventListener("dragstart", (event) => {
       event.dataTransfer.effectAllowed = "move";
@@ -4147,6 +4177,16 @@ function renderWorkspaceLandingPage() {
     });
     item.onclick = () => navigateToWorkspace(workspace.id);
     list.appendChild(item);
+  });
+
+  page.querySelectorAll("[data-landing-theme]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const nextTheme = button.dataset.landingTheme;
+      if (!nextTheme || nextTheme === state.theme) return;
+      state.theme = nextTheme;
+      saveState();
+      renderApp();
+    });
   });
 
   page.appendChild(list);
@@ -4388,7 +4428,7 @@ function renderDueDiligenceDashboard() {
 
 function renderDashboard() {
   const panel = document.createElement("section");
-  panel.className = "content-grid ref-page workspace-soft-page";
+  panel.className = "content-grid ref-page workspace-soft-page dashboard-premium-shell";
   const data = workspaceData();
   const config = workspaceConfig[state.currentWorkspace];
 
@@ -4402,20 +4442,24 @@ function renderDashboard() {
     const tasks = filters.owner === "Todos"
       ? allTasks
       : allTasks.filter((task) => String(task.owner || "").trim() === filters.owner);
-    const summary = taskStatusSummary(tasks);
-    const done = summary.Concluido;
-    const inExecution = summary["Em andamento"];
-    const awaiting = summary.Revisao;
-    const todo = summary["A fazer"];
-    const workstreams = workspaceTaskThemes("fast").length;
-    const metrics = [
-      ["Iniciativas", tasks.length, "Plano tático total"],
-      ["Frentes ativas", workstreams, displayText("Workstreams da operação")],
-      ["Em andamento", inExecution, displayText("Itens em execução")],
-      ["Aguardando", awaiting, "Dependência de aporte ou terceiros"],
-      ["Não iniciadas", todo, "Backlog atual"],
-      ["Execução", `${Math.round((done / (tasks.length || 1)) * 100)}%`, displayText("Percentual concluído")]
-    ];
+    const metrics = workspaceTaskThemes("fast").map((theme) => {
+      const themeTasks = tasks.filter((task) => task.stage === theme);
+      const themeSummary = taskStatusSummary(themeTasks);
+      const done = themeSummary.Concluido || 0;
+      const inExecution = themeSummary["Em andamento"] || 0;
+      const awaiting = themeSummary.Revisao || 0;
+      const todo = themeSummary["A fazer"] || 0;
+      const footnotes = [];
+      if (inExecution) footnotes.push(`${inExecution} em andamento`);
+      if (awaiting) footnotes.push(`${awaiting} aguardando`);
+      if (done) footnotes.push(`${done} concluídas`);
+      if (!footnotes.length && todo) footnotes.push(`${todo} no backlog`);
+      return [
+        theme,
+        themeTasks.length,
+        footnotes.join(" • ") || "Sem iniciativas"
+      ];
+    });
     panel.innerHTML = `
       <section class="page-head">
         <div><h3>Dashboard</h3><p>${displayText("Painel executivo da Fast Massagem com visão operacional, prioridades e performance")}</p></div>
@@ -4507,7 +4551,7 @@ function renderDashboardSectionSafely(sectionName, renderFn) {
 
 function renderRitoReferenceDashboard() {
   const panel = document.createElement("section");
-  panel.className = "content-grid";
+  panel.className = "content-grid dashboard-premium-shell dashboard-premium-shell-rito";
   const workspaceName = workspaceConfig[state.currentWorkspace]?.name || "Workspace";
 
   const titleRow = document.createElement("section");
@@ -6178,7 +6222,7 @@ function renderStageValuePanel(items, stages) {
 
 function renderFastDashboardDetail(tasks) {
   const wrap = document.createElement("section");
-  wrap.className = "fast-dashboard-shell";
+  wrap.className = "fast-dashboard-shell fast-dashboard-shell-premium";
 
   const workstreams = workspaceTaskThemes("fast");
   const total = tasks.length || 1;
@@ -6684,6 +6728,15 @@ function renderInvestedProjects() {
   const panel = document.createElement("section");
   panel.className = "content-grid ref-page workspace-soft-page";
   const items = investedProjects(workspaceData().crmItems);
+  const totalAllocated = items.reduce((sum, item) => sum + Number(item.investmentAmount || 0), 0);
+  const completed = items.filter((item) => Number(item.progress || 0) >= 100).length;
+  const inProgress = items.filter((item) => Number(item.progress || 0) > 0 && Number(item.progress || 0) < 100).length;
+  const metrics = [
+    ["Total", items.length, "empresas investidas"],
+    ["Em andamento", inProgress, "projetos em execução"],
+    ["Concluídos", completed, "ciclos finalizados"],
+    ["Valor alocado", currency(totalAllocated), "capital investido"]
+  ];
   panel.innerHTML = `
     <section class="page-head">
       <div><h3>Projetos Investidos</h3><p>Entrada automatica via tag Investido no CRM</p></div>
@@ -6696,6 +6749,9 @@ function renderInvestedProjects() {
       </div>
     </section>
   `;
+  const metricsPanel = renderMetrics(metrics);
+  metricsPanel.classList.add("invested-metrics-grid");
+  panel.appendChild(metricsPanel);
   const grid = document.createElement("section");
   grid.className = "cards-grid";
   panel.appendChild(grid);
@@ -9442,6 +9498,8 @@ function bootstrapFromURL() {
   }
 }
 
+const LOGIN_INTRO_STORAGE_KEY = "rito-play-login-intro";
+
 function setPortalVisibility(isVisible) {
   const dialog = document.getElementById("entityDialog");
   document.body.classList.toggle("login-mode", !isVisible);
@@ -9452,179 +9510,136 @@ function setPortalVisibility(isVisible) {
   dialog?.classList.add("hidden");
 }
 
+function removeLoginIntroOverlay() {
+  document.getElementById("loginIntroOverlay")?.remove();
+}
+
+function consumeLoginIntroFlag() {
+  const shouldPlay = sessionStorage.getItem(LOGIN_INTRO_STORAGE_KEY) === "1";
+  if (shouldPlay) sessionStorage.removeItem(LOGIN_INTRO_STORAGE_KEY);
+  return shouldPlay;
+}
+
+function playLoginIntro() {
+  removeLoginIntroOverlay();
+
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.id = "loginIntroOverlay";
+    overlay.className = "login-intro-overlay";
+    overlay.innerHTML = `
+      <video class="login-intro-video" preload="auto" playsinline>
+        <source src="./Rito_M_MOTION_20260417.mp4" type="video/mp4">
+      </video>
+      <button type="button" class="login-intro-skip">Pular abertura</button>
+    `;
+
+    document.body.appendChild(overlay);
+
+    const video = overlay.querySelector(".login-intro-video");
+    const skipButton = overlay.querySelector(".login-intro-skip");
+    let finished = false;
+
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      overlay.remove();
+      resolve();
+    };
+
+    skipButton.addEventListener("click", finish);
+    video.addEventListener("ended", finish, { once: true });
+    video.addEventListener("error", finish, { once: true });
+
+    const playAttempt = video.play();
+    if (playAttempt?.catch) {
+      playAttempt.catch(() => finish());
+    }
+  });
+}
+
 async function showLoginScreen() {
   setPortalVisibility(false);
+  removeLoginIntroOverlay();
 
   let overlay = document.getElementById("loginOverlay");
 
   if (!overlay) {
     overlay = document.createElement("div");
     overlay.id = "loginOverlay";
-    overlay.style.cssText = `
-      position: fixed;
-      inset: 0;
-      z-index: 9999;
-    `;
+    overlay.className = "login-overlay";
     document.body.appendChild(overlay);
   }
 
   overlay.innerHTML = `
-    <div style="
-      min-height: 100vh;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      background: #f5f5f3;
-      font-family: Arial, sans-serif;
-      color: #1d1d1b;
-    ">
-
-      <!-- ESQUERDA -->
-      <section style="
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        position:relative;
-      ">
-        <img src="./Picture2.png" style="
-          max-width:260px;
-          width:100%;
-        ">
-
-        <div style="
-          position:absolute;
-          bottom:40px;
-          left:40px;
-          font-size:12px;
-          color:#7c7c74;
-        ">
-          <div>www.ritoventures.com.br</div>
-          <div>Rua 72, 325, salas 1201 a 1206, Jardim Goiás | Goiânia-GO</div>
-        </div>
-      </section>
-
-      <!-- DIREITA -->
-      <section style="
-        display:flex;
-        align-items:center;
-        justify-content:center;
-      ">
-        <div style="max-width:360px;width:100%;">
-
-          <!-- SEM NEGRITO -->
-          <h2 style="
-            font-size:26px;
-            margin-bottom:30px;
-            font-family: Georgia, serif;
-            font-weight: 400;
-          ">
-            Bem-Vindo
-          </h2>
-
-          <form id="loginForm">
-
-            <!-- EMAIL -->
-            <label style="display:block;margin-bottom:20px;">
-              <div style="
-                font-size:11px;
-                letter-spacing:0.2em;
-                color:#7f7f77;
-                margin-bottom:8px;
-              ">E-MAIL</div>
-
-              <input
-                id="loginEmail"
-                type="email"
-                required
-                style="
-                  width:100%;
-                  height:44px;
-                  background:#ffffff;
-                  color:#000000;
-                  border:1px solid #ccc;
-                  padding:0 12px;
-                  font-size:14px;
-                "
-              >
-            </label>
-
-            <!-- SENHA -->
-            <label style="display:block;margin-bottom:20px;">
-              <div style="
-                font-size:11px;
-                letter-spacing:0.2em;
-                color:#7f7f77;
-                margin-bottom:8px;
-              ">SENHA</div>
-
-              <input
-                id="loginPassword"
-                type="password"
-                required
-                style="
-                  width:100%;
-                  height:44px;
-                  background:#ffffff;
-                  color:#000000;
-                  border:1px solid #ccc;
-                  padding:0 12px;
-                  font-size:14px;
-                "
-              >
-            </label>
-
-            <p id="loginMessage" style="
-              font-size:13px;
-              color:#d9534f;
-              margin-bottom:16px;
-            "></p>
-
-            <!-- BOTÃO LOGIN -->
-            <button type="submit" style="
-              width:100%;
-              height:44px;
-              background:#111;
-              color:#fff;
-              border:none;
-              font-size:14px;
-              cursor:pointer;
-            ">
-              Entrar no Sistema
-            </button>
-
-            <!-- BOTÃO CRIAR CONTA (CORRIGIDO) -->
-            <button type="button" id="registerBtn" style="
-              width:100%;
-              height:44px;
-              margin-top:10px;
-              background:transparent;
-              border:1px solid #ccc;
-              color:#000;
-              font-size:14px;
-              cursor:pointer;
-            ">
-              Criar conta
-            </button>
-
-          </form>
-
-          <!-- RODAPÉ -->
-          <div style="
-            margin-top:40px;
-            font-size:11px;
-            color:#7f7f77;
-            display:flex;
-            justify-content:space-between;
-          ">
-            <span>© 2026 Rito Ventures</span>
-            <div style="display:flex; gap:12px;">
-              <span>Suporte</span>
-              <span>Privacidade</span>
+    <div class="login-layout">
+      <section class="login-form-panel">
+        <div class="login-panel-stack">
+          <div class="login-brand-block">
+            <div class="login-brand-lockup">
+              <h1>Bem-Vindo<span class="login-heading-dot">.</span></h1>
             </div>
           </div>
 
+          <div class="login-card">
+            <div class="login-card-head"></div>
+
+            <form id="loginForm" class="login-form">
+              <label class="login-field">
+                <div class="login-field-label">Email</div>
+                <input
+                  id="loginEmail"
+                  class="login-input"
+                  type="email"
+                  required
+                  autocomplete="username"
+                >
+              </label>
+
+              <label class="login-field">
+                <div class="login-field-label">Senha</div>
+                <input
+                  id="loginPassword"
+                  class="login-input"
+                  type="password"
+                  required
+                  autocomplete="current-password"
+                >
+              </label>
+
+              <p id="loginMessage" class="login-message"></p>
+
+              <button type="submit" class="login-primary-button">
+                Entrar
+              </button>
+
+              <div class="login-register-row">
+                <button type="button" id="registerBtn" class="login-secondary-button">
+                  1º acesso
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <div class="login-card-footer">
+            <span>© 2026 Rito Ventures</span>
+            <nav>
+              <span>Suporte</span>
+              <span>Privacidade</span>
+            </nav>
+          </div>
         </div>
       </section>
 
+      <section class="login-cover-panel">
+        <img class="login-cover-image" src="./login-cover-background.png" alt="Capa do Portal Rito">
+        <div class="login-cover-brand">
+          <div class="login-address-box login-address-box-cover">
+            <p>Rua 72, 325, salas 1201 a 1206, Jardim Goiás | Goiânia-GO</p>
+            <p>www.ritoventures.com.br</p>
+          </div>
+        </div>
+      </section>
     </div>
   `;
 
@@ -9659,6 +9674,7 @@ async function showLoginScreen() {
 
     msg.style.color = "#2e7d32";
     msg.textContent = "Entrando...";
+    sessionStorage.setItem(LOGIN_INTRO_STORAGE_KEY, "1");
     await protectApp();
   });
 
@@ -9695,6 +9711,7 @@ async function persistPortalBeforeSessionChange() {
 async function logoutUser() {
   await persistPortalBeforeSessionChange();
   history.replaceState({}, "", location.pathname);
+  removeLoginIntroOverlay();
   await supabaseClient.auth.signOut();
   document.getElementById("portalLogoutButton")?.remove();
   await showLoginScreen();
@@ -9703,21 +9720,24 @@ async function logoutUser() {
 function addLogoutButton() {
   const existing = document.getElementById("portalLogoutButton");
   if (existing) return;
+  const topbarActions = document.querySelector(".topbar-actions");
+  if (!topbarActions) return;
   const btn = document.createElement("button");
   btn.id = "portalLogoutButton";
   btn.textContent = "Sair";
-  btn.style.position = "fixed";
-  btn.style.right = "20px";
-  btn.style.bottom = "20px";
-  btn.style.padding = "10px 16px";
-  btn.style.background = "#111";
+  btn.type = "button";
+  btn.className = "ghost-button";
+  btn.style.position = "static";
+  btn.style.padding = "11px 18px";
+  btn.style.background = "linear-gradient(135deg, #2e145f 0%, #45207f 56%, #5b2b91 100%)";
   btn.style.color = "#fff";
   btn.style.border = "none";
-  btn.style.borderRadius = "18px";
+  btn.style.borderRadius = "16px";
+  btn.style.boxShadow = "0 0 0 1px rgba(255,255,255,0.06), 0 14px 28px rgba(46, 20, 95, 0.34), 0 0 22px rgba(69, 32, 127, 0.2)";
   btn.style.cursor = "pointer";
   btn.onclick = logoutUser;
 
-  document.body.appendChild(btn);
+  topbarActions.appendChild(btn);
 }
 
 async function protectApp() {
@@ -9728,10 +9748,13 @@ async function protectApp() {
     return;
   }
 
+  const shouldPlayIntro = consumeLoginIntroFlag();
+
   await refreshSessionAccessToken();
   history.replaceState({}, "", location.pathname);
   document.getElementById("loginOverlay")?.remove();
-  setPortalVisibility(true);
+  setPortalVisibility(!shouldPlayIntro);
+  const introPromise = shouldPlayIntro ? playLoginIntro() : Promise.resolve();
   try {
     state = await loadState();
     if (!portalDataScore(state)) {
@@ -9746,6 +9769,8 @@ async function protectApp() {
     bootstrapFromURL();
     renderApp();
     addLogoutButton();
+    await introPromise;
+    setPortalVisibility(true);
   } catch (error) {
     console.error("Falha ao carregar o portal exclusivamente do Supabase.", error);
     document.getElementById("appContent").innerHTML = `
@@ -9764,6 +9789,8 @@ async function protectApp() {
     document.getElementById("retryPortalLoadButton")?.addEventListener("click", () => {
       window.location.reload();
     });
+    await introPromise;
+    setPortalVisibility(true);
   }
 }
 
