@@ -412,6 +412,12 @@ function upsertCRMItemInSnapshot(rootState, workspaceId, item) {
   const workspace = workspaceStateSnapshot(rootState, workspaceId);
   const nextItem = clonePortalState(item);
   ensureProjectShape(nextItem);
+  if (workspaceId === "rito" && isSeededRitoCRMItem(nextItem)) {
+    workspace.deletedReferenceProjectKeys = (Array.isArray(workspace.deletedReferenceProjectKeys)
+      ? workspace.deletedReferenceProjectKeys
+      : []
+    ).filter((key) => normalizeReferenceIdentity(key) !== referenceProjectKey(nextItem));
+  }
   const index = workspace.crmItems.findIndex((entry) => entry.id === nextItem.id);
   if (index >= 0) workspace.crmItems[index] = nextItem;
   else workspace.crmItems.unshift(nextItem);
@@ -427,6 +433,15 @@ function upsertCRMItemInSnapshot(rootState, workspaceId, item) {
 function removeCRMItemFromSnapshot(rootState, workspaceId, item) {
   const workspace = workspaceStateSnapshot(rootState, workspaceId);
   workspace.crmItems = workspace.crmItems.filter((entry) => entry.id !== item.id);
+  if (workspaceId === "rito" && isSeededRitoCRMItem(item)) {
+    const deletedReferenceProjectKeys = new Set(
+      Array.isArray(workspace.deletedReferenceProjectKeys)
+        ? workspace.deletedReferenceProjectKeys.map((key) => normalizeReferenceIdentity(key)).filter(Boolean)
+        : []
+    );
+    deletedReferenceProjectKeys.add(referenceProjectKey(item));
+    workspace.deletedReferenceProjectKeys = [...deletedReferenceProjectKeys];
+  }
   delete workspace.projectBoards[item.name];
   workspace.documents = workspace.documents.filter((doc) => (doc.linkedTo || "").toLowerCase() !== item.name.toLowerCase());
 }
@@ -1955,6 +1970,20 @@ function buildRitoReferenceCRMItems() {
   return sourceProjects.map(referenceProjectToCRMItem);
 }
 
+function buildRitoSeedProjectKeySet() {
+  return new Set(
+    getRitoSourceProjects()
+      .map((project) => referenceProjectKey(project))
+      .filter(Boolean)
+  );
+}
+
+function isSeededRitoCRMItem(item = {}) {
+  const itemReferenceKey = referenceProjectKey(item);
+  if (!itemReferenceKey) return false;
+  return buildRitoSeedProjectKeySet().has(itemReferenceKey);
+}
+
 function ritoTaskOwner(owner) {
   if (owner === "Arthur") return "Arthur Bueno";
   if (owner === "Ciro") return "Ciro Ribeiro";
@@ -2305,7 +2334,12 @@ function migrateRitoReferenceProjects(rootState) {
   rito.projectBoards = rito.projectBoards || {};
   const existingItems = Array.isArray(rito.crmItems) ? rito.crmItems : [];
   existingItems.forEach((item) => ensureProjectShape(item));
-  const sourceProjects = getRitoSourceProjects();
+  const deletedReferenceProjectKeys = new Set(
+    Array.isArray(rito.deletedReferenceProjectKeys)
+      ? rito.deletedReferenceProjectKeys.map((key) => normalizeReferenceIdentity(key)).filter(Boolean)
+      : []
+  );
+  const sourceProjects = getRitoSourceProjects().filter((project) => !deletedReferenceProjectKeys.has(referenceProjectKey(project)));
   const matchedSourceKeys = new Set();
   const nextItems = existingItems.map((existingItem) => {
     const matchingProject = sourceProjects.find((project) =>
@@ -2325,6 +2359,7 @@ function migrateRitoReferenceProjects(rootState) {
     if (matchedSourceKeys.has(projectKey)) return;
     nextItems.push(referenceProjectToCRMItem(project));
   });
+  rito.deletedReferenceProjectKeys = [...deletedReferenceProjectKeys];
   rito.crmItems = dedupeCRMItemsById(nextItems);
 }
 
@@ -2546,6 +2581,9 @@ function buildPortalState(snapshot = null) {
       ...baseWorkspace,
       ...snapshotWorkspace,
       crmItems: Array.isArray(snapshotWorkspace.crmItems) ? snapshotWorkspace.crmItems : (baseWorkspace.crmItems || []),
+      deletedReferenceProjectKeys: Array.isArray(snapshotWorkspace.deletedReferenceProjectKeys)
+        ? snapshotWorkspace.deletedReferenceProjectKeys
+        : (baseWorkspace.deletedReferenceProjectKeys || []),
       taskItems: Array.isArray(snapshotWorkspace.taskItems) ? snapshotWorkspace.taskItems : (baseWorkspace.taskItems || []),
       taskThemes: Array.isArray(snapshotWorkspace.taskThemes) ? snapshotWorkspace.taskThemes : (baseWorkspace.taskThemes || []),
       projectThemes: Array.isArray(snapshotWorkspace.projectThemes) ? snapshotWorkspace.projectThemes : (baseWorkspace.projectThemes || []),
@@ -4138,6 +4176,7 @@ function renderWorkspaceLandingPage() {
       <section class="workspace-launch-hero">
         <div class="workspace-launch-topbar">
           <span class="workspace-launch-kicker">Portal de Gestão Rito</span>
+          <button type="button" class="action-button workspace-launch-logout" id="workspaceLandingLogout">Sair</button>
           <div class="workspace-launch-theme-switch" aria-label="Selecionar tema">
             <button type="button" class="${state.theme === "dark" ? "is-active" : ""}" data-landing-theme="dark">Dark</button>
             <button type="button" class="${state.theme === "light" ? "is-active" : ""}" data-landing-theme="light">Light</button>
@@ -4221,6 +4260,9 @@ function renderWorkspaceLandingPage() {
   });
 
   page.appendChild(list);
+  page.querySelector("#workspaceLandingLogout")?.addEventListener("click", () => {
+    void logoutUser();
+  });
   return page;
 }
 
@@ -7965,6 +8007,15 @@ async function removeCRMItem(item, options = {}) {
   if (!item) return;
   const workspaceId = state.currentWorkspace;
   const previousState = clonePortalState(state);
+  if (workspaceId === "rito" && isSeededRitoCRMItem(item)) {
+    const deletedReferenceProjectKeys = new Set(
+      Array.isArray(workspaceData().deletedReferenceProjectKeys)
+        ? workspaceData().deletedReferenceProjectKeys.map((key) => normalizeReferenceIdentity(key)).filter(Boolean)
+        : []
+    );
+    deletedReferenceProjectKeys.add(referenceProjectKey(item));
+    workspaceData().deletedReferenceProjectKeys = [...deletedReferenceProjectKeys];
+  }
   state.workspaces[state.currentWorkspace].crmItems = workspaceData().crmItems.filter((entry) => entry.id !== item.id);
   delete workspaceData().projectBoards[item.name];
   workspaceData().documents = workspaceData().documents.filter((doc) => (doc.linkedTo || "").toLowerCase() !== item.name.toLowerCase());
@@ -9605,7 +9656,7 @@ async function playLoginIntroIfNeeded() {
   overlay.id = "loginIntroOverlay";
   overlay.innerHTML = `
     <div class="portal-intro-shell">
-      <video class="portal-intro-video" autoplay playsinline preload="auto">
+      <video class="portal-intro-video" autoplay muted playsinline preload="auto" disablepictureinpicture>
         <source src="${LOGIN_INTRO_VIDEO_PATH}" type="video/mp4">
       </video>
       <button class="portal-intro-skip" type="button">Pular</button>
@@ -9622,8 +9673,11 @@ async function playLoginIntroIfNeeded() {
       if (finished) return;
       finished = true;
       window.sessionStorage?.setItem(LOGIN_INTRO_SESSION_KEY, "1");
-      clearLoginIntroOverlay();
-      resolve();
+      overlay.classList.add("is-leaving");
+      window.setTimeout(() => {
+        clearLoginIntroOverlay();
+        resolve();
+      }, 260);
     };
 
     video.addEventListener("ended", complete, { once: true });
@@ -9632,9 +9686,7 @@ async function playLoginIntroIfNeeded() {
 
     const playAttempt = video.play();
     if (playAttempt && typeof playAttempt.catch === "function") {
-      playAttempt.catch(() => {
-        video.controls = true;
-      });
+      playAttempt.catch(() => complete());
     }
   });
 }
@@ -9832,7 +9884,8 @@ async function protectApp() {
   history.replaceState({}, "", location.pathname);
   document.getElementById("loginOverlay")?.remove();
   setPortalVisibility(true);
-  showPortalSkeleton();
+  renderApp();
+  const introPromise = playLoginIntroIfNeeded();
   try {
     state = await loadState();
     if (!portalDataScore(state)) {
@@ -9845,9 +9898,9 @@ async function protectApp() {
       }
     }
     bootstrapFromURL();
-    await playLoginIntroIfNeeded();
     renderApp();
     addLogoutButton();
+    await introPromise;
   } catch (error) {
     console.error("Falha ao carregar o portal exclusivamente do Supabase.", error);
     document.getElementById("appContent").innerHTML = `
@@ -9866,6 +9919,7 @@ async function protectApp() {
     document.getElementById("retryPortalLoadButton")?.addEventListener("click", () => {
       window.location.reload();
     });
+    await introPromise.catch(() => null);
   }
 }
 
