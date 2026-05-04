@@ -242,10 +242,15 @@ let _lastRenderedTabsKey = "";
 const SAVE_DEBOUNCE_MS = 1500;
 const RITO_LOGO_LIGHT_GITHUB_URL = "https://raw.githubusercontent.com/brunasantos-rito/rito-portal/main/Logo-Rito-Light.png";
 const RITO_LOGO_DARK_GITHUB_URL = "https://raw.githubusercontent.com/brunasantos-rito/rito-portal/main/Logo-Rito-Dark.png";
+const RITO_MARK_LIGHT_GITHUB_URL = "https://raw.githubusercontent.com/brunasantos-rito/rito-portal/main/rito-mark-light.png";
+const RITO_MARK_DARK_GITHUB_URL = "https://raw.githubusercontent.com/brunasantos-rito/rito-portal/main/rito-mark-dark.png";
 const LOGIN_COVER_GITHUB_URL = "https://raw.githubusercontent.com/brunasantos-rito/rito-portal/main/Backgroud-Capa-1.png";
 const LOGIN_INTRO_VIDEO_GITHUB_URL = "https://raw.githubusercontent.com/brunasantos-rito/rito-portal/main/Rito_M_MOTION_20260417.mp4";
 const LOGIN_INTRO_VIDEO_PATH = "./Rito_M_MOTION_20260417.mp4";
 const LOGIN_INTRO_SESSION_KEY = "rito-login-intro-played";
+const LOGIN_INTRO_WAIT_TIMEOUT_MS = 2200;
+const LOGIN_INTRO_FAIL_FAST_MS = 650;
+const LOGIN_INTRO_MAX_PLAY_MS = 5200;
 
 function clonePortalState(snapshot = state) {
   return JSON.parse(JSON.stringify(snapshot));
@@ -273,6 +278,14 @@ function loadLocalPortalState() {
 
 function delay(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function nextPaint() {
+  return new Promise((resolve) => {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(resolve);
+    });
+  });
 }
 
 function portalStateVersion(snapshot = null) {
@@ -452,6 +465,7 @@ function workspaceStateSnapshot(rootState, workspaceId) {
   }
   const workspace = snapshot.workspaces[workspaceId];
   workspace.crmItems = Array.isArray(workspace.crmItems) ? workspace.crmItems : [];
+  normalizeCRMItemOrder(workspace.crmItems);
   workspace.projectBoards = workspace.projectBoards && typeof workspace.projectBoards === "object" ? workspace.projectBoards : {};
   workspace.documents = Array.isArray(workspace.documents) ? workspace.documents : [];
   return workspace;
@@ -470,6 +484,7 @@ function upsertCRMItemInSnapshot(rootState, workspaceId, item) {
   const index = workspace.crmItems.findIndex((entry) => entry.id === nextItem.id);
   if (index >= 0) workspace.crmItems[index] = nextItem;
   else workspace.crmItems.unshift(nextItem);
+  normalizeCRMItemOrder(workspace.crmItems);
   if (nextItem.tags.includes("Investido") && !workspace.projectBoards[nextItem.name]) {
     workspace.projectBoards[nextItem.name] = [];
   }
@@ -482,6 +497,7 @@ function upsertCRMItemInSnapshot(rootState, workspaceId, item) {
 function removeCRMItemFromSnapshot(rootState, workspaceId, item) {
   const workspace = workspaceStateSnapshot(rootState, workspaceId);
   workspace.crmItems = workspace.crmItems.filter((entry) => entry.id !== item.id);
+  normalizeCRMItemOrder(workspace.crmItems);
   if (workspaceId === "rito" && isSeededRitoCRMItem(item)) {
     const deletedReferenceProjectKeys = new Set(
       Array.isArray(workspace.deletedReferenceProjectKeys)
@@ -1136,6 +1152,14 @@ function workspaceLogoMarkup(workspaceId, variant = "default") {
       </svg>
     `;
   }
+  if (variant === "landing") {
+    return `
+      <span class="workspace-logo-stack workspace-logo-rito workspace-logo-${variant}" aria-hidden="true">
+        <img class="workspace-logo-theme-light" src="${RITO_MARK_DARK_GITHUB_URL}" alt="" onerror="this.onerror=null;this.src='./rito-mark-dark.png';">
+        <img class="workspace-logo-theme-dark" src="${RITO_MARK_LIGHT_GITHUB_URL}" alt="" onerror="this.onerror=null;this.src='./rito-mark-light.png';">
+      </span>
+    `;
+  }
   return `
     <span class="workspace-logo-stack workspace-logo-rito workspace-logo-${variant}" aria-hidden="true">
       <img class="workspace-logo-theme-light" src="${RITO_LOGO_LIGHT_GITHUB_URL}" alt="" onerror="this.onerror=null;this.src='./Logo-Rito-Light.png';">
@@ -1177,6 +1201,7 @@ async function reorderCRMItems(draggedId, targetId) {
   if (draggedIndex === -1 || targetIndex === -1) return;
   const [draggedItem] = items.splice(draggedIndex, 1);
   items.splice(targetIndex, 0, draggedItem);
+  normalizeCRMItemOrder(items);
   state.workspaces[state.currentWorkspace].crmItems = items;
   state.lastSavedAt = new Date().toISOString();
   saveLocalPortalState(state);
@@ -1698,6 +1723,13 @@ function referenceStatusLabel(status, investmentStatus) {
   return normalizeRitoDealStatus(status, investmentStatus);
 }
 
+function isInvestedProjectRecord(item) {
+  if (!item || Array.isArray(item) || typeof item !== "object") return false;
+  const normalizedStatus = normalizeRitoDealStatus(item.status, item.investmentStatus);
+  if (["Aporte", "Portfólio", "Exit"].includes(normalizedStatus)) return true;
+  return !String(item.status || "").trim() && String(item.investmentStatus || "").trim() === "Investido";
+}
+
 function isRitoDealInStage(item, stage) {
   return normalizeRitoDealStatus(item?.status, item?.investmentStatus) === normalizeRitoDealStatus(stage, item?.investmentStatus);
 }
@@ -1957,7 +1989,16 @@ function dedupeCRMItemsById(items = []) {
     mergeProjectRecords(merged, item);
     uniqueItems[index] = merged;
   });
-  return uniqueItems;
+  return normalizeCRMItemOrder(uniqueItems);
+}
+
+function normalizeCRMItemOrder(items = []) {
+  if (!Array.isArray(items)) return [];
+  items.forEach((item, index) => {
+    if (!item || typeof item !== "object") return;
+    item.orderIndex = index;
+  });
+  return items;
 }
 
 function referenceProjectToCRMItem(project) {
@@ -1966,6 +2007,7 @@ function referenceProjectToCRMItem(project) {
   const temperature = project.temperature || "Morno";
   const statusLabel = referenceStatusLabel(project.status, investmentStatus);
   const normalizedStatus = normalizeRitoDealStatus(project.status, investmentStatus);
+  const invested = isInvestedProjectRecord({ ...project, status: normalizedStatus, investmentStatus });
   return {
     id: seededRitoDealId(project),
     referenceKey: referenceProjectKey(project),
@@ -1985,7 +2027,7 @@ function referenceProjectToCRMItem(project) {
     estimatedValue: project.estimatedValue || 0,
     investmentAmount: project.investmentAmount || 0,
     framework: project.framework || `${project.sector || "Projeto"} / Thesis / Diligence`,
-    progress: project.progress !== undefined ? project.progress : progressFromRitoDealStatus(normalizedStatus),
+    progress: invested ? 100 : (project.progress !== undefined ? project.progress : progressFromRitoDealStatus(normalizedStatus)),
     temperature,
     investmentStatus,
     priority: project.priority || "Media",
@@ -2652,6 +2694,7 @@ function buildPortalState(snapshot = null) {
       members: Array.isArray(snapshotWorkspace.members) ? snapshotWorkspace.members : (baseWorkspace.members || []),
       projectBoards: snapshotWorkspace.projectBoards && typeof snapshotWorkspace.projectBoards === "object" ? snapshotWorkspace.projectBoards : (baseWorkspace.projectBoards || {})
     };
+    normalizeCRMItemOrder(merged.workspaces[workspaceId].crmItems);
   });
 
   migrateRitoReferenceProjects(merged);
@@ -3380,7 +3423,12 @@ function isCompletedTaskStatus(status = "") {
 }
 
 function prioritizedRitoPipelineItems(items = []) {
-  return [...(items || [])];
+  return [...(items || [])].sort((a, b) => {
+    const left = Number.isFinite(Number(a?.orderIndex)) ? Number(a.orderIndex) : Number.MAX_SAFE_INTEGER;
+    const right = Number.isFinite(Number(b?.orderIndex)) ? Number(b.orderIndex) : Number.MAX_SAFE_INTEGER;
+    if (left !== right) return left - right;
+    return 0;
+  });
 }
 
 function investedProjects(items) {
@@ -3388,7 +3436,7 @@ function investedProjects(items) {
     item &&
     !Array.isArray(item) &&
     typeof item === "object" &&
-    (item.investmentStatus === "Investido" || (item.tags || []).includes("Investido"))
+    isInvestedProjectRecord(item)
   );
 }
 
@@ -3398,13 +3446,13 @@ function projectAllocationValue(item) {
 
 function allocatedPortfolioValue(items = workspaceData().crmItems || []) {
   return (items || [])
-    .filter((item) => item.investmentStatus === "Investido" || (item.tags || []).includes("Investido"))
+    .filter((item) => isInvestedProjectRecord(item))
     .reduce((sum, item) => sum + projectAllocationValue(item), 0);
 }
 
 function projectedAllocationValue(items = workspaceData().crmItems || []) {
   return (items || [])
-    .filter((item) => item.investmentStatus !== "Investido" && !(item.tags || []).includes("Investido"))
+    .filter((item) => !isInvestedProjectRecord(item))
     .reduce((sum, item) => sum + projectAllocationValue(item), 0);
 }
 
@@ -3549,7 +3597,10 @@ function referenceViewMode(view) {
 }
 
 function getRitoInvestedCards() {
-  return getRitoReferenceCards().filter((card) => (card.tags || []).includes("Investido"));
+  return getRitoReferenceCards().filter((card) => {
+    const linked = workspaceData().crmItems.find((item) => item.name === card.name);
+    return isInvestedProjectRecord(linked || card);
+  });
 }
 
 function dealStatusSummary(item) {
@@ -3691,6 +3742,7 @@ function usingReferenceDashboard() {
 
 function normalizeReferenceDashboardStage(item) {
   if (!item || Array.isArray(item) || typeof item !== "object") return "Lead";
+  if (isInvestedProjectRecord(item)) return "Portfólio";
   return normalizeRitoDealStatus(item.status, item.investmentStatus);
 }
 
@@ -3830,7 +3882,7 @@ function ensureProjectShape(item) {
   }
   if (!item.subtitle) item.subtitle = `${item.sector || ""} - ${item.location || ""} - ${item.year || ""}`.replace(/^ - | - $/g, "");
   if (!item.history) item.history = [{ at: todayISO(), text: "Projeto criado no CRM" }];
-  item.progress = progressFromRitoDealStatus(item.status);
+  item.progress = isInvestedProjectRecord(item) ? 100 : progressFromRitoDealStatus(item.status);
   if (!item.website) item.website = "";
   if (!item.vcPeBacked) item.vcPeBacked = "";
   if (!item.dealHistory) item.dealHistory = item.statusSummary || "";
@@ -4224,10 +4276,6 @@ function renderWorkspaceLandingPage() {
         <div class="workspace-launch-topbar">
           <span class="workspace-launch-kicker">Portal de Gestão Rito</span>
           <button type="button" class="action-button workspace-launch-logout" id="workspaceLandingLogout">Sair</button>
-          <div class="workspace-launch-theme-switch" aria-label="Selecionar tema">
-            <button type="button" class="${state.theme === "dark" ? "is-active" : ""}" data-landing-theme="dark">Dark</button>
-            <button type="button" class="${state.theme === "light" ? "is-active" : ""}" data-landing-theme="light">Light</button>
-          </div>
         </div>
         <h3>${greeting}<span>.</span></h3>
         <p>Selecione um workspace para continuar sua operação com visão centralizada, pipeline e acompanhamento tático.</p>
@@ -5133,8 +5181,8 @@ function renderRitoPipelinePage() {
 function renderRitoInvestedPage() {
   const viewMode = referenceViewMode("invested");
   const investedCards = getRitoInvestedCards();
-  const completedCount = investedCards.filter((card) => Number(card.progress || 0) >= 100).length;
-  const activeCount = investedCards.filter((card) => Number(card.progress || 0) < 100).length;
+  const completedCount = investedCards.length;
+  const activeCount = 0;
   const investedValue = allocatedPortfolioValue(workspaceData().crmItems || []);
   const page = document.createElement("section");
   page.className = "content-grid ref-page";
@@ -6200,16 +6248,16 @@ function createReferenceProjectCard(card, invested = false, sourceView = "crm") 
   const article = document.createElement("article");
   article.className = "reference-project-card";
   const linked = workspaceData().crmItems.find((item) => item.name === card.name);
-  const isInvested = linked ? linked.investmentStatus === "Investido" || (linked.tags || []).includes("Investido") : invested;
+  const isInvested = isInvestedProjectRecord(linked || card) || invested;
   const allocationLabel = isInvested ? "Valor alocado" : "Projeção";
   const displayCover = linked ? projectMediaValue(linked, "cover") : (card.cover || "");
   const displayLogo = linked ? projectMediaValue(linked, "logo") : (card.logo || "");
   const displayLogoText = linked?.logoText || card.logoText || "";
   const displayLogoBg = displayLogo ? "#ffffff" : (linked?.logoBg || card.logoBg || "#ffffff");
   const displayTags = normalizeProjectTagList(linked?.tags?.length ? linked.tags : card.tags, linked || card);
-  const displayStatus = linked ? linked.status : card.status;
+  const displayStatus = isInvested ? "Concluído" : (linked ? linked.status : card.status);
   const displayOwner = linked?.owner || card.owner;
-  const displayProgress = linked?.progress ?? card.progress ?? 35;
+  const displayProgress = isInvested ? 100 : (linked?.progress ?? card.progress ?? 35);
   const companyDescription = displayText(linked?.description || card.description || linked?.businessModel || card.framework || "-");
   const statusSummarySource = linked || card;
   const statusSummary = dealStatusSummaryPreview(statusSummarySource, 160);
@@ -6239,8 +6287,8 @@ function createReferenceProjectCard(card, invested = false, sourceView = "crm") 
         <span>${displayText(allocationLabel)}</span>
         <input type="text" inputmode="decimal" data-card-investment value="${linked ? formatLocaleNumber(linked.investmentAmount || 0) : "0"}">
       </label>
-      <div class="progress-bar"><span style="width:${invested ? 100 : displayProgress}%; background:${card.accent}"></span></div>
-      <div class="subtle">${invested ? `${displayProgress ?? 100}% concluído` : displayText(displayOwner)}</div>
+      <div class="progress-bar"><span style="width:${isInvested ? 100 : displayProgress}%; background:${card.accent}"></span></div>
+      <div class="subtle">${isInvested ? "100% concluído" : displayText(displayOwner)}</div>
     </div>
   `;
   if (linked) {
@@ -6720,7 +6768,7 @@ function renderCRM() {
     const owner = document.getElementById("crmFilterOwner").value;
     const tag = document.getElementById("crmFilterTag").value.trim().toLowerCase();
     cards.innerHTML = "";
-    data.crmItems
+    prioritizedRitoPipelineItems(data.crmItems)
       .filter((item) => !status || item.status === status)
       .filter((item) => !owner || item.owner === owner)
       .filter((item) => !tag || item.tags.some((itemTag) => itemTag.toLowerCase().includes(tag)))
@@ -6761,7 +6809,7 @@ function createCRMCard(item) {
           <button class="ghost-button card-menu-button" data-card-action="duplicate" data-card-id="${item.id}" type="button">Duplicar</button>
         </div>
       </div>
-      <div class="status-badge">${displayText(item.tags.includes("Investido") ? "Investido" : item.status)}</div>
+      <div class="status-badge">${displayText(isInvestedProjectRecord(item) ? "Investido" : item.status)}</div>
     </div>
     <div class="card-logo ${displayLogo ? "has-image" : ""}">${displayLogo ? `<img src="${displayLogo}" alt="${item.name}" loading="lazy" decoding="async">` : initials(item.name)}</div>
     <div class="card-content">
@@ -8016,6 +8064,7 @@ async function upsertCRMItem(item, options = {}) {
   const index = items.findIndex((entry) => entry.id === nextItem.id);
   if (index >= 0) items[index] = nextItem;
   else items.unshift(nextItem);
+  normalizeCRMItemOrder(items);
   if (nextItem.tags.includes("Investido") && !workspaceData().projectBoards[nextItem.name]) {
     workspaceData().projectBoards[nextItem.name] = [];
   }
@@ -8064,6 +8113,7 @@ async function removeCRMItem(item, options = {}) {
     workspaceData().deletedReferenceProjectKeys = [...deletedReferenceProjectKeys];
   }
   state.workspaces[state.currentWorkspace].crmItems = workspaceData().crmItems.filter((entry) => entry.id !== item.id);
+  normalizeCRMItemOrder(state.workspaces[state.currentWorkspace].crmItems);
   delete workspaceData().projectBoards[item.name];
   workspaceData().documents = workspaceData().documents.filter((doc) => (doc.linkedTo || "").toLowerCase() !== item.name.toLowerCase());
   renderApp();
@@ -9718,10 +9768,13 @@ async function playLoginIntroIfNeeded() {
 
   await new Promise((resolve) => {
     let finished = false;
-    let fallbackTimer = window.setTimeout(() => complete(), 10000);
+    let revealed = false;
+    let absoluteTimer = window.setTimeout(() => complete(), LOGIN_INTRO_MAX_PLAY_MS);
+    let fallbackTimer = window.setTimeout(() => complete(), LOGIN_INTRO_WAIT_TIMEOUT_MS);
     const complete = () => {
       if (finished) return;
       finished = true;
+      window.clearTimeout(absoluteTimer);
       window.clearTimeout(fallbackTimer);
       window.sessionStorage?.setItem(LOGIN_INTRO_SESSION_KEY, "1");
       overlay.classList.add("is-leaving");
@@ -9732,27 +9785,37 @@ async function playLoginIntroIfNeeded() {
     };
 
     const revealVideo = () => {
+      if (revealed) return;
+      revealed = true;
       overlay.classList.add("is-video-ready");
       window.clearTimeout(fallbackTimer);
-      fallbackTimer = window.setTimeout(() => complete(), Math.max(1200, ((video.duration || 0) * 1000) || 2200));
+      fallbackTimer = window.setTimeout(() => complete(), Math.min(
+        LOGIN_INTRO_MAX_PLAY_MS,
+        Math.max(1200, ((video.duration || 0) * 1000) || LOGIN_INTRO_WAIT_TIMEOUT_MS)
+      ));
     };
 
     video.addEventListener("ended", complete, { once: true });
     video.addEventListener("error", complete, { once: true });
+    video.addEventListener("abort", complete, { once: true });
+    video.addEventListener("stalled", () => window.setTimeout(() => complete(), LOGIN_INTRO_FAIL_FAST_MS), { once: true });
+    video.addEventListener("suspend", () => window.setTimeout(() => complete(), LOGIN_INTRO_FAIL_FAST_MS), { once: true });
     video.addEventListener("loadeddata", revealVideo, { once: true });
     video.addEventListener("canplay", revealVideo, { once: true });
+    video.addEventListener("playing", revealVideo, { once: true });
     skipButton.addEventListener("click", complete, { once: true });
 
     video.muted = true;
     video.defaultMuted = true;
     video.setAttribute("muted", "");
     video.setAttribute("playsinline", "");
+    video.setAttribute("autoplay", "");
     video.load();
 
     const playAttempt = video.play();
     if (playAttempt && typeof playAttempt.catch === "function") {
       playAttempt.catch(() => {
-        window.setTimeout(() => complete(), 900);
+        window.setTimeout(() => complete(), LOGIN_INTRO_FAIL_FAST_MS);
       });
     }
   });
@@ -9809,7 +9872,6 @@ async function showLoginScreen() {
       <section class="portal-login-stage">
         <div class="portal-login-stage-grid"></div>
         <div class="portal-login-stage-glow"></div>
-        <div class="portal-login-stage-brand">${workspaceLogoMarkup("rito", "landing")}</div>
         <div class="portal-login-stage-copy">
           <span>Rua 72, 325, salas 1201 a 1206, Jardim Goiás | Goiânia-GO</span>
           <span>www.ritoventures.com.br</span>
@@ -9954,6 +10016,7 @@ async function protectApp() {
   setPortalVisibility(true);
   renderApp();
   const introPromise = playLoginIntroIfNeeded();
+  await nextPaint();
   try {
     state = await loadState();
     if (!portalDataScore(state)) {
