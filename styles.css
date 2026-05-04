@@ -20,6 +20,7 @@
   --portal-button-purple: #2d1f52;
   --portal-button-purple-hover: #392664;
   --portal-button-purple-shadow: rgba(45, 31, 82, 0.22);
+  --portal-cover-image: url("https://raw.githubusercontent.com/brunasantos-rito/rito-portal/main/Backgroud-Capa-1.png"), url("./Backgroud-Capa-1.png");
 }
 
 body[data-theme="dark"] {
@@ -197,10 +198,17 @@ body[data-theme="dark"] .workspace-logo-stack .workspace-logo-theme-dark {
 .workspace-logo-sidebar.workspace-logo-rito,
 .workspace-logo-dropdown.workspace-logo-rito,
 .workspace-logo-landing.workspace-logo-rito {
-  width: 210%;
-  height: 210%;
-  margin: -55%;
-  object-fit: contain;
+  width: 84%;
+  height: 84%;
+  margin: 8%;
+  color: currentColor;
+  --workspace-logo-cutout: #ffffff;
+}
+
+body[data-theme="dark"] .workspace-logo-sidebar.workspace-logo-rito,
+body[data-theme="dark"] .workspace-logo-dropdown.workspace-logo-rito,
+body[data-theme="dark"] .workspace-logo-landing.workspace-logo-rito {
+  --workspace-logo-cutout: #0d1020;
 }
 
 .brand-block h1,
@@ -805,7 +813,7 @@ body.landing-mode .subtle-chip {
 }
 
 body[data-theme="dark"].landing-mode {
-  background: url("./Backgroud-Capa-1.png") center center / cover no-repeat;
+  background: var(--portal-cover-image) center center / cover no-repeat;
 }
 
 body[data-theme="dark"].landing-mode::before {
@@ -836,7 +844,7 @@ body[data-theme="dark"].landing-mode .workspace-launch-card:hover {
 }
 
 body[data-theme="light"].landing-mode {
-  background: url("./Backgroud-Capa-1.png") center center / cover no-repeat;
+  background: var(--portal-cover-image) center center / cover no-repeat;
 }
 
 body[data-theme="light"].landing-mode::before {
@@ -931,7 +939,24 @@ body[data-theme="light"].landing-mode .workspace-launch-arrow {
   display: grid;
   place-items: center;
   overflow: hidden;
-  background: url("./Backgroud-Capa-1.png") center center / cover no-repeat;
+  background: var(--portal-cover-image) center center / cover no-repeat;
+}
+
+.portal-intro-brand {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  width: 94px;
+  height: 94px;
+  transform: translate(-50%, -50%);
+  color: #ffffff;
+  z-index: 2;
+  opacity: 0.96;
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.portal-intro-shell.is-video-ready .portal-intro-brand {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.92);
 }
 
 .portal-intro-video {
@@ -943,6 +968,12 @@ body[data-theme="light"].landing-mode .workspace-launch-arrow {
   background: transparent;
   filter: saturate(1.02) contrast(1.03);
   transform: scale(1.02);
+  opacity: 0;
+  transition: opacity 220ms ease;
+}
+
+.portal-intro-shell.is-video-ready .portal-intro-video {
+  opacity: 1;
 }
 
 .portal-intro-shell::after {
@@ -1119,7 +1150,7 @@ body[data-theme="light"].landing-mode .workspace-launch-arrow {
   justify-content: center;
   background:
     linear-gradient(180deg, rgba(4, 8, 24, 0.28), rgba(7, 11, 28, 0.18)),
-    url("./login-cover-background.png") center center / cover no-repeat;
+    var(--portal-cover-image) center center / cover no-repeat;
 }
 
 .portal-login-stage-grid {
@@ -1131,11 +1162,15 @@ body[data-theme="light"].landing-mode .workspace-launch-arrow {
 }
 
 .portal-login-stage-brand {
-  display: none;
-}
-
-.portal-login-stage-brand .workspace-logo {
-  display: none;
+  position: absolute;
+  inset: 50% auto auto 50%;
+  width: 112px;
+  height: 112px;
+  transform: translate(-50%, -54%);
+  display: block;
+  color: #ffffff;
+  z-index: 1;
+  opacity: 0.96;
 }
 
 .portal-login-stage-copy {
