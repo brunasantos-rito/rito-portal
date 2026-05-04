@@ -2939,17 +2939,17 @@ async function loadState() {
       return seededState;
     } catch (error) {
       if (attempt === 1) {
-        const recoveredState = await loadBundledPortalBackup();
-        if (recoveredState) {
-          console.warn("Leitura remota falhou. Carregando portal a partir do backup local empacotado.");
-          return finalizeLoadedPortalState(recoveredState, "backup-after-remote-failure");
-        }
         const localState = loadLocalPortalState();
         if (hasMeaningfulPortalData(localState)) {
           console.warn("Leitura remota falhou. Carregando portal a partir do snapshot local apenas como contingencia.");
           const finalizedLocalState = finalizeLoadedPortalState(localState, "local-after-remote-failure");
           saveLocalPortalState(finalizedLocalState);
           return finalizedLocalState;
+        }
+        const recoveredState = await loadBundledPortalBackup();
+        if (recoveredState) {
+          console.warn("Leitura remota falhou. Carregando portal a partir do backup local empacotado.");
+          return finalizeLoadedPortalState(recoveredState, "backup-after-remote-failure");
         }
         throw error;
       }
