@@ -288,9 +288,22 @@ function nextPaint() {
   });
 }
 
+function portalSaveRevision(snapshot = null) {
+  const revision = Number(snapshot?.saveRevision || 0);
+  return Number.isFinite(revision) ? revision : 0;
+}
+
 function portalStateVersion(snapshot = null) {
   const timestamp = Date.parse(String(snapshot?.lastSavedAt || "").trim());
-  return Number.isNaN(timestamp) ? 0 : timestamp;
+  const safeTimestamp = Number.isNaN(timestamp) ? 0 : timestamp;
+  return (safeTimestamp * 1000) + Math.min(portalSaveRevision(snapshot), 999);
+}
+
+function stampPortalState(snapshot = state) {
+  if (!snapshot || typeof snapshot !== "object") return snapshot;
+  snapshot.lastSavedAt = new Date().toISOString();
+  snapshot.saveRevision = portalSaveRevision(snapshot) + 1;
+  return snapshot;
 }
 
 function recordTimestampValue(record = null) {
@@ -384,11 +397,11 @@ async function saveSharedPortalStateSafely(snapshot) {
 }
 
 async function confirmRemotePortalState(expectedState, attempts = 3) {
-  const expectedLastSavedAt = String(expectedState?.lastSavedAt || "").trim();
+  const expectedVersion = portalStateVersion(expectedState);
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     const remote = await loadSharedPortalState();
     const remoteState = buildPortalState(remote?.data && Object.keys(remote.data).length ? remote.data : null);
-    if (!expectedLastSavedAt || remoteState.lastSavedAt === expectedLastSavedAt) {
+    if (!expectedVersion || portalStateVersion(remoteState) >= expectedVersion) {
       return remoteState;
     }
     if (attempt < attempts - 1) {
@@ -422,6 +435,11 @@ function queueImmediateRemoteSave(snapshot = state) {
       if (currentVersion !== queuedSaveVersion) return null;
       const result = await saveSharedPortalStateSafely(payload);
       if (currentVersion !== queuedSaveVersion) return null;
+      const resolvedState = buildPortalState(result?.data && typeof result.data === "object" ? result.data : payload);
+      if (portalStateVersion(resolvedState) >= portalStateVersion(state)) {
+        state = resolvedState;
+        saveLocalPortalState(state);
+      }
       console.log("Portal salvo no banco.");
       return result;
     })
@@ -434,6 +452,7 @@ function queueImmediateRemoteSave(snapshot = state) {
 
 async function persistPortalStateImmediately(snapshot = state) {
   const payload = clonePortalState(snapshot);
+  stampPortalState(payload);
   saveLocalPortalState(payload);
   queuedSaveVersion += 1;
   try {
@@ -557,7 +576,7 @@ async function persistCRMOrderToDatabase(orderedItems, {
       const nextState = await loadPortalStateForDatabaseWrite();
       const workspace = workspaceStateSnapshot(nextState, workspaceId);
       workspace.crmItems = clonePortalState(Array.isArray(orderedItems) ? orderedItems : []);
-      nextState.lastSavedAt = new Date().toISOString();
+      stampPortalState(nextState);
       saveLocalPortalState(nextState);
 
       const savedRow = await saveSharedPortalStateSafely(nextState);
@@ -637,7 +656,7 @@ async function persistCRMItemToDatabase(item, {
       } else {
         upsertCRMItemInSnapshot(nextState, workspaceId, item);
       }
-      nextState.lastSavedAt = new Date().toISOString();
+      stampPortalState(nextState);
       const savedRow = await saveSharedPortalStateSafely(nextState);
       let savedState = buildPortalState(savedRow?.data && typeof savedRow.data === "object" ? savedRow.data : nextState);
       let persistedItem = savedState.workspaces?.[workspaceId]?.crmItems?.find((entry) => entry.id === item.id) || null;
@@ -694,7 +713,7 @@ async function persistCRMItemToDatabase(item, {
 }
 
 function flushRemoteSave() {
-  return queueImmediateRemoteSave(state);
+  return persistPortalStateImmediately(state);
 }
 
 function triggerInstantRemoteSave(snapshot = state) {
@@ -792,9 +811,9 @@ function flushOpenEditors() {
     console.warn("Falha ao salvar edições dos cards antes de sair.", error);
   }
 
-  state.lastSavedAt = new Date().toISOString();
+  stampPortalState(state);
   saveLocalPortalState(state);
-  queueImmediateRemoteSave(state);
+  void persistPortalStateImmediately(state);
 }
 
 const ARTHUR_BUENO_PHOTO = "foto-arthur.jpg";
@@ -1203,7 +1222,7 @@ async function reorderCRMItems(draggedId, targetId) {
   items.splice(targetIndex, 0, draggedItem);
   normalizeCRMItemOrder(items);
   state.workspaces[state.currentWorkspace].crmItems = items;
-  state.lastSavedAt = new Date().toISOString();
+  stampPortalState(state);
   saveLocalPortalState(state);
   renderApp();
   try {
@@ -2617,6 +2636,7 @@ function buildPortalState(snapshot = null) {
   if (!snapshot || typeof snapshot !== "object" || !Object.keys(snapshot).length) {
     const seeded = seedData();
     seeded.lastSavedAt = seeded.lastSavedAt || new Date().toISOString();
+    seeded.saveRevision = portalSaveRevision(seeded);
     pruneDeprecatedWorkspaces(seeded);
     applyDefaultMemberPhotos(seeded);
     return seeded;
@@ -2708,6 +2728,7 @@ function buildPortalState(snapshot = null) {
   applyDefaultMemberPhotos(merged);
   syncWorkspaceMemberOptions(merged);
   merged.lastSavedAt = merged.lastSavedAt || new Date().toISOString();
+  merged.saveRevision = portalSaveRevision(merged);
   return merged;
 }
 
@@ -2918,17 +2939,17 @@ async function loadState() {
       return seededState;
     } catch (error) {
       if (attempt === 1) {
-        const localState = loadLocalPortalState();
-        if (hasMeaningfulPortalData(localState)) {
-          console.warn("Leitura remota falhou. Carregando portal a partir do snapshot local.");
-          const finalizedLocalState = finalizeLoadedPortalState(localState, "local-after-remote-failure");
-          saveLocalPortalState(finalizedLocalState);
-          return finalizedLocalState;
-        }
         const recoveredState = await loadBundledPortalBackup();
         if (recoveredState) {
           console.warn("Leitura remota falhou. Carregando portal a partir do backup local empacotado.");
           return finalizeLoadedPortalState(recoveredState, "backup-after-remote-failure");
+        }
+        const localState = loadLocalPortalState();
+        if (hasMeaningfulPortalData(localState)) {
+          console.warn("Leitura remota falhou. Carregando portal a partir do snapshot local apenas como contingencia.");
+          const finalizedLocalState = finalizeLoadedPortalState(localState, "local-after-remote-failure");
+          saveLocalPortalState(finalizedLocalState);
+          return finalizedLocalState;
         }
         throw error;
       }
@@ -2939,19 +2960,11 @@ async function loadState() {
 }
 
 function saveState(options = {}) {
-  state.lastSavedAt = new Date().toISOString();
+  stampPortalState(state);
   saveLocalPortalState(state);
-  if (options.instant === true) {
-    clearTimeout(_debouncedSaveTimer);
-    _debouncedSaveTimer = null;
-    return persistPortalStateImmediately(state);
-  }
   clearTimeout(_debouncedSaveTimer);
-  _debouncedSaveTimer = setTimeout(() => {
-    _debouncedSaveTimer = null;
-    queueImmediateRemoteSave(state);
-  }, SAVE_DEBOUNCE_MS);
-  return pendingRemoteSave;
+  _debouncedSaveTimer = null;
+  return persistPortalStateImmediately(state);
 }
 
 function mergeKanbanTaskRecords(previousTask = {}, nextTask = {}) {
@@ -3043,7 +3056,7 @@ function persistKanbanStateOptimistically(options = {}) {
     rollbackMessage = "Nao foi possível salvar a alteração no Kanban. O último estado salvo foi restaurado.",
     onRollback = null
   } = options;
-  state.lastSavedAt = new Date().toISOString();
+  stampPortalState(state);
   const pendingSave = instant
     ? triggerInstantRemoteSave(state)
     : queueImmediateRemoteSave(state);
@@ -9937,7 +9950,7 @@ async function showLoginScreen() {
 
 async function persistPortalBeforeSessionChange() {
   flushOpenEditors();
-  state.lastSavedAt = new Date().toISOString();
+  stampPortalState(state);
   try {
     await flushRemoteSave();
   } catch (error) {
