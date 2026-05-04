@@ -9718,7 +9718,7 @@ async function playLoginIntroIfNeeded() {
 
   await new Promise((resolve) => {
     let finished = false;
-    let fallbackTimer = window.setTimeout(() => complete(), 2200);
+    let fallbackTimer = window.setTimeout(() => complete(), 10000);
     const complete = () => {
       if (finished) return;
       finished = true;
