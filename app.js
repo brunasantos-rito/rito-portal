@@ -2,7 +2,7 @@ const STORAGE_KEY = "rito-os-v1";
 
 const SUPABASE_URL = "https://soarinrvuvnqabtyyrta.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_qsbL0lRuMR1eZAKp0vcscg_5PfVxGHo";
-const REMOTE_REQUEST_TIMEOUT_MS = 12000;
+const REMOTE_REQUEST_TIMEOUT_MS = 5000;
 
 if (!window.supabase) {
   throw new Error("SDK do Supabase não carregou.");
@@ -30,6 +30,8 @@ let currentSessionAccessToken = "";
 const PORTAL_MEDIA_BUCKET = "portal-media";
 const PORTAL_DOCUMENTS_BUCKET = "portal-documents";
 let cachedSharedPortalStateRow = null;
+let _cachedStateLoadedAt = 0;
+const STATE_CACHE_TTL_MS = 20_000;
 
 function withTimeout(promise, ms, label = "Operacao remota") {
   return new Promise((resolve, reject) => {
@@ -52,7 +54,10 @@ function withTimeout(promise, ms, label = "Operacao remota") {
 // BANCO DE DADOS GLOBAL
 // =======================
 
-async function loadSharedPortalState() {
+async function loadSharedPortalState({ useCache = false } = {}) {
+  if (useCache && cachedSharedPortalStateRow && (Date.now() - _cachedStateLoadedAt) < STATE_CACHE_TTL_MS) {
+    return cachedSharedPortalStateRow;
+  }
   console.info("[portal-db] GET /shared_portal_state", {
     method: "SELECT",
     table: "shared_portal_state",
@@ -83,6 +88,7 @@ async function loadSharedPortalState() {
     data: data?.data && typeof data.data === "object" ? data.data : {},
     updated_at: data?.updated_at || null
   };
+  _cachedStateLoadedAt = Date.now();
   return cachedSharedPortalStateRow;
 }
 
@@ -128,6 +134,7 @@ async function saveSharedPortalState(state) {
     data: payload.data,
     updated_at: updatedAt
   };
+  _cachedStateLoadedAt = Date.now();
   return cachedSharedPortalStateRow;
 }
 
@@ -228,6 +235,10 @@ function resolveDocumentUrl(doc = {}) {
 let pendingRemoteSave = Promise.resolve();
 let queuedSaveVersion = 0;
 let activeProjectTagPickerKey = "";
+let _debouncedSaveTimer = null;
+let _lastRenderedSidebarKey = "";
+let _lastRenderedTabsKey = "";
+const SAVE_DEBOUNCE_MS = 1500;
 
 function clonePortalState(snapshot = state) {
   return JSON.parse(JSON.stringify(snapshot));
@@ -235,7 +246,7 @@ function clonePortalState(snapshot = state) {
 
 function saveLocalPortalState(snapshot = state) {
   try {
-    window.localStorage?.setItem(STORAGE_KEY, JSON.stringify(clonePortalState(snapshot)));
+    window.localStorage?.setItem(STORAGE_KEY, JSON.stringify(snapshot));
   } catch (error) {
     console.warn("Não foi possível salvar o snapshot local do portal.", error);
   }
@@ -290,7 +301,7 @@ async function saveSharedPortalStateSafely(snapshot) {
   const payload = clonePortalState(snapshot);
   let remoteRow = null;
   try {
-    remoteRow = await loadSharedPortalState();
+    remoteRow = await loadSharedPortalState({ useCache: true });
   } catch (error) {
     console.warn("Não foi possível ler o estado remoto antes do save. Seguindo com a gravação.", error);
   }
@@ -698,7 +709,7 @@ const RITO_PIPELINE_STAGES = ["Lead", "Pipeline", "NDA", "IRL", "LOI", "NBO", "P
 const workspaceConfig = {
   rito: {
     id: "rito",
-    name: "Rito Ventures",
+    name: "Rito",
     subtitle: "CRM, investimento e operação",
     mark: "Rito",
     views: ["dashboard", "crm", "invested", "tasks", "projectBoards", "rites", "documents", "members", "settings"],
@@ -1026,36 +1037,32 @@ function workspaceLogoMarkup(workspaceId, variant = "default") {
   if (workspaceId === "fast") {
     return `
       <svg class="workspace-logo workspace-logo-fast workspace-logo-${variant}" viewBox="0 0 100 100" aria-hidden="true">
-        <circle cx="50" cy="50" r="42" fill="none" stroke="#a2a07f" stroke-width="3.6"/>
-        <path d="M50 50 C43 35, 35 25, 24 23 C26 35, 33 45, 50 50" fill="none" stroke="#a2a07f" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M50 50 C57 35, 65 25, 76 23 C74 35, 67 45, 50 50" fill="none" stroke="#a2a07f" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M50 50 C43 65, 35 75, 24 77 C26 65, 33 55, 50 50" fill="none" stroke="#a2a07f" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M50 50 C57 65, 65 75, 76 77 C74 65, 67 55, 50 50" fill="none" stroke="#a2a07f" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M50 38 C46 31, 46 22, 50 15 C54 22, 54 31, 50 38" fill="none" stroke="#a2a07f" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M38 50 C31 46, 22 46, 15 50 C22 54, 31 54, 38 50" fill="none" stroke="#a2a07f" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M62 50 C69 46, 78 46, 85 50 C78 54, 69 54, 62 50" fill="none" stroke="#a2a07f" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M50 62 C46 69, 46 78, 50 85 C54 78, 54 69, 50 62" fill="none" stroke="#a2a07f" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" stroke-width="3.6"/>
+        <path d="M50 50 C43 35, 35 25, 24 23 C26 35, 33 45, 50 50" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M50 50 C57 35, 65 25, 76 23 C74 35, 67 45, 50 50" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M50 50 C43 65, 35 75, 24 77 C26 65, 33 55, 50 50" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M50 50 C57 65, 65 75, 76 77 C74 65, 67 55, 50 50" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M50 38 C46 31, 46 22, 50 15 C54 22, 54 31, 50 38" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M38 50 C31 46, 22 46, 15 50 C22 54, 31 54, 38 50" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M62 50 C69 46, 78 46, 85 50 C78 54, 69 54, 62 50" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M50 62 C46 69, 46 78, 50 85 C54 78, 54 69, 50 62" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     `;
   }
   if (workspaceId === "atica") {
     return `
       <svg class="workspace-logo workspace-logo-atica workspace-logo-${variant}" viewBox="0 0 100 100" aria-hidden="true">
-        <circle cx="50" cy="23" r="7" fill="#f4b400"/>
-        <path d="M18 38 L18 66 L29 84 L71 84 L82 66 L82 38 L63 47 L50 38 L37 47 Z" fill="#f4b400"/>
-        <rect x="30" y="89" width="40" height="7" fill="#f4b400"/>
+        <circle cx="50" cy="23" r="7" fill="currentColor"/>
+        <path d="M18 38 L18 66 L29 84 L71 84 L82 66 L82 38 L63 47 L50 38 L37 47 Z" fill="currentColor"/>
+        <rect x="30" y="89" width="40" height="7" fill="currentColor"/>
       </svg>
     `;
   }
-  if (variant === "landing") {
-    return `<img class="workspace-logo workspace-logo-rito workspace-logo-${variant} workspace-logo-landing-mark ${state.theme === "dark" ? "is-dark" : "is-light"}" src="./Logo-Rito-Mark-Transparent.png" alt="" aria-hidden="true">`;
-  }
   return `
-    <svg class="workspace-logo workspace-logo-rito workspace-logo-${variant}" viewBox="0 0 180 100" aria-hidden="true">
-      <text x="20" y="56" font-size="44" font-family="Georgia, 'Times New Roman', serif" fill="currentColor">Rito</text>
-      <text x="24" y="80" font-size="18" font-family="Calibri, 'Segoe UI', sans-serif" letter-spacing="1.5" fill="currentColor">ventures</text>
-      <path d="M156 49 l7 7 l-7 7 l-7 -7 Z" fill="none" stroke="currentColor" stroke-width="3"/>
-    </svg>
+    <span class="workspace-logo-stack workspace-logo-rito workspace-logo-${variant}" aria-hidden="true">
+      <img class="workspace-logo-theme-light" src="./Logo-Rito-Light.png" alt="">
+      <img class="workspace-logo-theme-dark" src="./Logo-Rito-Dark.png" alt="">
+    </span>
   `;
 }
 
@@ -1432,14 +1439,14 @@ function renderOwnerAvatar(name, className = "owner-badge") {
   const member = findMemberByName(name);
   const photo = defaultMemberPhoto(name) || member?.photo || "";
   const label = initials(name || "");
-  return `<span class="${className}${!label ? " is-empty" : ""}">${photo ? `<img src="${photo}" alt="${escapeAttr(displayText(name || "Responsável"))}">` : label}</span>`;
+  return `<span class="${className}${!label ? " is-empty" : ""}">${photo ? `<img src="${photo}" alt="${escapeAttr(displayText(name || "Responsável"))}" loading="lazy" decoding="async">` : label}</span>`;
 }
 
 function renderCompanyBadge({ name = "", logo = "", logoText = "", logoBg = "" } = {}) {
   const safeName = escapeAttr(displayText(name || "Empresa"));
   const fallback = logoText || initials(name || "");
   const resolvedBg = logo ? "#ffffff" : (logoBg || "#ffffff");
-  return `<span class="company-badge" style="background:${resolvedBg}">${logo ? `<img src="${logo}" alt="${safeName}">` : fallback}</span>`;
+  return `<span class="company-badge" style="background:${resolvedBg}">${logo ? `<img src="${logo}" alt="${safeName}" loading="lazy" decoding="async">` : fallback}</span>`;
 }
 
 function memberCardData(member) {
@@ -2707,9 +2714,9 @@ function finalizeLoadedPortalState(snapshot, sourceLabel = "unknown") {
 }
 
 async function loadState() {
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      const data = await loadSharedPortalState();
+      const data = await loadSharedPortalState({ useCache: attempt === 0 });
       const remoteState = data?.data && Object.keys(data.data).length ? data.data : null;
       const localState = loadLocalPortalState();
       const recoveredState = await loadBundledPortalBackup();
@@ -2760,7 +2767,7 @@ async function loadState() {
       }
       return seededState;
     } catch (error) {
-      if (attempt === 2) {
+      if (attempt === 1) {
         const localState = loadLocalPortalState();
         if (hasMeaningfulPortalData(localState)) {
           console.warn("Leitura remota falhou. Carregando portal a partir do snapshot local.");
@@ -2783,10 +2790,18 @@ async function loadState() {
 
 function saveState(options = {}) {
   state.lastSavedAt = new Date().toISOString();
+  saveLocalPortalState(state);
   if (options.instant === true) {
+    clearTimeout(_debouncedSaveTimer);
+    _debouncedSaveTimer = null;
     return persistPortalStateImmediately(state);
   }
-  return queueImmediateRemoteSave(state);
+  clearTimeout(_debouncedSaveTimer);
+  _debouncedSaveTimer = setTimeout(() => {
+    _debouncedSaveTimer = null;
+    queueImmediateRemoteSave(state);
+  }, SAVE_DEBOUNCE_MS);
+  return pendingRemoteSave;
 }
 
 function mergeKanbanTaskRecords(previousTask = {}, nextTask = {}) {
@@ -3559,8 +3574,6 @@ function updateRitoPipelineView() {
 
 function dashboardStageMatches(row, stage) {
   if (stage === "Todos") return true;
-  if (stage === "Investidos" || stage === "Investidas") return ["Aporte", "Portfólio", "Exit"].includes(row.stage);
-  if (stage === "100% concluída") return Number(row.progress || 0) >= 100;
   if (stage === "Declinados") return row.stage === "Declinado";
   return normalizeRitoDealStatus(row.stage) === normalizeRitoDealStatus(stage);
 }
@@ -3610,24 +3623,24 @@ function referenceDashboardRows() {
 function referenceDashboardStages() {
   const rows = referenceDashboardRows();
   const palette = {
-    Lead: { tone: "linear-gradient(135deg, #8b95a8 0%, #616d83 100%)", accent: "#d8deea" },
-    Pipeline: { tone: "linear-gradient(135deg, #ffd24d 0%, #f5a300 100%)", accent: "#fff2bf" },
-    NDA: { tone: "linear-gradient(135deg, #4dc7ff 0%, #1f8bff 100%)", accent: "#e1f6ff" },
-    IRL: { tone: "linear-gradient(135deg, #7bb1ff 0%, #4a74ff 100%)", accent: "#e8efff" },
-    LOI: { tone: "linear-gradient(135deg, #8f6bff 0%, #6c3cff 100%)", accent: "#efe7ff" },
-    NBO: { tone: "linear-gradient(135deg, #b175ff 0%, #7b3dff 100%)", accent: "#f1e7ff" },
-    Proposta: { tone: "linear-gradient(135deg, #ffae6b 0%, #ff6f3c 100%)", accent: "#fff0df" },
-    "Due Diligence": { tone: "linear-gradient(135deg, #57a2ff 0%, #2451ff 100%)", accent: "#e5edff" },
-    Signing: { tone: "linear-gradient(135deg, #d6b16a 0%, #9a6d2f 100%)", accent: "#f8e9c9" },
-    Closing: { tone: "linear-gradient(135deg, #3ed598 0%, #149a6d 100%)", accent: "#ddfff2" },
-    Aporte: { tone: "linear-gradient(135deg, #54d97f 0%, #2fa95d 100%)", accent: "#e4ffe8" },
-    "Portfólio": { tone: "linear-gradient(135deg, #67dc63 0%, #2e9f4c 100%)", accent: "#e9ffe2" },
-    Declinado: { tone: "linear-gradient(135deg, #ff7b93 0%, #dc2d4f 100%)", accent: "#ffe5ea" },
-    Exit: { tone: "linear-gradient(135deg, #1fd0a2 0%, #0e8b78 100%)", accent: "#defff6" }
+    Lead: { tone: "#e1e4ea", accent: "#6f7788" },
+    Pipeline: { tone: "#f5edcf", accent: "#c09205" },
+    NDA: { tone: "#dce8fa", accent: "#4c88c8" },
+    IRL: { tone: "#d8e1fb", accent: "#6d86d8" },
+    LOI: { tone: "#ddd4fb", accent: "#7a5cf0" },
+    NBO: { tone: "#e3d8f6", accent: "#8a67d9" },
+    Proposta: { tone: "#f6e0d7", accent: "#c27a4d" },
+    "Due Diligence": { tone: "#d7e1f8", accent: "#4d7ef6" },
+    Signing: { tone: "#e7dcc8", accent: "#9b7e4f" },
+    Closing: { tone: "#d8ebde", accent: "#2c9a72" },
+    Aporte: { tone: "#d9eddc", accent: "#4a9b63" },
+    "Portfólio": { tone: "#d8edd8", accent: "#41a047" },
+    Declinado: { tone: "#f5d7d7", accent: "#dc3535" },
+    Exit: { tone: "#d7efe6", accent: "#1f8f6a" }
   };
   return RITO_PIPELINE_STAGES.map((stage) => {
     const count = rows.filter((row) => normalizeRitoDealStatus(row.stage) === stage).length;
-    const colors = palette[stage] || { tone: "linear-gradient(135deg, #9099aa 0%, #6c7789 100%)", accent: "#e6eaf1" };
+    const colors = palette[stage] || { tone: "#e8ebf0", accent: "#7b8491" };
     return { label: stage, count, tone: colors.tone, accent: colors.accent, deals: `${count} deals` };
   });
 }
@@ -3957,16 +3970,14 @@ function renderApp() {
     ? "Portfolio"
     : "Ambiente";
   if (landing) {
-    workspaceEyebrow.textContent = "Portal de Gestão";
+    workspaceEyebrow.textContent = "WORKSPACE";
     pageCrumb.textContent = "";
     pageTitle.textContent = "Workspace";
     pageCrumb.classList.add("hidden");
     breadcrumbSep.classList.add("hidden");
-    landingTopbarMark.innerHTML = `<img class="landing-topbar-mark-image ${state.theme === "dark" ? "is-dark" : "is-light"}" src="./Logo-Rito-Mark-Transparent.png" alt="Rito">`;
     landingTopbarMark.classList.remove("hidden");
     workspaceHomeButton.classList.add("hidden");
   } else {
-    landingTopbarMark.textContent = "W";
     workspaceEyebrow.textContent = config.name;
     pageCrumb.textContent = detailItem
       ? `${tabTitle(state.projectReturnView[state.currentWorkspace] || "crm").toUpperCase()} > ${detailItem.name.toUpperCase()}`
@@ -3982,6 +3993,9 @@ function renderApp() {
 }
 
 function renderSidebar() {
+  const sidebarKey = state.currentWorkspace;
+  if (_lastRenderedSidebarKey === sidebarKey) return;
+  _lastRenderedSidebarKey = sidebarKey;
   const wrapper = document.getElementById("workspaceList");
   wrapper.innerHTML = "";
   orderedWorkspaces().forEach((workspace) => {
@@ -3999,9 +4013,15 @@ function renderSidebar() {
 function renderTabs() {
   const wrapper = document.getElementById("viewTabs");
   if (isLandingScreen()) {
-    wrapper.innerHTML = "";
+    if (_lastRenderedTabsKey !== "landing") {
+      _lastRenderedTabsKey = "landing";
+      wrapper.innerHTML = "";
+    }
     return;
   }
+  const tabsKey = `${state.currentWorkspace}:${state.currentView[state.currentWorkspace]}`;
+  if (_lastRenderedTabsKey === tabsKey) return;
+  _lastRenderedTabsKey = tabsKey;
   const config = workspaceConfig[state.currentWorkspace];
   wrapper.innerHTML = "";
   config.views.forEach((view) => {
@@ -4090,41 +4110,42 @@ function renderWorkspaceLandingPage() {
   const page = document.createElement("section");
   page.className = "workspace-launch-page";
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? "Bom dia." : hour < 18 ? "Boa tarde." : "Boa noite.";
+  const greeting = hour < 12 ? "Bom dia" : hour < 18 ? "Boa tarde" : "Boa noite";
   page.innerHTML = `
-    <div class="workspace-launch-scene" aria-hidden="true">
-      <span class="workspace-launch-orb workspace-launch-orb-a"></span>
-      <span class="workspace-launch-orb workspace-launch-orb-b"></span>
-      <span class="workspace-launch-grid"></span>
-    </div>
-    <section class="workspace-launch-hero">
-      <div class="workspace-launch-brand">
-        <div class="workspace-launch-brand-copy">
-          <h3>${greeting}</h3>
+    <section class="workspace-launch-hero-shell">
+      <section class="workspace-launch-hero">
+        <div class="workspace-launch-topbar">
+          <span class="workspace-launch-kicker">Portal de Gestão Rito</span>
+          <div class="workspace-launch-theme-switch" aria-label="Selecionar tema">
+            <button type="button" class="${state.theme === "dark" ? "is-active" : ""}" data-landing-theme="dark">Dark</button>
+            <button type="button" class="${state.theme === "light" ? "is-active" : ""}" data-landing-theme="light">Light</button>
+          </div>
         </div>
-      </div>
-      <div class="workspace-launch-theme-picker" aria-label="Escolher tema da landing">
-        <button type="button" class="workspace-theme-button ${state.theme === "dark" ? "is-active" : ""}" data-landing-theme="dark">
-          <span class="workspace-theme-swatch workspace-theme-swatch-dark"></span>
-          <span>Dark</span>
-        </button>
-        <button type="button" class="workspace-theme-button ${state.theme === "light" ? "is-active" : ""}" data-landing-theme="light">
-          <span class="workspace-theme-swatch workspace-theme-swatch-light"></span>
-          <span>Light</span>
-        </button>
-      </div>
+        <h3>${greeting}<span>.</span></h3>
+        <p>Selecione um workspace para continuar sua operação com visão centralizada, pipeline e acompanhamento tático.</p>
+        <div class="workspace-launch-meta">
+          <span>Investimentos</span>
+          <span>Operação</span>
+          <span>Governança</span>
+        </div>
+        <div class="workspace-launch-footer">
+          <span>© 2026 Rito Ventures</span>
+          <span>www.ritoventures.com.br</span>
+        </div>
+      </section>
+      <section class="workspace-launch-stage">
+        <div class="workspace-launch-stage-glow"></div>
+        <div class="workspace-launch-stage-brand">${workspaceLogoMarkup("rito", "landing")}</div>
+        <div class="workspace-launch-stage-copy">
+          <span>Rua 72, 325, salas 1201 a 1206, Jardim Goiás | Goiânia-GO</span>
+          <span>www.ritoventures.com.br</span>
+        </div>
+      </section>
     </section>
   `;
 
   const list = document.createElement("section");
   list.className = "workspace-launch-list";
-
-  const listHead = document.createElement("div");
-  listHead.className = "workspace-launch-list-head";
-  listHead.innerHTML = `
-    <strong>Workspaces</strong>
-  `;
-  list.appendChild(listHead);
 
   orderedWorkspaces().forEach((workspace) => {
     const meta = workspaceLaunchMeta[workspace.id] || {
@@ -4139,15 +4160,13 @@ function renderWorkspaceLandingPage() {
     item.draggable = true;
     item.dataset.workspaceId = workspace.id;
     item.innerHTML = `
-      <span class="workspace-launch-index">${meta.index}</span>
-      <span class="workspace-launch-mark ${workspace.id === "rito" ? "workspace-launch-mark-rito" : ""}">${workspaceLogoMarkup(workspace.id, "landing")}</span>
+      <span class="workspace-launch-mark">${workspaceLogoMarkup(workspace.id, "landing")}</span>
       <span class="workspace-launch-main">
         <strong>${workspace.name}</strong>
         <span class="workspace-launch-subtitle">${meta.descriptor}</span>
-        <span class="workspace-launch-summary">${meta.greeting}</span>
       </span>
-      <span class="workspace-launch-links">${workspace.views.slice(0, 5).map((view) => `<span>${tabTitleForWorkspace(workspace.id, view)}</span>`).join("")}</span>
-      <span class="workspace-launch-arrow">Entrar</span>
+      <span class="workspace-launch-links">${workspace.views.slice(0, 4).map((view) => `<span>${tabTitleForWorkspace(workspace.id, view)}</span>`).join("")}</span>
+      <span class="workspace-launch-arrow">↗</span>
     `;
     item.addEventListener("dragstart", (event) => {
       event.dataTransfer.effectAllowed = "move";
@@ -4177,16 +4196,6 @@ function renderWorkspaceLandingPage() {
     });
     item.onclick = () => navigateToWorkspace(workspace.id);
     list.appendChild(item);
-  });
-
-  page.querySelectorAll("[data-landing-theme]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const nextTheme = button.dataset.landingTheme;
-      if (!nextTheme || nextTheme === state.theme) return;
-      state.theme = nextTheme;
-      saveState();
-      renderApp();
-    });
   });
 
   page.appendChild(list);
@@ -4267,10 +4276,10 @@ function renderDueDiligenceDashboard() {
     </section>
 
     <section class="diligence-metric-grid">
-      <article class="metric-card"><p class="metric-label">Enterprise Value ajustado</p><strong class="metric-value">${formatCurrencyBRL(project.adjustedEnterpriseValue)}</strong><span class="metric-footnote">Base anterior: ${formatCurrencyBRL(project.enterpriseValue)}</span></article>
-      <article class="metric-card"><p class="metric-label">Equity Value impactado</p><strong class="metric-value">${formatCurrencyBRL(project.adjustedEquityValue)}</strong><span class="metric-footnote">Base anterior: ${formatCurrencyBRL(project.equityValue)}</span></article>
-      <article class="metric-card"><p class="metric-label">EBITDA ajustado</p><strong class="metric-value">${formatCurrencyBRL(project.adjustedEbitda)}</strong><span class="metric-footnote">QoE e normalizações concluídas em 68%</span></article>
-      <article class="metric-card"><p class="metric-label">Provisionamento estimado</p><strong class="metric-value">${formatCurrencyBRL(provisionedExposure)}</strong><span class="metric-footnote">Probabilidade x valor das contingências</span></article>
+      <article class="metric-card"><div class="metric-card-top"><p class="metric-label">Enterprise Value ajustado</p><span class="metric-icon-box"><span class="metric-icon">◈</span></span></div><strong class="metric-value">${formatCurrencyBRL(project.adjustedEnterpriseValue)}</strong><div class="metric-card-footer"><span class="metric-footnote">Base anterior: ${formatCurrencyBRL(project.enterpriseValue)}</span></div></article>
+      <article class="metric-card"><div class="metric-card-top"><p class="metric-label">Equity Value impactado</p><span class="metric-icon-box"><span class="metric-icon">◈</span></span></div><strong class="metric-value">${formatCurrencyBRL(project.adjustedEquityValue)}</strong><div class="metric-card-footer"><span class="metric-footnote">Base anterior: ${formatCurrencyBRL(project.equityValue)}</span></div></article>
+      <article class="metric-card"><div class="metric-card-top"><p class="metric-label">EBITDA ajustado</p><span class="metric-icon-box"><span class="metric-icon">◎</span></span></div><strong class="metric-value">${formatCurrencyBRL(project.adjustedEbitda)}</strong><div class="metric-card-footer"><span class="metric-footnote">QoE e normalizações concluídas em 68%</span></div></article>
+      <article class="metric-card"><div class="metric-card-top"><p class="metric-label">Provisionamento estimado</p><span class="metric-icon-box"><span class="metric-icon">⚠</span></span></div><strong class="metric-value">${formatCurrencyBRL(provisionedExposure)}</strong><div class="metric-card-footer"><span class="metric-footnote">Probabilidade x valor das contingências</span></div></article>
     </section>
 
     <section class="diligence-section-grid">
@@ -4428,7 +4437,7 @@ function renderDueDiligenceDashboard() {
 
 function renderDashboard() {
   const panel = document.createElement("section");
-  panel.className = "content-grid ref-page workspace-soft-page dashboard-premium-shell";
+  panel.className = "content-grid ref-page workspace-soft-page";
   const data = workspaceData();
   const config = workspaceConfig[state.currentWorkspace];
 
@@ -4442,24 +4451,20 @@ function renderDashboard() {
     const tasks = filters.owner === "Todos"
       ? allTasks
       : allTasks.filter((task) => String(task.owner || "").trim() === filters.owner);
-    const metrics = workspaceTaskThemes("fast").map((theme) => {
-      const themeTasks = tasks.filter((task) => task.stage === theme);
-      const themeSummary = taskStatusSummary(themeTasks);
-      const done = themeSummary.Concluido || 0;
-      const inExecution = themeSummary["Em andamento"] || 0;
-      const awaiting = themeSummary.Revisao || 0;
-      const todo = themeSummary["A fazer"] || 0;
-      const footnotes = [];
-      if (inExecution) footnotes.push(`${inExecution} em andamento`);
-      if (awaiting) footnotes.push(`${awaiting} aguardando`);
-      if (done) footnotes.push(`${done} concluídas`);
-      if (!footnotes.length && todo) footnotes.push(`${todo} no backlog`);
-      return [
-        theme,
-        themeTasks.length,
-        footnotes.join(" • ") || "Sem iniciativas"
-      ];
-    });
+    const summary = taskStatusSummary(tasks);
+    const done = summary.Concluido;
+    const inExecution = summary["Em andamento"];
+    const awaiting = summary.Revisao;
+    const todo = summary["A fazer"];
+    const workstreams = workspaceTaskThemes("fast").length;
+    const metrics = [
+      ["Iniciativas", tasks.length, "Plano tático total", "☰"],
+      ["Frentes ativas", workstreams, displayText("Workstreams da operação"), "▦"],
+      ["Em andamento", inExecution, displayText("Itens em execução"), "◉"],
+      ["Aguardando", awaiting, "Dependência de aporte ou terceiros", "◎"],
+      ["Não iniciadas", todo, "Backlog atual", "○"],
+      ["Execução", `${Math.round((done / (tasks.length || 1)) * 100)}%`, displayText("Percentual concluído"), "✓"]
+    ];
     panel.innerHTML = `
       <section class="page-head">
         <div><h3>Dashboard</h3><p>${displayText("Painel executivo da Fast Massagem com visão operacional, prioridades e performance")}</p></div>
@@ -4495,10 +4500,10 @@ function renderDashboard() {
   const invested = investedProjects(deals).length;
   const conversion = Math.round((invested / (deals.length || 1)) * 100);
   const metrics = [
-    ["Deals no pipeline", deals.length, "Todos os estágios do CRM"],
-    ["Valor total", currency(totalValue), "Portfolio analisado"],
-    ["Deals quentes", hotDeals, "Quente + Pipeline"],
-    ["Taxa de conversão", `${conversion}%`, "Deals com tag Investido"]
+    ["Deals no pipeline", deals.length, "Todos os estágios do CRM", "↗"],
+    ["Valor total", currency(totalValue), "Portfolio analisado", "$"],
+    ["Deals quentes", hotDeals, "Quente + Pipeline", "◉"],
+    ["Taxa de conversão", `${conversion}%`, "Deals com tag Investido", "✓"]
   ];
 
   const titleRow = document.createElement("section");
@@ -4551,7 +4556,7 @@ function renderDashboardSectionSafely(sectionName, renderFn) {
 
 function renderRitoReferenceDashboard() {
   const panel = document.createElement("section");
-  panel.className = "content-grid dashboard-premium-shell dashboard-premium-shell-rito";
+  panel.className = "content-grid";
   const workspaceName = workspaceConfig[state.currentWorkspace]?.name || "Workspace";
 
   const titleRow = document.createElement("section");
@@ -4622,8 +4627,6 @@ function renderRitoFunnel() {
 
   const summaryRows = [
     { label: "Todos", count: totalCount, accent: "#8f877d", all: true },
-    { label: "Investidas", count: referenceDashboardRows().filter((row) => ["Aporte", "Portfólio", "Exit"].includes(row.stage)).length, accent: "#41a047" },
-    { label: "100% concluída", count: referenceDashboardRows().filter((row) => Number(row.progress || 0) >= 100).length, accent: "#2c9a72" },
     ...stages.map((stage) => ({ label: stage.label, count: stage.count, accent: stage.accent }))
   ];
 
@@ -4666,14 +4669,14 @@ function renderRitoDashboardSide() {
   side.className = "dashboard-side rito-dashboard-side";
 
   const metrics = [
-    [String(filteredRows.length), "Deals", "visíveis no dashboard"],
-    [String(filteredRows.filter((row) => ["Aporte", "Portfólio", "Exit"].includes(row.stage)).length), "Investidos", "deals investidos"],
-    [String(filteredRows.filter((row) => row.stage === "Declinado").length), "Declinados", "deals recusados"],
-    [String(filteredRows.filter((row) => row.temp === "Quente").length), "Quentes", "prioridade alta"],
-    [String(filteredRows.filter((row) => row.temp === "Morno").length), "Mornos", "em acompanhamento"],
-    [String(filteredRows.filter((row) => row.temp === "Frio").length), "Frios", "baixa tração"],
-    [allocatedValue ? currency(allocatedValue) : "-", "Valor alocado", "projetos investidos"],
-    [projectedValue ? currency(projectedValue) : "-", "Projeção de alocação", "deals não investidos"]
+    [String(filteredRows.length), "Deals", "visíveis no dashboard", "↗", "", undefined, "slate"],
+    [String(filteredRows.filter((row) => ["Aporte", "Portfólio", "Exit"].includes(row.stage)).length), "Investidos", "deals investidos", "✦", "", undefined, "success"],
+    [String(filteredRows.filter((row) => row.stage === "Declinado").length), "Declinados", "deals recusados", "✕", "", undefined, "danger"],
+    [String(filteredRows.filter((row) => row.temp === "Quente").length), "Quentes", "prioridade alta", "◉", "", undefined, "hot"],
+    [String(filteredRows.filter((row) => row.temp === "Morno").length), "Mornos", "em acompanhamento", "◎", "", undefined, "warm"],
+    [String(filteredRows.filter((row) => row.temp === "Frio").length), "Frios", "baixa tração", "○", "", undefined, "cold"],
+    [allocatedValue ? currency(allocatedValue) : "-", "Valor alocado", "projetos investidos", "$", "", undefined, "money"],
+    [projectedValue ? currency(projectedValue) : "-", "Projeção de alocação", "deals não investidos", "$", "", undefined, "money"]
   ];
 
   const metricsRow = document.createElement("section");
@@ -4684,12 +4687,8 @@ function renderRitoDashboardSide() {
   metricsRow.style.display = "grid";
   metricsRow.style.gridTemplateColumns = "repeat(3, minmax(0, 1fr))";
   metricsRow.style.gap = "10px 14px";
-  metrics.forEach(([value, label, foot]) => {
-    const node = document.getElementById("metricCardTemplate").content.firstElementChild.cloneNode(true);
-    node.querySelector(".metric-value").textContent = value;
-    node.querySelector(".metric-label").textContent = label;
-    node.querySelector(".metric-footnote").textContent = foot;
-    metricsRow.appendChild(node);
+  metrics.forEach(([value, label, foot, icon, deltaText, deltaPositive, tone]) => {
+    metricsRow.appendChild(buildMetricCard(label, value, foot, icon, deltaText, deltaPositive, tone));
   });
   side.appendChild(metricsRow);
 
@@ -5005,7 +5004,11 @@ function renderRitoPipelinePage() {
     </section>
   `;
   page.appendChild(renderStatStrip([
-      [String(crmItems.length), "Total"], [String(investedCount), "Investidos"], [String(pipelineCount), "Pipeline"], [String(declinedCount), "Declinados"], [totalPortfolioValue ? currency(totalPortfolioValue) : "-", "Projeção de alocação"]
+      [String(crmItems.length), "Total", "", "↗", "", undefined, "slate"],
+      [String(investedCount), "Investidos", "", "✦", "", undefined, "success"],
+      [String(pipelineCount), "Pipeline", "", "◉", "", undefined, "warm"],
+      [String(declinedCount), "Declinados", "", "✕", "", undefined, "danger"],
+      [totalPortfolioValue ? currency(totalPortfolioValue) : "-", "Projeção de alocação", "", "$", "", undefined, "money"]
     ], "pipeline-stat-strip"));
   page.appendChild(renderRitoPipelineToolbar());
   const results = viewMode === "list"
@@ -5033,7 +5036,12 @@ function renderRitoInvestedPage() {
       </div>
     </section>
   `;
-  page.appendChild(renderStatStrip([[String(investedCards.length), "Total"], [String(activeCount), "Em andamento"], [String(completedCount), "Concluídos"], [investedValue ? currency(investedValue) : "-", "Valor alocado"]], "compact compact-four"));
+  page.appendChild(renderStatStrip([
+    [String(investedCards.length), "Total", "", "✦", "", undefined, "success"],
+    [String(activeCount), "Em andamento", "", "◉", "", undefined, "warm"],
+    [String(completedCount), "Concluídos", "", "✓", "", undefined, "success"],
+    [investedValue ? currency(investedValue) : "-", "Valor alocado", "", "$", "", undefined, "money"]
+  ], "compact compact-four"));
   if (viewMode === "list") {
     page.appendChild(renderReferenceList(investedCards, "invested", "Nenhum projeto investido encontrado"));
   } else {
@@ -5083,7 +5091,7 @@ function renderRitoProjectDetailPage() {
     <section class="project-hero">
       <div class="project-hero-cover" style="background-image:url('${item.cover}');background-position:${item.media.coverPosition};background-size:${item.media.coverZoom}% auto;"></div>
       <div class="project-hero-shell">
-        <div class="project-hero-logo">${item.logo ? `<img src="${item.logo}" alt="${item.name}" style="width:100%;height:100%;object-fit:cover;transform:scale(${(item.media.logoScale || 100) / 100});">` : initials(item.name)}</div>
+        <div class="project-hero-logo">${item.logo ? `<img src="${item.logo}" alt="${item.name}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;transform:scale(${(item.media.logoScale || 100) / 100});">` : initials(item.name)}</div>
         <div class="project-hero-main">
           <div class="project-hero-copy">
             <h3>${item.name}</h3>
@@ -6026,7 +6034,7 @@ function renderRitoMembersPage() {
     row.className = "reference-member-card";
     row.innerHTML = `
         <div class="member-main">
-        <div class="member-avatar" style="background:${view.color}">${view.photo ? `<img src="${view.photo}" alt="${escapeAttr(view.name)}">` : view.initials}</div>
+        <div class="member-avatar" style="background:${view.color}">${view.photo ? `<img src="${view.photo}" alt="${escapeAttr(view.name)}" loading="lazy" decoding="async">` : view.initials}</div>
         <div class="member-copy"><strong>${view.name}</strong><div class="subtle">${view.info}</div><div class="chips">${view.tags.map((tag) => `<span class="chip">${tag}</span>`).join("")}</div></div>
       </div>
       <div class="member-actions"><button class="ghost-button member-edit-button" data-ref-action="edit-member" data-member="${escapeAttr(member.name)}" type="button">Editar</button><button class="ghost-button member-delete-button" data-ref-action="delete-member" data-member="${escapeAttr(member.name)}" type="button">X</button></div>
@@ -6051,7 +6059,7 @@ function renderRitoSettingsPage() {
     <section class="settings-section">
       <h4>Workspaces</h4>
       <div class="workspace-settings-list">
-        <article><strong>Rito Ventures</strong><div class="subtle">17 empresas - 127 tarefas - 5 documentos - 17 oportunidades</div><div class="inline-actions"><button class="ghost-button" data-ref-action="workspace-edit" data-workspace="rito" type="button">Editar</button><button class="ghost-button" data-ref-action="workspace-duplicate" data-workspace="rito" type="button">Duplicar</button><button class="ghost-button" data-ref-action="workspace-link" data-workspace="rito" type="button">Link</button></div></article>
+        <article><strong>Rito</strong><div class="subtle">17 empresas - 127 tarefas - 5 documentos - 17 oportunidades</div><div class="inline-actions"><button class="ghost-button" data-ref-action="workspace-edit" data-workspace="rito" type="button">Editar</button><button class="ghost-button" data-ref-action="workspace-duplicate" data-workspace="rito" type="button">Duplicar</button><button class="ghost-button" data-ref-action="workspace-link" data-workspace="rito" type="button">Link</button></div></article>
         <article><strong>Fast Massagem</strong><div class="subtle">2 empresas - 38 tarefas - 0 documentos - 0 oportunidades</div><div class="inline-actions"><button class="ghost-button" data-ref-action="workspace-edit" data-workspace="fast" type="button">Editar</button><button class="ghost-button" data-ref-action="workspace-duplicate" data-workspace="fast" type="button">Duplicar</button><button class="ghost-button" data-ref-action="workspace-link" data-workspace="fast" type="button">Link</button></div></article>
         <button class="ghost-button settings-add" data-ref-action="new-workspace" type="button">+ Novo Workspace</button>
       </div>
@@ -6067,10 +6075,8 @@ function renderRitoSettingsPage() {
 function renderStatStrip(items, extraClass = "") {
   const wrap = document.createElement("section");
   wrap.className = `reference-stat-strip ${extraClass}`.trim();
-  items.forEach(([value, label]) => {
-    const card = document.createElement("article");
-    card.className = "metric-card";
-    card.innerHTML = `<strong class="metric-value">${value}</strong><p class="metric-label">${displayText(label)}</p>`;
+  items.forEach(([value, label, footnote, icon, deltaText, deltaPositive, tone]) => {
+    const card = buildMetricCard(label, value, footnote || "", icon, deltaText, deltaPositive, tone);
     wrap.appendChild(card);
   });
   return wrap;
@@ -6115,7 +6121,7 @@ function createReferenceProjectCard(card, invested = false, sourceView = "crm") 
       <span class="cover-dot reference-drag-handle" data-no-drag="false" aria-hidden="true">⋮⋮</span>
       <span class="status-badge">${displayText(displayStatus)}</span>
     </div>
-    <div class="reference-logo ${displayLogo ? "has-image" : ""}" style="background:${displayLogoBg}">${displayLogo ? `<img src="${displayLogo}" alt="${card.name}" style="width:100%;height:100%;object-fit:contain">` : displayLogoText}</div>
+    <div class="reference-logo ${displayLogo ? "has-image" : ""}" style="background:${displayLogoBg}">${displayLogo ? `<img src="${displayLogo}" alt="${card.name}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:contain">` : displayLogoText}</div>
     <div class="reference-card-body">
       <strong>${displayText(card.name)}</strong>
       <div class="subtle">${displayText(card.subtitle)}</div>
@@ -6177,16 +6183,41 @@ function createReferenceProjectCard(card, invested = false, sourceView = "crm") 
   return article;
 }
 
+function buildMetricCard(label, value, footnote, icon, deltaText, deltaPositive, tone = "") {
+  const template = document.getElementById("metricCardTemplate");
+  const node = template.content.firstElementChild.cloneNode(true);
+  node.querySelector(".metric-label").textContent = displayText(label);
+  node.querySelector(".metric-value").textContent = value;
+  node.querySelector(".metric-footnote").textContent = displayText(footnote);
+  if (tone) {
+    node.classList.add(`metric-card--${tone}`);
+  }
+
+  const iconBox = node.querySelector(".metric-icon-box");
+  const iconEl = node.querySelector(".metric-icon");
+  if (icon && iconEl) {
+    iconEl.textContent = icon;
+  } else if (iconBox) {
+    iconBox.remove();
+  }
+
+  const deltaEl = node.querySelector(".metric-delta");
+  if (deltaEl && deltaText) {
+    const arrow = deltaPositive === false ? "↘" : "↗";
+    deltaEl.textContent = `${arrow} ${deltaText}`;
+    deltaEl.classList.add(deltaPositive === false ? "is-negative" : "is-positive");
+  } else if (deltaEl) {
+    deltaEl.remove();
+  }
+
+  return node;
+}
+
 function renderMetrics(metrics) {
   const panel = document.createElement("section");
   panel.className = "metrics-grid";
-  const template = document.getElementById("metricCardTemplate");
-  metrics.forEach(([label, value, footnote]) => {
-    const node = template.content.firstElementChild.cloneNode(true);
-    node.querySelector(".metric-label").textContent = displayText(label);
-    node.querySelector(".metric-value").textContent = value;
-    node.querySelector(".metric-footnote").textContent = displayText(footnote);
-    panel.appendChild(node);
+  metrics.forEach(([label, value, footnote, icon, deltaText, deltaPositive]) => {
+    panel.appendChild(buildMetricCard(label, value, footnote, icon, deltaText, deltaPositive));
   });
   return panel;
 }
@@ -6222,7 +6253,7 @@ function renderStageValuePanel(items, stages) {
 
 function renderFastDashboardDetail(tasks) {
   const wrap = document.createElement("section");
-  wrap.className = "fast-dashboard-shell fast-dashboard-shell-premium";
+  wrap.className = "fast-dashboard-shell";
 
   const workstreams = workspaceTaskThemes("fast");
   const total = tasks.length || 1;
@@ -6629,7 +6660,7 @@ function createCRMCard(item) {
       </div>
       <div class="status-badge">${displayText(item.tags.includes("Investido") ? "Investido" : item.status)}</div>
     </div>
-    <div class="card-logo ${item.logo ? "has-image" : ""}" style="${item.logo ? "background:#ffffff" : ""}">${item.logo ? `<img src="${item.logo}" alt="${item.name}">` : initials(item.name)}</div>
+    <div class="card-logo ${item.logo ? "has-image" : ""}" style="${item.logo ? "background:#ffffff" : ""}">${item.logo ? `<img src="${item.logo}" alt="${item.name}" loading="lazy" decoding="async">` : initials(item.name)}</div>
     <div class="card-content">
       <div class="card-copy-block">
         <h4>${displayText(item.name)}</h4>
@@ -6728,15 +6759,6 @@ function renderInvestedProjects() {
   const panel = document.createElement("section");
   panel.className = "content-grid ref-page workspace-soft-page";
   const items = investedProjects(workspaceData().crmItems);
-  const totalAllocated = items.reduce((sum, item) => sum + Number(item.investmentAmount || 0), 0);
-  const completed = items.filter((item) => Number(item.progress || 0) >= 100).length;
-  const inProgress = items.filter((item) => Number(item.progress || 0) > 0 && Number(item.progress || 0) < 100).length;
-  const metrics = [
-    ["Total", items.length, "empresas investidas"],
-    ["Em andamento", inProgress, "projetos em execução"],
-    ["Concluídos", completed, "ciclos finalizados"],
-    ["Valor alocado", currency(totalAllocated), "capital investido"]
-  ];
   panel.innerHTML = `
     <section class="page-head">
       <div><h3>Projetos Investidos</h3><p>Entrada automatica via tag Investido no CRM</p></div>
@@ -6749,9 +6771,6 @@ function renderInvestedProjects() {
       </div>
     </section>
   `;
-  const metricsPanel = renderMetrics(metrics);
-  metricsPanel.classList.add("invested-metrics-grid");
-  panel.appendChild(metricsPanel);
   const grid = document.createElement("section");
   grid.className = "cards-grid";
   panel.appendChild(grid);
@@ -7074,7 +7093,7 @@ function renderMembers() {
     card.className = "reference-member-card members-reference-card";
     card.innerHTML = `
       <div class="member-main">
-        <div class="member-avatar" style="background:${view.color}">${view.photo ? `<img src="${view.photo}" alt="${escapeAttr(view.name)}">` : view.initials}</div>
+        <div class="member-avatar" style="background:${view.color}">${view.photo ? `<img src="${view.photo}" alt="${escapeAttr(view.name)}" loading="lazy" decoding="async">` : view.initials}</div>
         <div class="member-copy">
           <strong>${view.name}</strong>
           <div class="subtle">${view.info}</div>
@@ -7135,7 +7154,7 @@ function openMemberDialog(memberName = "") {
           <span>Foto do perfil</span>
           <div class="member-photo-upload">
             <div class="member-photo-preview" id="memberPhotoPreview" aria-hidden="true">
-              ${memberPreviewPhoto ? `<img src="${memberPreviewPhoto}" alt="${escapeAttr(current.name || "Membro")}">` : `<strong>${memberPreviewInitials || "M"}</strong>`}
+              ${memberPreviewPhoto ? `<img src="${memberPreviewPhoto}" alt="${escapeAttr(current.name || "Membro")}" loading="lazy" decoding="async">` : `<strong>${memberPreviewInitials || "M"}</strong>`}
             </div>
             <label class="member-photo-picker">
               <input name="photo" type="file" accept="image/*">
@@ -7190,7 +7209,7 @@ function openMemberDialog(memberName = "") {
     const previewName = String(nameInput?.value || current.name || "Membro").trim() || "Membro";
     const previewInitials = initials(previewName || "M");
     photoPreview.innerHTML = pendingPhotoValue
-      ? `<img src="${pendingPhotoValue}" alt="${escapeAttr(previewName)}">`
+      ? `<img src="${pendingPhotoValue}" alt="${escapeAttr(previewName)}" loading="lazy" decoding="async">`
       : `<strong>${previewInitials || "M"}</strong>`;
     photoStatus.textContent = pendingPhotoValue ? "Foto pronta para salvar" : "Adicionar foto";
   };
@@ -7423,6 +7442,15 @@ function bindStaticActions() {
     };
   }
   document.getElementById("globalSearch").oninput = renderGlobalSearchResults;
+  document.querySelectorAll("[data-landing-theme]").forEach((button) => {
+    button.onclick = () => {
+      const nextTheme = button.dataset.landingTheme || "dark";
+      if (state.theme === nextTheme) return;
+      state.theme = nextTheme;
+      saveState();
+      renderApp();
+    };
+  });
   document.getElementById("newItemButton").onclick = () => {
     const view = state.currentView[state.currentWorkspace];
     if (view === "crm") openOpportunityDialog();
@@ -7959,7 +7987,7 @@ function openProjectDrawer(projectId) {
     <div class="drawer-shell">
       <button class="ghost-button drawer-close" id="drawerCloseButton">Fechar</button>
       <div class="drawer-cover" style="background-image:url('${item.cover}')"></div>
-      <div class="drawer-logo">${item.logo ? `<img src="${item.logo}" alt="${item.name}" style="width:100%;height:100%;object-fit:cover">` : initials(item.name)}</div>
+      <div class="drawer-logo">${item.logo ? `<img src="${item.logo}" alt="${item.name}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover">` : initials(item.name)}</div>
       <div class="drawer-header">
         <div class="chips">
           <span class="chip">${item.status}</span>
@@ -9498,8 +9526,6 @@ function bootstrapFromURL() {
   }
 }
 
-const LOGIN_INTRO_STORAGE_KEY = "rito-play-login-intro";
-
 function setPortalVisibility(isVisible) {
   const dialog = document.getElementById("entityDialog");
   document.body.classList.toggle("login-mode", !isVisible);
@@ -9510,134 +9536,60 @@ function setPortalVisibility(isVisible) {
   dialog?.classList.add("hidden");
 }
 
-function removeLoginIntroOverlay() {
-  document.getElementById("loginIntroOverlay")?.remove();
-}
-
-function consumeLoginIntroFlag() {
-  const shouldPlay = sessionStorage.getItem(LOGIN_INTRO_STORAGE_KEY) === "1";
-  if (shouldPlay) sessionStorage.removeItem(LOGIN_INTRO_STORAGE_KEY);
-  return shouldPlay;
-}
-
-function playLoginIntro() {
-  removeLoginIntroOverlay();
-
-  return new Promise((resolve) => {
-    const overlay = document.createElement("div");
-    overlay.id = "loginIntroOverlay";
-    overlay.className = "login-intro-overlay";
-    overlay.innerHTML = `
-      <video class="login-intro-video" preload="auto" playsinline>
-        <source src="./Rito_M_MOTION_20260417.mp4" type="video/mp4">
-      </video>
-      <button type="button" class="login-intro-skip">Pular abertura</button>
-    `;
-
-    document.body.appendChild(overlay);
-
-    const video = overlay.querySelector(".login-intro-video");
-    const skipButton = overlay.querySelector(".login-intro-skip");
-    let finished = false;
-
-    const finish = () => {
-      if (finished) return;
-      finished = true;
-      overlay.remove();
-      resolve();
-    };
-
-    skipButton.addEventListener("click", finish);
-    video.addEventListener("ended", finish, { once: true });
-    video.addEventListener("error", finish, { once: true });
-
-    const playAttempt = video.play();
-    if (playAttempt?.catch) {
-      playAttempt.catch(() => finish());
-    }
-  });
-}
-
 async function showLoginScreen() {
   setPortalVisibility(false);
-  removeLoginIntroOverlay();
 
   let overlay = document.getElementById("loginOverlay");
 
   if (!overlay) {
     overlay = document.createElement("div");
     overlay.id = "loginOverlay";
-    overlay.className = "login-overlay";
     document.body.appendChild(overlay);
   }
 
   overlay.innerHTML = `
-    <div class="login-layout">
-      <section class="login-form-panel">
-        <div class="login-panel-stack">
-          <div class="login-brand-block">
-            <div class="login-brand-lockup">
-              <h1>Bem-Vindo<span class="login-heading-dot">.</span></h1>
-            </div>
+    <div class="portal-login-shell">
+      <section class="portal-login-panel">
+        <div class="portal-login-panel-inner">
+          <div class="portal-login-copy">
+            <span class="portal-login-kicker">Portal de Gestão Rito</span>
+            <h2>Bem-Vindo<span>.</span></h2>
           </div>
 
-          <div class="login-card">
-            <div class="login-card-head"></div>
+          <form id="loginForm" class="portal-login-form">
+            <label class="portal-login-field">
+              <span>Email</span>
+              <input id="loginEmail" type="email" required>
+            </label>
 
-            <form id="loginForm" class="login-form">
-              <label class="login-field">
-                <div class="login-field-label">Email</div>
-                <input
-                  id="loginEmail"
-                  class="login-input"
-                  type="email"
-                  required
-                  autocomplete="username"
-                >
-              </label>
+            <label class="portal-login-field">
+              <span>Senha</span>
+              <input id="loginPassword" type="password" required>
+            </label>
 
-              <label class="login-field">
-                <div class="login-field-label">Senha</div>
-                <input
-                  id="loginPassword"
-                  class="login-input"
-                  type="password"
-                  required
-                  autocomplete="current-password"
-                >
-              </label>
+            <p id="loginMessage" class="portal-login-message"></p>
 
-              <p id="loginMessage" class="login-message"></p>
+            <button type="submit" class="portal-login-submit">Entrar</button>
+            <button type="button" id="registerBtn" class="portal-login-secondary">1º acesso</button>
+          </form>
 
-              <button type="submit" class="login-primary-button">
-                Entrar
-              </button>
-
-              <div class="login-register-row">
-                <button type="button" id="registerBtn" class="login-secondary-button">
-                  1º acesso
-                </button>
-              </div>
-            </form>
-          </div>
-
-          <div class="login-card-footer">
+          <div class="portal-login-bottom">
             <span>© 2026 Rito Ventures</span>
-            <nav>
+            <div>
               <span>Suporte</span>
               <span>Privacidade</span>
-            </nav>
+            </div>
           </div>
         </div>
       </section>
 
-      <section class="login-cover-panel">
-        <img class="login-cover-image" src="./login-cover-background.png" alt="Capa do Portal Rito">
-        <div class="login-cover-brand">
-          <div class="login-address-box login-address-box-cover">
-            <p>Rua 72, 325, salas 1201 a 1206, Jardim Goiás | Goiânia-GO</p>
-            <p>www.ritoventures.com.br</p>
-          </div>
+      <section class="portal-login-stage">
+        <div class="portal-login-stage-grid"></div>
+        <div class="portal-login-stage-glow"></div>
+        <div class="portal-login-stage-brand">${workspaceLogoMarkup("rito", "landing")}</div>
+        <div class="portal-login-stage-copy">
+          <span>Rua 72, 325, salas 1201 a 1206, Jardim Goiás | Goiânia-GO</span>
+          <span>www.ritoventures.com.br</span>
         </div>
       </section>
     </div>
@@ -9674,7 +9626,6 @@ async function showLoginScreen() {
 
     msg.style.color = "#2e7d32";
     msg.textContent = "Entrando...";
-    sessionStorage.setItem(LOGIN_INTRO_STORAGE_KEY, "1");
     await protectApp();
   });
 
@@ -9711,7 +9662,6 @@ async function persistPortalBeforeSessionChange() {
 async function logoutUser() {
   await persistPortalBeforeSessionChange();
   history.replaceState({}, "", location.pathname);
-  removeLoginIntroOverlay();
   await supabaseClient.auth.signOut();
   document.getElementById("portalLogoutButton")?.remove();
   await showLoginScreen();
@@ -9720,24 +9670,48 @@ async function logoutUser() {
 function addLogoutButton() {
   const existing = document.getElementById("portalLogoutButton");
   if (existing) return;
-  const topbarActions = document.querySelector(".topbar-actions");
-  if (!topbarActions) return;
   const btn = document.createElement("button");
   btn.id = "portalLogoutButton";
   btn.textContent = "Sair";
-  btn.type = "button";
   btn.className = "ghost-button";
-  btn.style.position = "static";
-  btn.style.padding = "11px 18px";
-  btn.style.background = "linear-gradient(135deg, #2e145f 0%, #45207f 56%, #5b2b91 100%)";
+  btn.style.position = "";
+  btn.style.right = "";
+  btn.style.top = "";
+  btn.style.bottom = "";
+  btn.style.padding = "7px 14px";
+  btn.style.background = "#2d1f52";
   btn.style.color = "#fff";
   btn.style.border = "none";
   btn.style.borderRadius = "16px";
-  btn.style.boxShadow = "0 0 0 1px rgba(255,255,255,0.06), 0 14px 28px rgba(46, 20, 95, 0.34), 0 0 22px rgba(69, 32, 127, 0.2)";
+  btn.style.boxShadow = "0 8px 18px rgba(45, 31, 82, 0.18)";
   btn.style.cursor = "pointer";
   btn.onclick = logoutUser;
 
-  topbarActions.appendChild(btn);
+  document.querySelector(".topbar-actions")?.appendChild(btn);
+}
+
+function showPortalSkeleton() {
+  const target = document.getElementById("appContent");
+  if (!target) return;
+  target.innerHTML = `
+    <div class="portal-skeleton" style="padding:24px;display:flex;flex-direction:column;gap:16px;">
+      <div style="display:flex;gap:12px;margin-bottom:8px;">
+        <div class="skel-block" style="width:160px;height:32px;border-radius:6px;"></div>
+        <div class="skel-block" style="width:100px;height:32px;border-radius:6px;"></div>
+        <div class="skel-block" style="width:80px;height:32px;border-radius:6px;"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;">
+        ${Array.from({ length: 6 }).map(() => `
+          <div class="skel-block" style="height:140px;border-radius:10px;"></div>
+        `).join("")}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">
+        ${Array.from({ length: 4 }).map(() => `
+          <div class="skel-block" style="height:52px;border-radius:8px;"></div>
+        `).join("")}
+      </div>
+    </div>
+  `;
 }
 
 async function protectApp() {
@@ -9748,13 +9722,11 @@ async function protectApp() {
     return;
   }
 
-  const shouldPlayIntro = consumeLoginIntroFlag();
-
   await refreshSessionAccessToken();
   history.replaceState({}, "", location.pathname);
   document.getElementById("loginOverlay")?.remove();
-  setPortalVisibility(!shouldPlayIntro);
-  const introPromise = shouldPlayIntro ? playLoginIntro() : Promise.resolve();
+  setPortalVisibility(true);
+  showPortalSkeleton();
   try {
     state = await loadState();
     if (!portalDataScore(state)) {
@@ -9769,8 +9741,6 @@ async function protectApp() {
     bootstrapFromURL();
     renderApp();
     addLogoutButton();
-    await introPromise;
-    setPortalVisibility(true);
   } catch (error) {
     console.error("Falha ao carregar o portal exclusivamente do Supabase.", error);
     document.getElementById("appContent").innerHTML = `
@@ -9789,8 +9759,6 @@ async function protectApp() {
     document.getElementById("retryPortalLoadButton")?.addEventListener("click", () => {
       window.location.reload();
     });
-    await introPromise;
-    setPortalVisibility(true);
   }
 }
 
