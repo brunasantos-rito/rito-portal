@@ -17,6 +17,9 @@
   --warning: #e6a700;
   --danger: #d44545;
   --radius-lg: 18px;
+  --portal-button-purple: #2d1f52;
+  --portal-button-purple-hover: #392664;
+  --portal-button-purple-shadow: rgba(45, 31, 82, 0.22);
 }
 
 body[data-theme="dark"] {
@@ -338,8 +341,8 @@ body[data-theme="dark"] .workspace-logo-stack .workspace-logo-theme-dark {
 .action-button:hover {
   transform: none;
   border-color: var(--border);
-  background: linear-gradient(135deg, #564f83 0%, #6c63a6 100%);
-  box-shadow: 0 14px 28px rgba(93, 88, 134, 0.28);
+  background: var(--portal-button-purple-hover);
+  box-shadow: 0 14px 28px rgba(45, 31, 82, 0.28);
 }
 
 .workspace-button.active,
@@ -440,10 +443,10 @@ body[data-theme="dark"] .theme-switch-track {
 }
 
 .action-button {
-  background: linear-gradient(135deg, #5d5886 0%, #746bb0 100%);
+  background: var(--portal-button-purple);
   color: #ffffff;
   border: none;
-  box-shadow: 0 12px 24px rgba(93, 88, 134, 0.22);
+  box-shadow: 0 12px 24px var(--portal-button-purple-shadow);
 }
 
 .full-width {
@@ -596,7 +599,18 @@ body.landing-mode .subtle-chip {
 }
 
 .workspace-launch-topbar {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.workspace-launch-logout {
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  flex-shrink: 0;
 }
 
 .workspace-launch-kicker {
@@ -831,9 +845,19 @@ body[data-theme="dark"].landing-mode .workspace-launch-card:hover {
 
 body[data-theme="light"].landing-mode {
   background:
-    radial-gradient(circle at 78% 18%, rgba(176, 161, 255, 0.26), transparent 24%),
-    radial-gradient(circle at 24% 68%, rgba(214, 208, 255, 0.34), transparent 26%),
-    linear-gradient(180deg, #f7f5ff 0%, #f2f0fb 100%);
+    linear-gradient(180deg, rgba(246, 244, 255, 0.12), rgba(246, 244, 255, 0.12)),
+    url("./Backgroud-Capa-1.png") center center / cover no-repeat;
+}
+
+body[data-theme="light"].landing-mode::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    linear-gradient(180deg, rgba(7, 10, 22, 0.08), rgba(7, 10, 22, 0.18)),
+    radial-gradient(circle at 78% 52%, rgba(255, 255, 255, 0.08), transparent 18%);
 }
 
 body[data-theme="light"].landing-mode .workspace-launch-kicker {
@@ -866,8 +890,8 @@ body[data-theme="light"].landing-mode .workspace-launch-theme-switch button.is-a
 
 body[data-theme="light"].landing-mode .workspace-launch-card {
   border-color: rgba(151, 143, 214, 0.16);
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 14px 36px rgba(145, 135, 201, 0.12);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 14px 36px rgba(19, 16, 38, 0.14);
   color: #2e2a3f;
 }
 
@@ -908,7 +932,13 @@ body[data-theme="light"].landing-mode .workspace-launch-arrow {
   position: fixed;
   inset: 0;
   z-index: 10000;
-  background: #050816;
+  background: rgba(5, 8, 22, 0.98);
+  opacity: 1;
+  transition: opacity 220ms ease;
+}
+
+#loginIntroOverlay.is-leaving {
+  opacity: 0;
 }
 
 .portal-intro-shell {
@@ -924,16 +954,29 @@ body[data-theme="light"].landing-mode .workspace-launch-arrow {
 }
 
 .portal-intro-video {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
   background: #050816;
+  filter: saturate(1.02) contrast(1.03);
+}
+
+.portal-intro-shell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(4, 8, 24, 0.12) 0%, rgba(4, 8, 24, 0.22) 100%),
+    radial-gradient(circle at 18% 22%, rgba(112, 63, 255, 0.16), transparent 24%);
 }
 
 .portal-intro-skip {
   position: absolute;
   right: 28px;
   bottom: 28px;
+  z-index: 3;
   min-height: 46px;
   padding: 0 18px;
   border-radius: 999px;
@@ -1498,9 +1541,9 @@ body[data-theme="dark"] .chip-exit {
 }
 
 body[data-theme="dark"] .action-button {
-  background: linear-gradient(135deg, #5d5886 0%, #746bb0 100%);
+  background: var(--portal-button-purple);
   color: #ffffff;
-  box-shadow: 0 16px 34px rgba(46, 34, 92, 0.34);
+  box-shadow: 0 16px 34px rgba(45, 31, 82, 0.34);
 }
 
 body[data-theme="dark"] .tab-button.active {
@@ -1963,11 +2006,12 @@ body[data-theme="dark"] .metric-card--money {
 }
 
 .card-logo.has-image {
-  top: 18px;
+  top: 140px;
+  left: 18px;
   width: auto;
   min-width: 0;
-  max-width: 148px;
-  height: 52px;
+  max-width: 132px;
+  height: 58px;
   padding: 0;
   border-radius: 0;
   background: transparent !important;
@@ -1978,8 +2022,8 @@ body[data-theme="dark"] .metric-card--money {
 
 .card-logo img {
   width: auto;
-  max-width: 148px;
-  height: 52px;
+  max-width: 132px;
+  height: 58px;
   object-fit: contain;
   object-position: left center;
   display: block;
@@ -3766,9 +3810,9 @@ body[data-theme="dark"] .metric-card--money {
 }
 
 .member-dialog-actions .action-button {
-  background: #5d5886;
+  background: var(--portal-button-purple);
   color: #fff;
-  border-color: #5d5886;
+  border-color: var(--portal-button-purple);
 }
 
 .member-dialog-actions .ghost-button {
@@ -5208,11 +5252,12 @@ body[data-theme="dark"] .workspace-soft-page .kanban-card {
 }
 
 .reference-logo.has-image {
-  top: 14px;
+  top: 66px;
+  left: 12px;
   width: auto;
   min-width: 0;
-  max-width: 108px;
-  height: 30px;
+  max-width: 92px;
+  height: 34px;
   padding: 0;
   border-radius: 0;
   background: transparent !important;
@@ -5223,8 +5268,8 @@ body[data-theme="dark"] .workspace-soft-page .kanban-card {
 .reference-logo img {
   display: block;
   width: auto;
-  max-width: 108px;
-  height: 30px;
+  max-width: 92px;
+  height: 34px;
   object-fit: contain;
   object-position: left center;
   background: transparent;
