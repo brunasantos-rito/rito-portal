@@ -20,7 +20,8 @@
   --portal-button-purple: #2d1f52;
   --portal-button-purple-hover: #392664;
   --portal-button-purple-shadow: rgba(45, 31, 82, 0.22);
-  --portal-cover-image: url("https://raw.githubusercontent.com/brunasantos-rito/rito-portal/main/Backgroud-Capa-1.png"), url("./Backgroud-Capa-1.png");
+  --portal-cover-image-remote: url("https://raw.githubusercontent.com/brunasantos-rito/rito-portal/main/Backgroud-Capa-1.png");
+  --portal-cover-image-local: url("./Backgroud-Capa-1.png");
 }
 
 body[data-theme="dark"] {
@@ -198,17 +199,10 @@ body[data-theme="dark"] .workspace-logo-stack .workspace-logo-theme-dark {
 .workspace-logo-sidebar.workspace-logo-rito,
 .workspace-logo-dropdown.workspace-logo-rito,
 .workspace-logo-landing.workspace-logo-rito {
-  width: 84%;
-  height: 84%;
-  margin: 8%;
-  color: currentColor;
-  --workspace-logo-cutout: #ffffff;
-}
-
-body[data-theme="dark"] .workspace-logo-sidebar.workspace-logo-rito,
-body[data-theme="dark"] .workspace-logo-dropdown.workspace-logo-rito,
-body[data-theme="dark"] .workspace-logo-landing.workspace-logo-rito {
-  --workspace-logo-cutout: #0d1020;
+  width: 210%;
+  height: 210%;
+  margin: -55%;
+  object-fit: contain;
 }
 
 .brand-block h1,
@@ -813,7 +807,11 @@ body.landing-mode .subtle-chip {
 }
 
 body[data-theme="dark"].landing-mode {
-  background: var(--portal-cover-image) center center / cover no-repeat;
+  background-color: #090d1a;
+  background-image: var(--portal-cover-image-remote), var(--portal-cover-image-local);
+  background-position: center center, center center;
+  background-size: cover, cover;
+  background-repeat: no-repeat, no-repeat;
 }
 
 body[data-theme="dark"].landing-mode::before {
@@ -844,7 +842,11 @@ body[data-theme="dark"].landing-mode .workspace-launch-card:hover {
 }
 
 body[data-theme="light"].landing-mode {
-  background: var(--portal-cover-image) center center / cover no-repeat;
+  background-color: #090d1a;
+  background-image: var(--portal-cover-image-remote), var(--portal-cover-image-local);
+  background-position: center center, center center;
+  background-size: cover, cover;
+  background-repeat: no-repeat, no-repeat;
 }
 
 body[data-theme="light"].landing-mode::before {
@@ -852,11 +854,11 @@ body[data-theme="light"].landing-mode::before {
 }
 
 body[data-theme="light"].landing-mode .workspace-launch-kicker {
-  color: rgba(88, 92, 118, 0.78);
+  color: rgba(210, 216, 232, 0.78);
 }
 
 body[data-theme="light"].landing-mode .workspace-launch-hero h3 {
-  color: #2d2252;
+  color: #fbfcff;
 }
 
 body[data-theme="light"].landing-mode .workspace-launch-hero h3 span {
@@ -939,24 +941,11 @@ body[data-theme="light"].landing-mode .workspace-launch-arrow {
   display: grid;
   place-items: center;
   overflow: hidden;
-  background: var(--portal-cover-image) center center / cover no-repeat;
-}
-
-.portal-intro-brand {
-  position: absolute;
-  inset: 50% auto auto 50%;
-  width: 94px;
-  height: 94px;
-  transform: translate(-50%, -50%);
-  color: #ffffff;
-  z-index: 2;
-  opacity: 0.96;
-  transition: opacity 220ms ease, transform 220ms ease;
-}
-
-.portal-intro-shell.is-video-ready .portal-intro-brand {
-  opacity: 0;
-  transform: translate(-50%, -50%) scale(0.92);
+  background-color: #090d1a;
+  background-image: var(--portal-cover-image-remote), var(--portal-cover-image-local);
+  background-position: center center, center center;
+  background-size: cover, cover;
+  background-repeat: no-repeat, no-repeat;
 }
 
 .portal-intro-video {
@@ -1148,9 +1137,14 @@ body[data-theme="light"].landing-mode .workspace-launch-arrow {
   display: flex;
   align-items: center;
   justify-content: center;
-  background:
-    linear-gradient(180deg, rgba(4, 8, 24, 0.28), rgba(7, 11, 28, 0.18)),
-    var(--portal-cover-image) center center / cover no-repeat;
+  background-color: #090d1a;
+  background-image:
+    linear-gradient(180deg, rgba(4, 8, 24, 0.18), rgba(7, 11, 28, 0.12)),
+    var(--portal-cover-image-remote),
+    var(--portal-cover-image-local);
+  background-position: center center, center center, center center;
+  background-size: auto, cover, cover;
+  background-repeat: no-repeat, no-repeat, no-repeat;
 }
 
 .portal-login-stage-grid {
@@ -1164,11 +1158,10 @@ body[data-theme="light"].landing-mode .workspace-launch-arrow {
 .portal-login-stage-brand {
   position: absolute;
   inset: 50% auto auto 50%;
-  width: 112px;
-  height: 112px;
+  width: 126px;
+  height: 126px;
   transform: translate(-50%, -54%);
   display: block;
-  color: #ffffff;
   z-index: 1;
   opacity: 0.96;
 }
