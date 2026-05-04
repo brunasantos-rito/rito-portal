@@ -239,6 +239,8 @@ let _debouncedSaveTimer = null;
 let _lastRenderedSidebarKey = "";
 let _lastRenderedTabsKey = "";
 const SAVE_DEBOUNCE_MS = 1500;
+const LOGIN_INTRO_VIDEO_PATH = "./Rito_M_MOTION_20260417.mp4";
+const LOGIN_INTRO_SESSION_KEY = "rito-login-intro-played";
 
 function clonePortalState(snapshot = state) {
   return JSON.parse(JSON.stringify(snapshot));
@@ -5100,6 +5102,8 @@ function renderRitoProjectDetailPage() {
   const item = getSelectedProject();
   if (!item) return renderRitoPipelinePage();
   ensureProjectShape(item);
+  const displayCover = projectMediaValue(item, "cover");
+  const displayLogo = projectMediaValue(item, "logo");
   const relatedTasks = workspaceData().projectBoards[item.name] || [];
   const relatedDocs = getRelatedDocuments(item);
   const sourceView = state.projectReturnView[state.currentWorkspace] || "crm";
@@ -5109,9 +5113,9 @@ function renderRitoProjectDetailPage() {
   page.innerHTML = `
     <button class="ghost-button project-back-button" data-project-action="back" type="button">Voltar para ${tabTitle(sourceView)}</button>
     <section class="project-hero">
-      <div class="project-hero-cover" style="background-image:url('${item.cover}');background-position:${item.media.coverPosition};background-size:${item.media.coverZoom}% auto;"></div>
+      <div class="project-hero-cover" style="background-image:url('${displayCover}');background-position:${item.media.coverPosition};background-size:${item.media.coverZoom}% auto;"></div>
       <div class="project-hero-shell">
-        <div class="project-hero-logo">${item.logo ? `<img src="${item.logo}" alt="${item.name}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;transform:scale(${(item.media.logoScale || 100) / 100});">` : initials(item.name)}</div>
+        <div class="project-hero-logo">${displayLogo ? `<img src="${displayLogo}" alt="${item.name}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;transform:scale(${(item.media.logoScale || 100) / 100});">` : initials(item.name)}</div>
         <div class="project-hero-main">
           <div class="project-hero-copy">
             <h3>${item.name}</h3>
@@ -5307,30 +5311,18 @@ function bindRitoProjectDetailPage(page, item) {
   page.querySelector("[data-project-action='new-doc']").onclick = () => openDocumentDialog(item.name);
   page.querySelector("#detailLogoUpload").onchange = async (event) => {
     try {
-      item.logo = await imageFileToProjectDataURL(event.target.files[0], "logo", item.logo);
-      item.updatedAt = new Date().toISOString();
-      pushHistory(item, "Logo atualizada");
-      const persistPromise = upsertCRMItem(item, {
-        skipRender: true,
-        renderOnSuccess: false
-      });
-      openProjectDetail(item.id, sourceView);
-      await persistPromise;
+      const file = event.target.files?.[0];
+      if (!file) return;
+      await applyProjectImageFile(item, "logo", file, sourceView);
     } catch (error) {
       alert(error?.message || "Não foi possível atualizar a logo.");
     }
   };
   page.querySelector("#detailCoverUpload").onchange = async (event) => {
     try {
-      item.cover = await imageFileToProjectDataURL(event.target.files[0], "cover", item.cover);
-      item.updatedAt = new Date().toISOString();
-      pushHistory(item, "Capa atualizada");
-      const persistPromise = upsertCRMItem(item, {
-        skipRender: true,
-        renderOnSuccess: false
-      });
-      openProjectDetail(item.id, sourceView);
-      await persistPromise;
+      const file = event.target.files?.[0];
+      if (!file) return;
+      await applyProjectImageFile(item, "cover", file, sourceView);
     } catch (error) {
       alert(error?.message || "Não foi possível atualizar a capa.");
     }
@@ -6121,8 +6113,8 @@ function createReferenceProjectCard(card, invested = false, sourceView = "crm") 
   const linked = workspaceData().crmItems.find((item) => item.name === card.name);
   const isInvested = linked ? linked.investmentStatus === "Investido" || (linked.tags || []).includes("Investido") : invested;
   const allocationLabel = isInvested ? "Valor alocado" : "Projeção";
-  const displayCover = linked?.cover || card.cover;
-  const displayLogo = linked?.logo || card.logo || "";
+  const displayCover = linked ? projectMediaValue(linked, "cover") : (card.cover || "");
+  const displayLogo = linked ? projectMediaValue(linked, "logo") : (card.logo || "");
   const displayLogoText = linked?.logoText || card.logoText || "";
   const displayLogoBg = displayLogo ? "#ffffff" : (linked?.logoBg || card.logoBg || "#ffffff");
   const displayTags = normalizeProjectTagList(linked?.tags?.length ? linked.tags : card.tags, linked || card);
@@ -6141,7 +6133,7 @@ function createReferenceProjectCard(card, invested = false, sourceView = "crm") 
       <span class="cover-dot reference-drag-handle" data-no-drag="false" aria-hidden="true">⋮⋮</span>
       <span class="status-badge">${displayText(displayStatus)}</span>
     </div>
-    <div class="reference-logo ${displayLogo ? "has-image" : ""}" style="background:${displayLogoBg}">${displayLogo ? `<img src="${displayLogo}" alt="${card.name}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:contain">` : displayLogoText}</div>
+    <div class="reference-logo ${displayLogo ? "has-image" : ""}" ${displayLogo ? "" : `style="background:${displayLogoBg}"`}>${displayLogo ? `<img src="${displayLogo}" alt="${card.name}" loading="lazy" decoding="async">` : displayLogoText}</div>
     <div class="reference-card-body">
       <strong>${displayText(card.name)}</strong>
       <div class="subtle">${displayText(card.subtitle)}</div>
@@ -6662,6 +6654,8 @@ function createCRMCard(item) {
   article.draggable = true;
   article.dataset.crmId = item.id;
   const accent = coverPalette[item.status] || "#2864ff";
+  const displayCover = projectMediaValue(item, "cover");
+  const displayLogo = projectMediaValue(item, "logo");
   const companyDescription = displayText(item.description || item.businessModel || item.framework || "-");
   const statusSummary = dealStatusSummaryPreview(item, 150);
   const statusSummaryLabel = normalizeReferenceDashboardStage(item) === "Declinado" ? "Motivo do declínio" : "Resumo do status";
@@ -6670,7 +6664,7 @@ function createCRMCard(item) {
   const vcBacked = displayText(item.vcPeBacked || "-");
   const locationLine = [item.sector, item.location, item.year].filter(Boolean).map((part) => displayText(part)).join(" - ");
   article.innerHTML = `
-    <div class="card-cover" style="background-image:url('${item.cover}')">
+    <div class="card-cover" style="background-image:url('${displayCover}')">
       <div class="card-menu-shell">
         <button class="ghost-button cover-actions" data-card-menu-toggle="${item.id}" type="button" aria-label="Abrir menu do card">...</button>
         <div class="card-menu hidden" data-card-menu="${item.id}">
@@ -6680,7 +6674,7 @@ function createCRMCard(item) {
       </div>
       <div class="status-badge">${displayText(item.tags.includes("Investido") ? "Investido" : item.status)}</div>
     </div>
-    <div class="card-logo ${item.logo ? "has-image" : ""}" style="${item.logo ? "background:#ffffff" : ""}">${item.logo ? `<img src="${item.logo}" alt="${item.name}" loading="lazy" decoding="async">` : initials(item.name)}</div>
+    <div class="card-logo ${displayLogo ? "has-image" : ""}">${displayLogo ? `<img src="${displayLogo}" alt="${item.name}" loading="lazy" decoding="async">` : initials(item.name)}</div>
     <div class="card-content">
       <div class="card-copy-block">
         <h4>${displayText(item.name)}</h4>
@@ -8356,17 +8350,50 @@ function clipboardImageFromPasteEvent(event) {
   return imageItem ? imageItem.getAsFile() : null;
 }
 
+function setProjectMediaPreview(item, target, previewUrl = "") {
+  if (!item || !target || !previewUrl) return;
+  item.__mediaPreview ||= {};
+  item.__mediaPreview[target] = previewUrl;
+}
+
+function clearProjectMediaPreview(item, target) {
+  const previewUrl = item?.__mediaPreview?.[target];
+  if (typeof previewUrl === "string" && previewUrl.startsWith("blob:")) {
+    URL.revokeObjectURL(previewUrl);
+  }
+  if (!item?.__mediaPreview) return;
+  delete item.__mediaPreview[target];
+  if (!Object.keys(item.__mediaPreview).length) {
+    delete item.__mediaPreview;
+  }
+}
+
+function projectMediaValue(item, target) {
+  return item?.__mediaPreview?.[target] || item?.[target] || "";
+}
+
 async function applyProjectImageFile(item, target, file, sourceView, options = {}) {
   const { reopen = true } = options;
   if (!file) return false;
+  const previousValue = item[target] || "";
+  const previewUrl = URL.createObjectURL(file);
   try {
+    setProjectMediaPreview(item, target, previewUrl);
+    if (reopen) {
+      openProjectDetail(item.id, sourceView);
+    } else {
+      renderAppPreservingScroll();
+    }
+
+    const resolvedUrl = await imageFileToProjectDataURL(file, target, previousValue);
     if (target === "logo") {
-      item.logo = await imageFileToProjectDataURL(file, "logo", item.logo);
+      item.logo = resolvedUrl;
       pushHistory(item, "Logo colada da área de transferência");
     } else {
-      item.cover = await imageFileToProjectDataURL(file, "cover", item.cover);
+      item.cover = resolvedUrl;
       pushHistory(item, "Capa colada da área de transferência");
     }
+    clearProjectMediaPreview(item, target);
     item.updatedAt = new Date().toISOString();
     const persistPromise = upsertCRMItem(item, {
       skipRender: true,
@@ -8380,6 +8407,12 @@ async function applyProjectImageFile(item, target, file, sourceView, options = {
     await persistPromise;
     return true;
   } catch (error) {
+    clearProjectMediaPreview(item, target);
+    if (reopen) {
+      openProjectDetail(item.id, sourceView);
+    } else {
+      renderAppPreservingScroll();
+    }
     throw new Error(error?.message || "Não foi possível salvar a imagem no projeto.");
   }
 }
@@ -8437,16 +8470,11 @@ function openProjectPasteDialog(item, target, sourceView) {
     if (!file) return;
     try {
       setLoadingState(true);
-      const ok = await applyProjectImageFile(item, target, file, sourceView, { reopen: false });
-      if (!ok) {
-        setLoadingState(false);
-        return;
-      }
       close();
-      requestAnimationFrame(() => openProjectDetail(item.id, sourceView));
+      const ok = await applyProjectImageFile(item, target, file, sourceView);
+      if (!ok) return;
     } catch (error) {
-      setLoadingState(false);
-      dropzone.textContent = error?.message || "Não foi possível aplicar a imagem. Tente novamente.";
+      alert(error?.message || "Não foi possível aplicar a imagem. Tente novamente.");
     }
   };
   const onPaste = async (event) => {
@@ -9565,8 +9593,55 @@ function setPortalVisibility(isVisible) {
   dialog?.classList.add("hidden");
 }
 
+function clearLoginIntroOverlay() {
+  document.getElementById("loginIntroOverlay")?.remove();
+}
+
+async function playLoginIntroIfNeeded() {
+  if (window.sessionStorage?.getItem(LOGIN_INTRO_SESSION_KEY) === "1") return;
+
+  clearLoginIntroOverlay();
+  const overlay = document.createElement("div");
+  overlay.id = "loginIntroOverlay";
+  overlay.innerHTML = `
+    <div class="portal-intro-shell">
+      <video class="portal-intro-video" autoplay playsinline preload="auto">
+        <source src="${LOGIN_INTRO_VIDEO_PATH}" type="video/mp4">
+      </video>
+      <button class="portal-intro-skip" type="button">Pular</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const video = overlay.querySelector("video");
+  const skipButton = overlay.querySelector(".portal-intro-skip");
+
+  await new Promise((resolve) => {
+    let finished = false;
+    const complete = () => {
+      if (finished) return;
+      finished = true;
+      window.sessionStorage?.setItem(LOGIN_INTRO_SESSION_KEY, "1");
+      clearLoginIntroOverlay();
+      resolve();
+    };
+
+    video.addEventListener("ended", complete, { once: true });
+    video.addEventListener("error", complete, { once: true });
+    skipButton.addEventListener("click", complete, { once: true });
+
+    const playAttempt = video.play();
+    if (playAttempt && typeof playAttempt.catch === "function") {
+      playAttempt.catch(() => {
+        video.controls = true;
+      });
+    }
+  });
+}
+
 async function showLoginScreen() {
   setPortalVisibility(false);
+  clearLoginIntroOverlay();
 
   let overlay = document.getElementById("loginOverlay");
 
@@ -9691,6 +9766,8 @@ async function persistPortalBeforeSessionChange() {
 async function logoutUser() {
   await persistPortalBeforeSessionChange();
   history.replaceState({}, "", location.pathname);
+  window.sessionStorage?.removeItem(LOGIN_INTRO_SESSION_KEY);
+  clearLoginIntroOverlay();
   await supabaseClient.auth.signOut();
   document.getElementById("portalLogoutButton")?.remove();
   await showLoginScreen();
@@ -9768,6 +9845,7 @@ async function protectApp() {
       }
     }
     bootstrapFromURL();
+    await playLoginIntroIfNeeded();
     renderApp();
     addLogoutButton();
   } catch (error) {
