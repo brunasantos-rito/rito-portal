@@ -31,6 +31,7 @@ const PORTAL_MEDIA_BUCKET = "portal-media";
 const PORTAL_DOCUMENTS_BUCKET = "portal-documents";
 let cachedSharedPortalStateRow = null;
 let _cachedStateLoadedAt = 0;
+let lastLoadedPortalSource = "boot";
 const STATE_CACHE_TTL_MS = 20_000;
 
 function withTimeout(promise, ms, label = "Operacao remota") {
@@ -239,6 +240,7 @@ let _debouncedSaveTimer = null;
 let _lastRenderedSidebarKey = "";
 let _lastRenderedTabsKey = "";
 const SAVE_DEBOUNCE_MS = 1500;
+const LOGIN_INTRO_VIDEO_GITHUB_URL = "https://raw.githubusercontent.com/brunasantos-rito/rito-portal/main/Rito_M_MOTION_20260417.mp4";
 const LOGIN_INTRO_VIDEO_PATH = "./Rito_M_MOTION_20260417.mp4";
 const LOGIN_INTRO_SESSION_KEY = "rito-login-intro-played";
 
@@ -299,18 +301,62 @@ function choosePreferredPortalState(primarySnapshot = null, secondarySnapshot = 
   return secondaryScore > primaryScore ? secondarySnapshot : primarySnapshot;
 }
 
+function isPortalStateDangerouslyWeaker(candidateSnapshot = null, referenceSnapshot = null) {
+  const candidate = unwrapPortalSnapshot(candidateSnapshot);
+  const reference = unwrapPortalSnapshot(referenceSnapshot);
+  const candidateScore = portalDataScore(candidate);
+  const referenceScore = portalDataScore(reference);
+
+  if (!hasMeaningfulPortalData(reference) || !referenceScore) return false;
+  if (candidateScore >= referenceScore) return false;
+
+  const candidateCounts = portalSnapshotCounts(candidate);
+  const referenceCounts = portalSnapshotCounts(reference);
+  const missingDeals = Math.max(0, (referenceCounts.ritoDeals + referenceCounts.aticaDeals) - (candidateCounts.ritoDeals + candidateCounts.aticaDeals));
+  const missingFastTasks = Math.max(0, referenceCounts.fastTasks - candidateCounts.fastTasks);
+  const scoreGap = referenceScore - candidateScore;
+  const candidateRatio = candidateScore / referenceScore;
+
+  return scoreGap >= 25 && (
+    candidateRatio <= 0.6 ||
+    missingDeals >= 2 ||
+    missingFastTasks >= 5
+  );
+}
+
 async function saveSharedPortalStateSafely(snapshot) {
   const payload = clonePortalState(snapshot);
   let remoteRow = null;
+  let remoteReadFailed = false;
   try {
-    remoteRow = await loadSharedPortalState({ useCache: true });
+    remoteRow = await loadSharedPortalState({ useCache: false });
   } catch (error) {
+    remoteReadFailed = true;
     console.warn("Não foi possível ler o estado remoto antes do save. Seguindo com a gravação.", error);
+  }
+
+  if (remoteReadFailed && lastLoadedPortalSource !== "remote-state") {
+    throw new Error("Salvamento remoto bloqueado para evitar sobrescrever a nuvem sem validar o estado mais recente.");
   }
 
   const remoteState = remoteRow?.data && typeof remoteRow.data === "object" ? remoteRow.data : null;
   if (remoteState && portalStateVersion(remoteState) > portalStateVersion(payload)) {
     console.warn("Save ignorado para evitar sobrescrever uma versão mais nova do portal.");
+    return {
+      skipped: true,
+      data: remoteState,
+      updated_at: remoteRow?.updated_at || null
+    };
+  }
+
+  if (remoteState && isPortalStateDangerouslyWeaker(payload, remoteState)) {
+    console.warn("Save remoto bloqueado para evitar regressão forte de dados na nuvem.", {
+      source: lastLoadedPortalSource,
+      remoteScore: portalDataScore(remoteState),
+      payloadScore: portalDataScore(payload),
+      remoteCounts: portalSnapshotCounts(remoteState),
+      payloadCounts: portalSnapshotCounts(payload)
+    });
     return {
       skipped: true,
       data: remoteState,
@@ -450,12 +496,20 @@ async function loadPortalStateForDatabaseWrite() {
   try {
     const remote = await loadSharedPortalState();
     const remoteState = remote?.data && typeof remote.data === "object" ? remote.data : null;
-    return buildPortalState(remoteState);
+    const localState = loadLocalPortalState();
+    const recoveredState = await loadBundledPortalBackup();
+    const hydratedRemoteState = mergePortalMembersFromFallback(remoteState, recoveredState);
+    const hydratedLocalState = mergePortalMembersFromFallback(localState, recoveredState);
+    const preferredState = choosePreferredPortalState(hydratedRemoteState, hydratedLocalState);
+    return buildPortalState(preferredState || remoteState || localState || recoveredState);
   } catch (error) {
     const code = String(error?.code || "").trim();
     const details = String(error?.details || error?.message || "").toLowerCase();
     if (code === "PGRST116" || details.includes("0 rows") || details.includes("no rows")) {
-      return buildPortalState();
+      const localState = loadLocalPortalState();
+      const recoveredState = await loadBundledPortalBackup();
+      const preferredState = choosePreferredPortalState(localState, recoveredState);
+      return buildPortalState(preferredState || localState || recoveredState);
     }
     throw error;
   }
@@ -483,7 +537,7 @@ async function persistCRMOrderToDatabase(orderedItems, {
       nextState.lastSavedAt = new Date().toISOString();
       saveLocalPortalState(nextState);
 
-      const savedRow = await saveSharedPortalState(nextState);
+      const savedRow = await saveSharedPortalStateSafely(nextState);
       let savedState = buildPortalState(savedRow?.data && typeof savedRow.data === "object" ? savedRow.data : nextState);
       const savedIds = (savedState.workspaces?.[workspaceId]?.crmItems || []).map((item) => item.id);
       const expectedIds = (workspace.crmItems || []).map((item) => item.id);
@@ -561,7 +615,7 @@ async function persistCRMItemToDatabase(item, {
         upsertCRMItemInSnapshot(nextState, workspaceId, item);
       }
       nextState.lastSavedAt = new Date().toISOString();
-      const savedRow = await saveSharedPortalState(nextState);
+      const savedRow = await saveSharedPortalStateSafely(nextState);
       let savedState = buildPortalState(savedRow?.data && typeof savedRow.data === "object" ? savedRow.data : nextState);
       let persistedItem = savedState.workspaces?.[workspaceId]?.crmItems?.find((entry) => entry.id === item.id) || null;
       if ((remove && persistedItem) || (!remove && !persistedItem)) {
@@ -1076,10 +1130,15 @@ function workspaceLogoMarkup(workspaceId, variant = "default") {
     `;
   }
   return `
-    <span class="workspace-logo-stack workspace-logo-rito workspace-logo-${variant}" aria-hidden="true">
-      <img class="workspace-logo-theme-light" src="./Logo-Rito-Light.png" alt="">
-      <img class="workspace-logo-theme-dark" src="./Logo-Rito-Dark.png" alt="">
-    </span>
+    <svg class="workspace-logo workspace-logo-rito workspace-logo-${variant}" viewBox="0 0 100 100" aria-hidden="true">
+      <rect x="24" y="24" width="52" height="52" rx="3" ry="3" transform="rotate(45 50 50)" fill="currentColor"/>
+      <path d="M50 33
+        C57 40, 57 60, 50 67
+        C43 60, 43 40, 50 33Z" fill="var(--workspace-logo-cutout, #ffffff)"/>
+      <path d="M33 50
+        C40 43, 60 43, 67 50
+        C60 57, 40 57, 33 50Z" fill="var(--workspace-logo-cutout, #ffffff)"/>
+    </svg>
   `;
 }
 
@@ -2765,6 +2824,7 @@ async function loadBundledPortalBackup() {
 
 function finalizeLoadedPortalState(snapshot, sourceLabel = "unknown") {
   const builtState = buildPortalState(snapshot);
+  lastLoadedPortalSource = sourceLabel;
   updateRecoveryDiagnostics({
     source: sourceLabel,
     finalScore: portalDataScore(builtState),
@@ -2798,33 +2858,16 @@ async function loadState() {
         const sourceLabel = preferredState === hydratedLocalState ? "local-state" : "remote-state";
         const finalizedState = finalizeLoadedPortalState(preferredState, sourceLabel);
         saveLocalPortalState(finalizedState);
-        if (preferredState === hydratedLocalState && portalStateVersion(hydratedLocalState) > portalStateVersion(hydratedRemoteState)) {
-          try {
-            await saveSharedPortalState(finalizedState);
-          } catch (error) {
-            console.warn("Não foi possível sincronizar o snapshot local mais novo com o Supabase.", error);
-          }
-        }
         return finalizedState;
       }
       if (recoveredState) {
         console.warn("Estado remoto vazio. Restaurando portal a partir do backup local empacotado.");
         const restoredState = finalizeLoadedPortalState(recoveredState, "backup-remote-empty");
         saveLocalPortalState(restoredState);
-        try {
-          await saveSharedPortalState(restoredState);
-        } catch (error) {
-          console.warn("Não foi possível repopular o Supabase com o backup local.", error);
-        }
         return restoredState;
       }
       const seededState = finalizeLoadedPortalState(remoteState, "remote-empty-seeded");
       saveLocalPortalState(seededState);
-      try {
-        await saveSharedPortalState(seededState);
-      } catch (error) {
-        console.warn("Não foi possível publicar o estado seeded no Supabase.", error);
-      }
       return seededState;
     } catch (error) {
       if (attempt === 1) {
@@ -9656,7 +9699,9 @@ async function playLoginIntroIfNeeded() {
   overlay.id = "loginIntroOverlay";
   overlay.innerHTML = `
     <div class="portal-intro-shell">
+      <div class="portal-intro-brand">${workspaceLogoMarkup("rito", "landing")}</div>
       <video class="portal-intro-video" autoplay muted playsinline preload="auto" disablepictureinpicture>
+        <source src="${LOGIN_INTRO_VIDEO_GITHUB_URL}" type="video/mp4">
         <source src="${LOGIN_INTRO_VIDEO_PATH}" type="video/mp4">
       </video>
       <button class="portal-intro-skip" type="button">Pular</button>
@@ -9669,9 +9714,11 @@ async function playLoginIntroIfNeeded() {
 
   await new Promise((resolve) => {
     let finished = false;
+    let fallbackTimer = window.setTimeout(() => complete(), 2200);
     const complete = () => {
       if (finished) return;
       finished = true;
+      window.clearTimeout(fallbackTimer);
       window.sessionStorage?.setItem(LOGIN_INTRO_SESSION_KEY, "1");
       overlay.classList.add("is-leaving");
       window.setTimeout(() => {
@@ -9680,13 +9727,29 @@ async function playLoginIntroIfNeeded() {
       }, 260);
     };
 
+    const revealVideo = () => {
+      overlay.classList.add("is-video-ready");
+      window.clearTimeout(fallbackTimer);
+      fallbackTimer = window.setTimeout(() => complete(), Math.max(1200, ((video.duration || 0) * 1000) || 2200));
+    };
+
     video.addEventListener("ended", complete, { once: true });
     video.addEventListener("error", complete, { once: true });
+    video.addEventListener("loadeddata", revealVideo, { once: true });
+    video.addEventListener("canplay", revealVideo, { once: true });
     skipButton.addEventListener("click", complete, { once: true });
+
+    video.muted = true;
+    video.defaultMuted = true;
+    video.setAttribute("muted", "");
+    video.setAttribute("playsinline", "");
+    video.load();
 
     const playAttempt = video.play();
     if (playAttempt && typeof playAttempt.catch === "function") {
-      playAttempt.catch(() => complete());
+      playAttempt.catch(() => {
+        window.setTimeout(() => complete(), 900);
+      });
     }
   });
 }
