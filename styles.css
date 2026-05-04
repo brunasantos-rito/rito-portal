@@ -882,37 +882,37 @@ body[data-theme="light"].landing-mode .workspace-launch-theme-switch button.is-a
 }
 
 body[data-theme="light"].landing-mode .workspace-launch-card {
-  border-color: rgba(151, 143, 214, 0.16);
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 14px 36px rgba(19, 16, 38, 0.14);
-  color: #2e2a3f;
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(9, 13, 28, 0.78);
+  box-shadow: 0 14px 36px rgba(3, 6, 18, 0.24);
+  color: #eef2fb;
 }
 
 body[data-theme="light"].landing-mode .workspace-launch-card:hover {
-  background: #ffffff;
-  border-color: rgba(127, 108, 214, 0.24);
+  background: rgba(14, 19, 37, 0.92);
+  border-color: rgba(157, 120, 255, 0.28);
 }
 
 body[data-theme="light"].landing-mode .workspace-launch-mark {
   background: transparent;
-  color: #5c4a8f;
+  color: #e9edf9;
   box-shadow: none;
 }
 
 body[data-theme="light"].landing-mode .workspace-launch-main strong {
-  color: #252036;
+  color: #fbfcff;
 }
 
 body[data-theme="light"].landing-mode .workspace-launch-subtitle {
-  color: rgba(96, 88, 136, 0.72);
+  color: rgba(173, 181, 200, 0.74);
 }
 
 body[data-theme="light"].landing-mode .workspace-launch-links {
-  color: rgba(98, 90, 140, 0.82);
+  color: rgba(204, 210, 225, 0.76);
 }
 
 body[data-theme="light"].landing-mode .workspace-launch-arrow {
-  color: rgba(104, 95, 147, 0.7);
+  color: rgba(181, 190, 210, 0.72);
 }
 
 #loginOverlay {
@@ -1150,20 +1150,17 @@ body[data-theme="light"].landing-mode .workspace-launch-arrow {
 }
 
 .portal-login-stage-brand {
-  position: absolute;
-  inset: 50% auto auto 50%;
-  width: 126px;
-  height: 126px;
-  transform: translate(-50%, -54%);
-  display: block;
-  z-index: 1;
-  opacity: 0.96;
+  display: none;
+}
+
+.portal-login-stage-brand-image {
+  display: none;
 }
 
 .portal-login-stage-copy {
   position: absolute;
-  left: 64px;
-  right: 64px;
+  left: 80px;
+  right: 80px;
   bottom: 58px;
   display: grid;
   gap: 6px;
@@ -1214,6 +1211,7 @@ body[data-theme="light"].landing-mode .workspace-launch-arrow {
   .workspace-launch-stage,
   .portal-login-stage {
     min-height: 280px;
+    padding: 36px 24px 120px;
   }
 
   .workspace-launch-stage-copy,
