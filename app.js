@@ -2247,6 +2247,19 @@ function buildFastDailyTasksMarch30() {
   ];
 }
 
+function buildFastSeedTaskIdSet() {
+  return new Set([
+    ...buildFastTaskItems().map((task) => String(task.id || "").trim()).filter(Boolean),
+    ...buildFastDailyTasksMarch30().map((task) => String(task.id || "").trim()).filter(Boolean)
+  ]);
+}
+
+function isFastSeedTask(task = {}) {
+  const taskId = String(task?.id || "").trim();
+  if (!taskId) return false;
+  return buildFastSeedTaskIdSet().has(taskId);
+}
+
 function normalizeFastTaskThemeName(stage = "") {
   const value = String(stage || "").trim();
   const map = {
@@ -2336,8 +2349,14 @@ function migrateFastWorkspace(rootState) {
 
   const seededTasks = buildFastTaskItems();
   const dailyTasks = buildFastDailyTasksMarch30();
+  const deletedSeedTaskIds = new Set(
+    Array.isArray(fast.deletedSeedTaskIds)
+      ? fast.deletedSeedTaskIds.map((taskId) => String(taskId || "").trim()).filter(Boolean)
+      : []
+  );
+  const availableSeededTasks = [...seededTasks, ...dailyTasks].filter((task) => !deletedSeedTaskIds.has(String(task.id || "").trim()));
   const stableFastTaskIdsByTitle = new Map(
-    [...seededTasks, ...dailyTasks].map((task) => [fastSeedTaskTitleKey(task), task.id])
+    availableSeededTasks.map((task) => [fastSeedTaskTitleKey(task), task.id])
   );
   const currentTasks = Array.isArray(fast.taskItems)
     ? fast.taskItems.map((task) => {
@@ -2352,11 +2371,12 @@ function migrateFastWorkspace(rootState) {
   const currentThemes = Array.isArray(fast.taskThemes) && fast.taskThemes.length
     ? fast.taskThemes.map((theme) => String(theme || "").trim()).filter(Boolean)
     : [];
-  const nextTasks = rebuildSeededKanbanTasks(currentTasks, [...seededTasks, ...dailyTasks], fastSeedTaskTitleKey);
+  const nextTasks = rebuildSeededKanbanTasks(currentTasks, availableSeededTasks, fastSeedTaskTitleKey);
   nextTasks.forEach((task) => {
     task.stage = normalizeFastTaskThemeName(task.stage);
   });
   fast.taskItems = dedupeKanbanTasks(nextTasks);
+  fast.deletedSeedTaskIds = [...deletedSeedTaskIds];
   const inferredThemes = [...new Set(
     fast.taskItems
       .map((task) => String(normalizeFastTaskThemeName(task.stage) || "").trim())
@@ -8992,6 +9012,15 @@ function openTaskEditor(taskId, isProject, projectName = "") {
   }, { once: true });
   document.getElementById("taskDeleteButton").onclick = async () => {
     const rollbackState = clonePortalState(state);
+    if (!isProject && state.currentWorkspace === "fast" && isFastSeedTask(task)) {
+      const deletedSeedTaskIds = new Set(
+        Array.isArray(workspaceData().deletedSeedTaskIds)
+          ? workspaceData().deletedSeedTaskIds.map((taskId) => String(taskId || "").trim()).filter(Boolean)
+          : []
+      );
+      deletedSeedTaskIds.add(String(task.id || "").trim());
+      workspaceData().deletedSeedTaskIds = [...deletedSeedTaskIds];
+    }
     if (isProject) {
       const list = workspaceData().projectBoards[projectName] || [];
       workspaceData().projectBoards[projectName] = list.filter((item) => item.id !== taskId);
