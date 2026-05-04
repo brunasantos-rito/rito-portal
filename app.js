@@ -494,14 +494,18 @@ function removeCRMItemFromSnapshot(rootState, workspaceId, item) {
 
 async function loadPortalStateForDatabaseWrite() {
   try {
-    const remote = await loadSharedPortalState();
+    const remote = await loadSharedPortalState({ useCache: false });
     const remoteState = remote?.data && typeof remote.data === "object" ? remote.data : null;
-    const localState = loadLocalPortalState();
     const recoveredState = await loadBundledPortalBackup();
     const hydratedRemoteState = mergePortalMembersFromFallback(remoteState, recoveredState);
+    // Nuvem é sempre a fonte da verdade para writes — local nunca deve sobrescrever o remoto
+    if (hasMeaningfulPortalData(hydratedRemoteState)) {
+      return buildPortalState(hydratedRemoteState);
+    }
+    // Nuvem vazia — usa local apenas como fallback seguro
+    const localState = loadLocalPortalState();
     const hydratedLocalState = mergePortalMembersFromFallback(localState, recoveredState);
-    const preferredState = choosePreferredPortalState(hydratedRemoteState, hydratedLocalState);
-    return buildPortalState(preferredState || remoteState || localState || recoveredState);
+    return buildPortalState(hydratedLocalState || remoteState || localState || recoveredState);
   } catch (error) {
     const code = String(error?.code || "").trim();
     const details = String(error?.details || error?.message || "").toLowerCase();
