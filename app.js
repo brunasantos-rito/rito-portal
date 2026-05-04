@@ -240,6 +240,9 @@ let _debouncedSaveTimer = null;
 let _lastRenderedSidebarKey = "";
 let _lastRenderedTabsKey = "";
 const SAVE_DEBOUNCE_MS = 1500;
+const RITO_LOGO_LIGHT_GITHUB_URL = "https://raw.githubusercontent.com/brunasantos-rito/rito-portal/main/Logo-Rito-Light.png";
+const RITO_LOGO_DARK_GITHUB_URL = "https://raw.githubusercontent.com/brunasantos-rito/rito-portal/main/Logo-Rito-Dark.png";
+const LOGIN_COVER_GITHUB_URL = "https://raw.githubusercontent.com/brunasantos-rito/rito-portal/main/Backgroud-Capa-1.png";
 const LOGIN_INTRO_VIDEO_GITHUB_URL = "https://raw.githubusercontent.com/brunasantos-rito/rito-portal/main/Rito_M_MOTION_20260417.mp4";
 const LOGIN_INTRO_VIDEO_PATH = "./Rito_M_MOTION_20260417.mp4";
 const LOGIN_INTRO_SESSION_KEY = "rito-login-intro-played";
@@ -1134,15 +1137,10 @@ function workspaceLogoMarkup(workspaceId, variant = "default") {
     `;
   }
   return `
-    <svg class="workspace-logo workspace-logo-rito workspace-logo-${variant}" viewBox="0 0 100 100" aria-hidden="true">
-      <rect x="24" y="24" width="52" height="52" rx="3" ry="3" transform="rotate(45 50 50)" fill="currentColor"/>
-      <path d="M50 33
-        C57 40, 57 60, 50 67
-        C43 60, 43 40, 50 33Z" fill="var(--workspace-logo-cutout, #ffffff)"/>
-      <path d="M33 50
-        C40 43, 60 43, 67 50
-        C60 57, 40 57, 33 50Z" fill="var(--workspace-logo-cutout, #ffffff)"/>
-    </svg>
+    <span class="workspace-logo-stack workspace-logo-rito workspace-logo-${variant}" aria-hidden="true">
+      <img class="workspace-logo-theme-light" src="${RITO_LOGO_LIGHT_GITHUB_URL}" alt="" onerror="this.onerror=null;this.src='./Logo-Rito-Light.png';">
+      <img class="workspace-logo-theme-dark" src="${RITO_LOGO_DARK_GITHUB_URL}" alt="" onerror="this.onerror=null;this.src='./Logo-Rito-Dark.png';">
+    </span>
   `;
 }
 
@@ -2856,10 +2854,12 @@ async function loadState() {
 
       const hydratedRemoteState = mergePortalMembersFromFallback(remoteState, recoveredState);
       const hydratedLocalState = mergePortalMembersFromFallback(localState, recoveredState);
-      const preferredState = choosePreferredPortalState(hydratedRemoteState, hydratedLocalState);
+      // Nuvem é a fonte da verdade — preferir remoto sobre local sempre que a nuvem tiver dados
+      const cloudHasData = hasMeaningfulPortalData(hydratedRemoteState);
+      const preferredState = cloudHasData ? hydratedRemoteState : hydratedLocalState;
 
       if (hasMeaningfulPortalData(preferredState)) {
-        const sourceLabel = preferredState === hydratedLocalState ? "local-state" : "remote-state";
+        const sourceLabel = cloudHasData ? "remote-state" : "local-state";
         const finalizedState = finalizeLoadedPortalState(preferredState, sourceLabel);
         saveLocalPortalState(finalizedState);
         return finalizedState;
@@ -9701,9 +9701,9 @@ async function playLoginIntroIfNeeded() {
   clearLoginIntroOverlay();
   const overlay = document.createElement("div");
   overlay.id = "loginIntroOverlay";
+  overlay.style.setProperty("--portal-cover-image-remote", `url("${LOGIN_COVER_GITHUB_URL}")`);
   overlay.innerHTML = `
     <div class="portal-intro-shell">
-      <div class="portal-intro-brand">${workspaceLogoMarkup("rito", "landing")}</div>
       <video class="portal-intro-video" autoplay muted playsinline preload="auto" disablepictureinpicture>
         <source src="${LOGIN_INTRO_VIDEO_GITHUB_URL}" type="video/mp4">
         <source src="${LOGIN_INTRO_VIDEO_PATH}" type="video/mp4">
@@ -9817,6 +9817,7 @@ async function showLoginScreen() {
       </section>
     </div>
   `;
+  overlay.style.setProperty("--portal-cover-image-remote", `url("${LOGIN_COVER_GITHUB_URL}")`);
 
   const form = overlay.querySelector("#loginForm");
   const registerBtn = overlay.querySelector("#registerBtn");
