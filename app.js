@@ -772,7 +772,7 @@ function persistVisibleKanbanEdits(root = document) {
   });
 }
 
-function flushOpenEditors() {
+function flushOpenEditors({ persistRemotely = false } = {}) {
   try {
     persistVisibleKanbanEdits();
   } catch (error) {
@@ -813,7 +813,10 @@ function flushOpenEditors() {
 
   stampPortalState(state);
   saveLocalPortalState(state);
-  void persistPortalStateImmediately(state);
+  if (persistRemotely) {
+    return persistPortalStateImmediately(state);
+  }
+  return Promise.resolve(state);
 }
 
 const ARTHUR_BUENO_PHOTO = "foto-arthur.jpg";
@@ -2960,9 +2963,17 @@ async function loadState() {
 }
 
 function saveState(options = {}) {
+  const instant = options.instant !== false;
   stampPortalState(state);
   saveLocalPortalState(state);
   clearTimeout(_debouncedSaveTimer);
+  if (!instant) {
+    _debouncedSaveTimer = window.setTimeout(() => {
+      _debouncedSaveTimer = null;
+      void queueImmediateRemoteSave(state);
+    }, SAVE_DEBOUNCE_MS);
+    return Promise.resolve(state);
+  }
   _debouncedSaveTimer = null;
   return persistPortalStateImmediately(state);
 }
@@ -4064,6 +4075,7 @@ function isLandingScreen() {
 
 function navigateToWorkspace(workspaceId, view = "") {
   if (!workspaceConfig[workspaceId]) return;
+  flushOpenEditors();
   state.currentWorkspace = workspaceId;
   if (view && workspaceConfig[workspaceId].views.includes(view)) {
     state.currentView[workspaceId] = view;
@@ -4077,7 +4089,9 @@ function navigateToWorkspace(workspaceId, view = "") {
 }
 
 function navigateToWorkspaceLanding() {
+  flushOpenEditors();
   history.pushState({}, "", location.pathname);
+  saveState();
   renderApp();
 }
 
@@ -4201,6 +4215,7 @@ function renderTabs() {
     tab.className = `tab-button ${state.currentView[state.currentWorkspace] === view ? "active" : ""}`;
     tab.innerHTML = `<span class="tab-icon">${viewIcons[view] || "+"}</span><span>${tabTitle(view)}</span>`;
     tab.addEventListener("click", () => {
+      flushOpenEditors();
       state.currentView[state.currentWorkspace] = view;
       saveState();
       renderApp();
@@ -5230,6 +5245,7 @@ function renderProjectMetaCard(label, content) {
 }
 
 function openProjectDetail(projectId, sourceView = state.currentView[state.currentWorkspace]) {
+  flushOpenEditors();
   state.selectedProjectId[state.currentWorkspace] = projectId;
   state.projectReturnView[state.currentWorkspace] = sourceView === "projectDetail"
     ? (state.projectReturnView[state.currentWorkspace] || "crm")
@@ -5243,6 +5259,7 @@ function openProjectDetail(projectId, sourceView = state.currentView[state.curre
 }
 
 function closeProjectDetail() {
+  flushOpenEditors();
   state.currentView[state.currentWorkspace] = state.projectReturnView[state.currentWorkspace] || "crm";
   saveState();
   renderApp();
@@ -6328,8 +6345,15 @@ function createReferenceProjectCard(card, invested = false, sourceView = "crm") 
         article.dataset.investmentSavePending = "0";
       }
     };
+    const queueInvestmentAutosave = () => {
+      clearTimeout(article.__investmentAutosaveTimer);
+      article.__investmentAutosaveTimer = setTimeout(() => {
+        void commitInvestmentAmount();
+      }, 700);
+    };
     investmentInput.addEventListener("input", () => {
       syncInvestmentAmount();
+      queueInvestmentAutosave();
     });
     investmentInput.addEventListener("change", () => {
       void commitInvestmentAmount();
@@ -7679,6 +7703,7 @@ function bindRitoRitesActions() {
   });
   root.querySelectorAll("[data-rites-action='open-documents']").forEach((button) => {
     button.onclick = () => {
+      flushOpenEditors();
       state.currentView[state.currentWorkspace] = "documents";
       saveState();
       renderApp();
@@ -7724,6 +7749,7 @@ function bindReferenceActions() {
         return renderApp();
       }
       if (action === "open-invested") {
+        flushOpenEditors();
         state.currentView[state.currentWorkspace] = "invested";
         saveState();
         return renderApp();
@@ -9179,6 +9205,19 @@ function openTaskEditor(taskId, isProject, projectName = "") {
     dialog.close();
     dialog.classList.add("hidden");
   };
+  let taskEditorAutosaveTimer = null;
+  const queueTaskEditorAutosave = (mode = "debounced") => {
+    const runAutosave = () => {
+      persistTaskEditorDraft();
+      void saveState({ instant: mode === "immediate" });
+    };
+    clearTimeout(taskEditorAutosaveTimer);
+    if (mode === "immediate") {
+      runAutosave();
+      return;
+    }
+    taskEditorAutosaveTimer = setTimeout(runAutosave, 700);
+  };
   const persistTaskEditorRemotely = () => {
     const rollbackState = clonePortalState(state);
     persistTaskEditorDraft();
@@ -9236,14 +9275,22 @@ function openTaskEditor(taskId, isProject, projectName = "") {
     input.addEventListener("click", openPicker);
   });
   form.querySelectorAll("input, textarea, select").forEach((field) => {
-    field.addEventListener("input", () => persistTaskEditorDraft());
+    field.addEventListener("input", () => {
+      persistTaskEditorDraft();
+      queueTaskEditorAutosave("debounced");
+    });
     field.addEventListener("change", () => {
       persistTaskEditorDraft();
       if (field.name === "dueDate" || field.name === "completionDate") {
         persistTaskEditorRemotely();
+        return;
       }
+      queueTaskEditorAutosave("immediate");
     });
-    field.addEventListener("blur", () => persistTaskEditorDraft());
+    field.addEventListener("blur", () => {
+      persistTaskEditorDraft();
+      queueTaskEditorAutosave("immediate");
+    });
   });
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -9408,7 +9455,7 @@ function persistKanbanColumnDraft(kind, index, nextName) {
   const list = kind === "project" ? workspaceProjectThemes(state.currentWorkspace) : workspaceTaskThemes(state.currentWorkspace);
   if (!list[index]) return;
   list[index] = cleanName;
-  saveState({ instant: true });
+  saveState({ instant: false });
 }
 
 function loadImageFromFile(file) {
@@ -9710,6 +9757,7 @@ function bindInlineEditing() {
     };
     node.addEventListener("input", () => {
       commit(false);
+      void saveState({ instant: false });
     });
     const eventName = node.matches("select,input[type='date'],input[type='text']") ? "change" : "blur";
     node.addEventListener(eventName, () => {
