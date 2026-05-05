@@ -245,6 +245,7 @@ const RITO_LOGO_DARK_GITHUB_URL = "https://raw.githubusercontent.com/brunasantos
 const RITO_MARK_LIGHT_GITHUB_URL = "https://raw.githubusercontent.com/brunasantos-rito/rito-portal/main/rito-mark-light.png";
 const RITO_MARK_DARK_GITHUB_URL = "https://raw.githubusercontent.com/brunasantos-rito/rito-portal/main/rito-mark-dark.png";
 const LOGIN_COVER_GITHUB_URL = "https://raw.githubusercontent.com/brunasantos-rito/rito-portal/main/Backgroud-Capa-1.png";
+const LOGIN_COVER_PATH = "./Backgroud-Capa-1.png";
 const LOGIN_INTRO_VIDEO_GITHUB_URL = "https://raw.githubusercontent.com/brunasantos-rito/rito-portal/main/Rito_M_MOTION_20260417.mp4";
 const LOGIN_INTRO_VIDEO_PATH = "./Rito_M_MOTION_20260417.mp4";
 const LOGIN_INTRO_SESSION_KEY = "rito-login-intro-played";
@@ -1881,9 +1882,6 @@ function isLikelyReferenceProjectMatch(item, seededProject) {
   const seededEmail = normalizeReferenceIdentity(seededProject?.email);
   const itemEmail = normalizeReferenceIdentity(item?.email);
   if (seededEmail && itemEmail && seededEmail === itemEmail) return true;
-  const seededLogo = normalizeReferenceIdentity(seededProject?.logo);
-  const itemLogo = normalizeReferenceIdentity(item?.logo);
-  if (seededLogo && itemLogo && seededLogo === itemLogo) return true;
   return false;
 }
 
@@ -9808,18 +9806,19 @@ function clearLoginIntroOverlay() {
   document.getElementById("loginIntroOverlay")?.remove();
 }
 
-async function playLoginIntroIfNeeded() {
+async function playLoginIntroIfNeeded(readyPromise = Promise.resolve()) {
   if (window.sessionStorage?.getItem(LOGIN_INTRO_SESSION_KEY) === "1") return;
 
   clearLoginIntroOverlay();
   const overlay = document.createElement("div");
   overlay.id = "loginIntroOverlay";
   overlay.style.setProperty("--portal-cover-image-remote", `url("${LOGIN_COVER_GITHUB_URL}")`);
+  overlay.style.setProperty("--portal-cover-image-local", `url("${LOGIN_COVER_PATH}")`);
   overlay.innerHTML = `
     <div class="portal-intro-shell">
-      <video class="portal-intro-video" autoplay muted playsinline preload="auto" disablepictureinpicture>
-        <source src="${LOGIN_INTRO_VIDEO_GITHUB_URL}" type="video/mp4">
+      <video class="portal-intro-video" autoplay muted playsinline preload="auto" poster="${LOGIN_COVER_PATH}" disablepictureinpicture>
         <source src="${LOGIN_INTRO_VIDEO_PATH}" type="video/mp4">
+        <source src="${LOGIN_INTRO_VIDEO_GITHUB_URL}" type="video/mp4">
       </video>
       <button class="portal-intro-skip" type="button">Pular</button>
     </div>
@@ -9832,8 +9831,14 @@ async function playLoginIntroIfNeeded() {
   await new Promise((resolve) => {
     let finished = false;
     let revealed = false;
+    let readySettled = false;
+    let playbackDone = false;
     let absoluteTimer = window.setTimeout(() => complete(), LOGIN_INTRO_MAX_PLAY_MS);
     let fallbackTimer = window.setTimeout(() => complete(), LOGIN_INTRO_WAIT_TIMEOUT_MS);
+    const tryComplete = () => {
+      if (!playbackDone || !readySettled) return;
+      complete();
+    };
     const complete = () => {
       if (finished) return;
       finished = true;
@@ -9846,27 +9851,38 @@ async function playLoginIntroIfNeeded() {
         resolve();
       }, 260);
     };
+    const finishPlayback = () => {
+      playbackDone = true;
+      tryComplete();
+    };
 
     const revealVideo = () => {
       if (revealed) return;
       revealed = true;
       overlay.classList.add("is-video-ready");
       window.clearTimeout(fallbackTimer);
-      fallbackTimer = window.setTimeout(() => complete(), Math.min(
+      fallbackTimer = window.setTimeout(() => finishPlayback(), Math.min(
         LOGIN_INTRO_MAX_PLAY_MS,
         Math.max(1200, ((video.duration || 0) * 1000) || LOGIN_INTRO_WAIT_TIMEOUT_MS)
       ));
     };
 
-    video.addEventListener("ended", complete, { once: true });
-    video.addEventListener("error", complete, { once: true });
-    video.addEventListener("abort", complete, { once: true });
-    video.addEventListener("stalled", () => window.setTimeout(() => complete(), LOGIN_INTRO_FAIL_FAST_MS), { once: true });
-    video.addEventListener("suspend", () => window.setTimeout(() => complete(), LOGIN_INTRO_FAIL_FAST_MS), { once: true });
+    Promise.resolve(readyPromise)
+      .catch(() => null)
+      .finally(() => {
+        readySettled = true;
+        tryComplete();
+      });
+
+    video.addEventListener("ended", finishPlayback, { once: true });
+    video.addEventListener("error", finishPlayback, { once: true });
+    video.addEventListener("abort", finishPlayback, { once: true });
+    video.addEventListener("stalled", () => window.setTimeout(() => finishPlayback(), LOGIN_INTRO_FAIL_FAST_MS), { once: true });
+    video.addEventListener("suspend", () => window.setTimeout(() => finishPlayback(), LOGIN_INTRO_FAIL_FAST_MS), { once: true });
     video.addEventListener("loadeddata", revealVideo, { once: true });
     video.addEventListener("canplay", revealVideo, { once: true });
     video.addEventListener("playing", revealVideo, { once: true });
-    skipButton.addEventListener("click", complete, { once: true });
+    skipButton.addEventListener("click", finishPlayback, { once: true });
 
     video.muted = true;
     video.defaultMuted = true;
@@ -9878,7 +9894,7 @@ async function playLoginIntroIfNeeded() {
     const playAttempt = video.play();
     if (playAttempt && typeof playAttempt.catch === "function") {
       playAttempt.catch(() => {
-        window.setTimeout(() => complete(), LOGIN_INTRO_FAIL_FAST_MS);
+        window.setTimeout(() => finishPlayback(), LOGIN_INTRO_FAIL_FAST_MS);
       });
     }
   });
@@ -9943,6 +9959,7 @@ async function showLoginScreen() {
     </div>
   `;
   overlay.style.setProperty("--portal-cover-image-remote", `url("${LOGIN_COVER_GITHUB_URL}")`);
+  overlay.style.setProperty("--portal-cover-image-local", `url("${LOGIN_COVER_PATH}")`);
 
   const form = overlay.querySelector("#loginForm");
   const registerBtn = overlay.querySelector("#registerBtn");
@@ -10078,9 +10095,7 @@ async function protectApp() {
   document.getElementById("loginOverlay")?.remove();
   setPortalVisibility(true);
   renderApp();
-  const introPromise = playLoginIntroIfNeeded();
-  await nextPaint();
-  try {
+  const portalReadyPromise = (async () => {
     state = await loadState();
     if (!portalDataScore(state)) {
       const recoveredState = await loadBundledPortalBackup();
@@ -10091,9 +10106,14 @@ async function protectApp() {
         state = finalizeLoadedPortalState(recoveredState, "forced-backup-before-render");
       }
     }
-    bootstrapFromURL();
+    history.replaceState({}, "", location.pathname);
     renderApp();
     addLogoutButton();
+  })();
+  const introPromise = playLoginIntroIfNeeded(portalReadyPromise);
+  await nextPaint();
+  try {
+    await portalReadyPromise;
     await introPromise;
   } catch (error) {
     console.error("Falha ao carregar o portal exclusivamente do Supabase.", error);
