@@ -4342,7 +4342,7 @@ function renderWorkspaceLandingPage() {
     item.className = "workspace-launch-card";
     item.draggable = true;
     item.dataset.workspaceId = workspace.id;
-    const launchMarkVariant = workspace.id === "rito" ? "default" : "landing";
+    const launchMarkVariant = "landing";
     item.innerHTML = `
       <span class="workspace-launch-mark">${workspaceLogoMarkup(workspace.id, launchMarkVariant)}</span>
       <span class="workspace-launch-main">
