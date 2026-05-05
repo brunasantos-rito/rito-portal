@@ -1830,18 +1830,16 @@ function referenceProjectAliases(project) {
   return aliases;
 }
 
+function hasExactReferenceAliasOverlap(left, right) {
+  const leftAliases = [...referenceProjectAliases(left)];
+  const rightAliases = new Set(referenceProjectAliases(right));
+  if (!leftAliases.length || !rightAliases.size) return false;
+  return leftAliases.some((alias) => rightAliases.has(alias));
+}
+
 function projectsShareReferenceIdentity(left, right) {
   if (!left || !right) return false;
-  const leftAliases = [...referenceProjectAliases(left)];
-  const rightAliases = [...referenceProjectAliases(right)];
-  if (!leftAliases.length || !rightAliases.length) return false;
-  return leftAliases.some((leftAlias) =>
-    rightAliases.some((rightAlias) =>
-      leftAlias === rightAlias ||
-      leftAlias.includes(rightAlias) ||
-      rightAlias.includes(leftAlias)
-    )
-  );
+  return hasExactReferenceAliasOverlap(left, right);
 }
 
 function mergeRitoProjectLists(baseProjects = [], preferredProjects = []) {
@@ -1876,6 +1874,7 @@ function isLikelyReferenceProjectMatch(item, seededProject) {
   const itemKey = normalizeReferenceIdentity(item?.referenceKey || item?.name);
   const aliases = referenceProjectAliases(seededProject);
   if (itemKey && aliases.has(itemKey)) return true;
+  if (hasExactReferenceAliasOverlap(item, seededProject)) return true;
   const seededWebsite = normalizeReferenceIdentity(seededProject?.website);
   const itemWebsite = normalizeReferenceIdentity(item?.website);
   if (seededWebsite && itemWebsite && seededWebsite === itemWebsite) return true;
@@ -4343,8 +4342,9 @@ function renderWorkspaceLandingPage() {
     item.className = "workspace-launch-card";
     item.draggable = true;
     item.dataset.workspaceId = workspace.id;
+    const launchMarkVariant = workspace.id === "rito" ? "default" : "landing";
     item.innerHTML = `
-      <span class="workspace-launch-mark">${workspaceLogoMarkup(workspace.id, "landing")}</span>
+      <span class="workspace-launch-mark">${workspaceLogoMarkup(workspace.id, launchMarkVariant)}</span>
       <span class="workspace-launch-main">
         <strong>${workspace.name}</strong>
         <span class="workspace-launch-subtitle">${meta.descriptor}</span>
@@ -5518,6 +5518,17 @@ function bindRitoProjectDetailPage(page, item) {
     activeProjectTagPickerKey = projectTagPickerKey;
     projectTagPicker?.classList.remove("hidden");
   };
+  const persistProjectTagChange = async (historyMessage) => {
+    item.updatedAt = todayISO();
+    pushHistory(item, historyMessage);
+    activeProjectTagPickerKey = projectTagPickerKey;
+    await upsertCRMItem(item, {
+      skipRender: true,
+      renderOnSuccess: false,
+      preserveLocalOnError: true
+    });
+    openProjectDetail(item.id, sourceView);
+  };
   if (activeProjectTagPickerKey === projectTagPickerKey) {
     projectTagPicker?.classList.remove("hidden");
   }
@@ -5539,7 +5550,7 @@ function bindRitoProjectDetailPage(page, item) {
     if (toggleProjectTagPickerButton?.contains(event.target)) return;
     closeProjectTagPicker();
   });
-  const createProjectTag = () => {
+  const createProjectTag = async () => {
     const input = page.querySelector("#projectTagCreateInput");
     const value = String(input?.value || "").trim();
     const key = normalizeProjectTagKey(value);
@@ -5551,20 +5562,18 @@ function bindRitoProjectDetailPage(page, item) {
     const nextTags = [...editableProjectTags(item)];
     if (!nextTags.some((tag) => normalizeProjectTagKey(tag) === key)) nextTags.push(value);
     setEditableProjectTags(item, nextTags);
-    item.updatedAt = todayISO();
-    pushHistory(item, `Tag adicionada: ${value}`);
-    activeProjectTagPickerKey = projectTagPickerKey;
-    saveState();
-    openProjectDetail(item.id, sourceView);
+    await persistProjectTagChange(`Tag adicionada: ${value}`);
   };
-  page.querySelector("#projectTagCreateButton")?.addEventListener("click", createProjectTag);
+  page.querySelector("#projectTagCreateButton")?.addEventListener("click", () => {
+    void createProjectTag();
+  });
   page.querySelector("#projectTagCreateInput")?.addEventListener("keydown", (event) => {
     if (event.key !== "Enter") return;
     event.preventDefault();
-    createProjectTag();
+    void createProjectTag();
   });
   page.querySelectorAll("[data-toggle-project-tag]").forEach((button) => {
-    button.onclick = () => {
+    button.onclick = async () => {
       const value = button.dataset.toggleProjectTag;
       const current = editableProjectTags(item);
       const exists = current.some((tag) => normalizeProjectTagKey(tag) === normalizeProjectTagKey(value));
@@ -5572,23 +5581,15 @@ function bindRitoProjectDetailPage(page, item) {
         ? current.filter((tag) => normalizeProjectTagKey(tag) !== normalizeProjectTagKey(value))
         : [...current, value];
       setEditableProjectTags(item, nextTags);
-      item.updatedAt = todayISO();
-      pushHistory(item, exists ? `Tag removida: ${value}` : `Tag adicionada: ${value}`);
-      activeProjectTagPickerKey = projectTagPickerKey;
-      saveState();
-      openProjectDetail(item.id, sourceView);
+      await persistProjectTagChange(exists ? `Tag removida: ${value}` : `Tag adicionada: ${value}`);
     };
   });
   page.querySelectorAll("[data-remove-project-tag]").forEach((button) => {
-    button.onclick = () => {
+    button.onclick = async () => {
       const value = button.dataset.removeProjectTag;
       const nextTags = editableProjectTags(item).filter((tag) => normalizeProjectTagKey(tag) !== normalizeProjectTagKey(value));
       setEditableProjectTags(item, nextTags);
-      item.updatedAt = todayISO();
-      pushHistory(item, `Tag removida: ${value}`);
-      activeProjectTagPickerKey = projectTagPickerKey;
-      saveState();
-      openProjectDetail(item.id, sourceView);
+      await persistProjectTagChange(`Tag removida: ${value}`);
     };
   });
   page.querySelectorAll("[data-save-tag-rename]").forEach((button) => {
@@ -8584,7 +8585,8 @@ async function applyProjectImageFile(item, target, file, sourceView, options = {
     item.updatedAt = new Date().toISOString();
     const persistPromise = upsertCRMItem(item, {
       skipRender: true,
-      renderOnSuccess: false
+      renderOnSuccess: false,
+      preserveLocalOnError: true
     });
     if (reopen) {
       openProjectDetail(item.id, sourceView);
@@ -9587,8 +9589,8 @@ async function imageFileToProjectDataURL(file, target, fallback) {
   const image = await loadImageFromFile(file);
   try {
     const isLogo = target === "logo";
-    const maxWidth = isLogo ? 240 : 720;
-    const maxHeight = isLogo ? 240 : 420;
+    const maxWidth = isLogo ? 220 : 560;
+    const maxHeight = isLogo ? 220 : 320;
     const scale = Math.min(1, maxWidth / image.width, maxHeight / image.height);
     const width = Math.max(1, Math.round(image.width * scale));
     const height = Math.max(1, Math.round(image.height * scale));
@@ -9615,8 +9617,8 @@ async function imageFileToProjectDataURL(file, target, fallback) {
     context.drawImage(image, 0, 0, width, height);
 
     const mimeType = "image/webp";
-    const targetBytes = isLogo ? 48 * 1024 : 120 * 1024;
-    const qualitySteps = isLogo ? [0.78, 0.62, 0.48] : [0.76, 0.6, 0.46];
+    const targetBytes = isLogo ? 32 * 1024 : 56 * 1024;
+    const qualitySteps = isLogo ? [0.72, 0.56, 0.42, 0.32] : [0.68, 0.52, 0.38, 0.28];
 
     try {
       let chosenBlob = null;
