@@ -808,7 +808,7 @@ body.landing-mode .subtle-chip {
 
 body[data-theme="dark"].landing-mode {
   background-color: #090d1a;
-  background-image: var(--portal-cover-image-remote), var(--portal-cover-image-local);
+  background-image: var(--portal-cover-image-local), var(--portal-cover-image-remote);
   background-position: center center, center center;
   background-size: cover, cover;
   background-repeat: no-repeat, no-repeat;
@@ -843,7 +843,7 @@ body[data-theme="dark"].landing-mode .workspace-launch-card:hover {
 
 body[data-theme="light"].landing-mode {
   background-color: #090d1a;
-  background-image: var(--portal-cover-image-remote), var(--portal-cover-image-local);
+  background-image: var(--portal-cover-image-local), var(--portal-cover-image-remote);
   background-position: center center, center center;
   background-size: cover, cover;
   background-repeat: no-repeat, no-repeat;
@@ -942,7 +942,7 @@ body[data-theme="light"].landing-mode .workspace-launch-arrow {
   place-items: center;
   overflow: hidden;
   background-color: #090d1a;
-  background-image: var(--portal-cover-image-remote), var(--portal-cover-image-local);
+  background-image: var(--portal-cover-image-local), var(--portal-cover-image-remote);
   background-position: center center, center center;
   background-size: cover, cover;
   background-repeat: no-repeat, no-repeat;
@@ -995,7 +995,7 @@ body[data-theme="light"].landing-mode .workspace-launch-arrow {
   display: grid;
   grid-template-columns: minmax(420px, 0.9fr) minmax(0, 1.1fr);
   background-color: #090d1a;
-  background-image: var(--portal-cover-image-remote), var(--portal-cover-image-local);
+  background-image: var(--portal-cover-image-local), var(--portal-cover-image-remote);
   background-position: center center, center center;
   background-size: cover, cover;
   background-repeat: no-repeat, no-repeat;
