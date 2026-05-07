@@ -177,6 +177,10 @@ body[data-theme="dark"] .sidebar {
   filter: brightness(0) saturate(100%) invert(20%) sepia(92%) saturate(2062%) hue-rotate(248deg) brightness(97%) contrast(102%);
 }
 
+.workspace-logo-rito-image {
+  filter: none;
+}
+
 .workspace-logo-stack .workspace-logo-theme-dark {
   display: none;
 }
@@ -204,9 +208,17 @@ body[data-theme="dark"] .workspace-logo-stack .workspace-logo-theme-dark {
 .workspace-logo-sidebar.workspace-logo-rito,
 .workspace-logo-dropdown.workspace-logo-rito,
 .workspace-logo-landing.workspace-logo-rito {
-  width: 162%;
-  height: 162%;
-  margin: -31%;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+.workspace-logo-sidebar.workspace-logo-rito .workspace-logo-rito-image,
+.workspace-logo-dropdown.workspace-logo-rito .workspace-logo-rito-image,
+.workspace-logo-landing.workspace-logo-rito .workspace-logo-rito-image {
+  width: 90%;
+  height: 90%;
+  margin: 5%;
   object-fit: contain;
 }
 
