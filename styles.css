@@ -943,9 +943,9 @@ body[data-theme="light"].landing-mode .workspace-launch-arrow {
   position: fixed;
   inset: 0;
   z-index: 10000;
-  background: rgba(5, 8, 22, 0.98);
+  background: #000000;
   opacity: 1;
-  transition: opacity 220ms ease;
+  transition: opacity 320ms ease;
 }
 
 #loginIntroOverlay.is-leaving {
@@ -959,11 +959,22 @@ body[data-theme="light"].landing-mode .workspace-launch-arrow {
   display: grid;
   place-items: center;
   overflow: hidden;
-  background-color: #090d1a;
+  background-color: #000000;
   background-image: var(--portal-cover-image-local), var(--portal-cover-image-remote);
   background-position: center center, center center;
   background-size: cover, cover;
   background-repeat: no-repeat, no-repeat;
+}
+
+.portal-intro-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    radial-gradient(circle at top center, rgba(112, 77, 255, 0.22), transparent 32%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.28) 0%, rgba(0, 0, 0, 0.12) 30%, rgba(0, 0, 0, 0.38) 100%);
+  pointer-events: none;
 }
 
 .portal-intro-video {
@@ -972,19 +983,16 @@ body[data-theme="light"].landing-mode .workspace-launch-arrow {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  background: transparent;
+  background: #000000;
   filter: saturate(1.02) contrast(1.03);
-  transform: scale(1.02);
+  transform: scale(1.015);
   opacity: 0;
-  transition: opacity 220ms ease;
+  transition: opacity 360ms ease, transform 900ms ease;
 }
 
 .portal-intro-shell.is-video-ready .portal-intro-video {
   opacity: 1;
-}
-
-.portal-intro-shell::after {
-  content: none;
+  transform: scale(1);
 }
 
 .portal-intro-skip {
@@ -1006,6 +1014,15 @@ body[data-theme="light"].landing-mode .workspace-launch-arrow {
 
 .portal-intro-skip:hover {
   background: rgba(18, 22, 40, 0.8);
+}
+
+@media (max-width: 960px) {
+  .portal-intro-skip {
+    right: 18px;
+    bottom: max(18px, env(safe-area-inset-bottom));
+    min-height: 44px;
+    padding: 0 16px;
+  }
 }
 
 .portal-login-shell {
