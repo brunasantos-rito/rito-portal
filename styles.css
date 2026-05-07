@@ -20,7 +20,7 @@
   --portal-button-purple: #3b1f8f;
   --portal-button-purple-hover: #5429c2;
   --portal-button-purple-shadow: rgba(59, 31, 143, 0.24);
-  --portal-cover-image-remote: url("https://raw.githubusercontent.com/brunasantos-rito/rito-portal/main/Backgroud-Capa-1.png");
+  --portal-cover-image-remote: url("./Backgroud-Capa-1.png");
   --portal-cover-image-local: url("./Backgroud-Capa-1.png");
 }
 
@@ -1046,6 +1046,12 @@ body[data-theme="light"].landing-mode .workspace-launch-arrow {
 .portal-login-copy {
   display: grid;
   gap: 8px;
+}
+
+.portal-login-brand-logo {
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
 }
 
 .portal-login-kicker {
@@ -8422,3 +8428,4 @@ body[data-theme="dark"] .skel-block {
 .entity-dialog {
   contain: layout;
 }
+
