@@ -20,8 +20,8 @@
   --portal-button-purple: #3b1f8f;
   --portal-button-purple-hover: #5429c2;
   --portal-button-purple-shadow: rgba(59, 31, 143, 0.24);
-  --portal-cover-image-remote: url("./Backgroud-Capa-1.png");
-  --portal-cover-image-local: url("./Backgroud-Capa-1.png");
+  --portal-cover-image-remote: url("/Backgroud-Capa-1.png");
+  --portal-cover-image-local: url("/Backgroud-Capa-1.png");
 }
 
 body[data-theme="dark"] {
@@ -2726,6 +2726,7 @@ body[data-theme="dark"] .metric-card--money {
   min-width: 0;
   min-height: 620px;
   overflow-anchor: none;
+  overflow-x: auto;
   margin-top: 0;
 }
 
@@ -2738,6 +2739,7 @@ body[data-theme="dark"] .metric-card--money {
 .rito-dashboard-table .table-head,
 .rito-dashboard-table .rito-table-row {
   grid-template-columns: 2.2fr 1.3fr 0.84fr 0.7fr 1.16fr;
+  min-width: 760px;
 }
 
 .table-head {
@@ -6376,6 +6378,12 @@ label {
 }
 
 @media (max-width: 1100px) {
+  .cards-grid,
+  .reference-card-grid,
+  .invested-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .dashboard-grid,
   .split {
     grid-template-columns: 1fr;
@@ -6463,6 +6471,12 @@ label {
 }
 
 @media (max-width: 720px) {
+  .cards-grid,
+  .reference-card-grid,
+  .invested-grid {
+    grid-template-columns: 1fr;
+  }
+
   .topbar,
   .topbar-actions {
     flex-direction: column;
@@ -6483,6 +6497,11 @@ label {
   .table-head,
   .table-row {
     grid-template-columns: 1fr;
+  }
+
+  .rito-dashboard-table .table-head,
+  .rito-dashboard-table .rito-table-row {
+    grid-template-columns: 2.2fr 1.3fr 0.84fr 0.7fr 1.16fr;
   }
 
   .project-hero-shell,
@@ -7344,7 +7363,7 @@ body[data-theme="dark"] .rites-detail-meta div {
   border-radius: 30px;
   background:
     linear-gradient(120deg, rgba(6, 11, 27, 0.88) 0%, rgba(6, 11, 27, 0.4) 48%, rgba(6, 11, 27, 0.82) 100%),
-    url("./rito-rites-hero.png");
+    url("/rito-rites-hero.png");
   background-size: cover;
   background-position: center center;
   border: 1px solid rgba(156, 121, 255, 0.16);
@@ -7516,7 +7535,7 @@ body[data-theme="dark"] .rites-detail-meta div {
   overflow: hidden;
   background:
     linear-gradient(120deg, rgba(8, 14, 32, 0.92) 0%, rgba(8, 14, 32, 0.78) 100%),
-    url("./rito-rites-beam-alt.png");
+    url("/rito-rites-beam-alt.png");
   background-size: cover;
   background-position: center;
 }
@@ -7612,7 +7631,7 @@ body[data-theme="dark"] .rites-page-head p {
   border-radius: 28px;
   background:
     linear-gradient(112deg, rgba(7, 12, 28, 0.96) 0%, rgba(12, 18, 38, 0.92) 52%, rgba(26, 19, 62, 0.9) 100%),
-    url("./rito-rites-beam.png");
+    url("/rito-rites-beam.png");
   background-size: cover;
   background-position: center right;
   border: 1px solid rgba(91, 47, 209, 0.14);
@@ -7936,7 +7955,7 @@ body[data-theme="dark"] .rites-page-head p {
   overflow: hidden;
   background:
     linear-gradient(110deg, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0.84) 100%),
-    url("./rito-rites-beam-alt.png");
+    url("/rito-rites-beam-alt.png");
   background-size: cover;
   background-position: center;
 }
