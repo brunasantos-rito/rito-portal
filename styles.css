@@ -936,6 +936,9 @@ body[data-theme="light"].landing-mode .workspace-launch-arrow {
 #loginOverlay {
   position: fixed;
   inset: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
   z-index: 9999;
 }
 
@@ -1026,6 +1029,7 @@ body[data-theme="light"].landing-mode .workspace-launch-arrow {
 }
 
 .portal-login-shell {
+  width: 100vw;
   min-height: 100vh;
   display: grid;
   grid-template-columns: minmax(420px, 0.9fr) minmax(0, 1.1fr);
