@@ -549,6 +549,13 @@ body.landing-mode {
     radial-gradient(circle at 18% 22%, rgba(112, 63, 255, 0.2), transparent 24%),
     radial-gradient(circle at 82% 48%, rgba(137, 92, 255, 0.34), transparent 20%),
     linear-gradient(180deg, #060915 0%, #090d1a 100%);
+  overflow: hidden;
+}
+
+html:has(body.landing-mode) {
+  scrollbar-gutter: auto;
+  overflow: hidden;
+  background: #060915;
 }
 
 body.landing-mode .sidebar {
