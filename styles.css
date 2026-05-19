@@ -638,6 +638,17 @@ body.landing-mode .subtle-chip {
   border-radius: 999px;
   font-size: 0.78rem;
   flex-shrink: 0;
+  background: var(--portal-button-purple);
+  color: #ffffff;
+  border: none;
+  box-shadow: 0 12px 24px var(--portal-button-purple-shadow);
+}
+
+.workspace-launch-logout:hover {
+  background: var(--portal-button-purple);
+  color: #ffffff;
+  border: none;
+  box-shadow: 0 12px 24px var(--portal-button-purple-shadow);
 }
 
 .workspace-launch-kicker {
@@ -2071,6 +2082,10 @@ body[data-theme="dark"] .metric-card--money {
   background-position: calc(100% - 9px) calc(50% - 1px), calc(100% - 6px) calc(50% - 1px);
   background-size: 4px 4px, 4px 4px;
   background-repeat: no-repeat;
+  position: relative;
+  z-index: 3;
+  pointer-events: auto;
+  cursor: pointer;
 }
 
 .status-badge-select {
@@ -3206,11 +3221,18 @@ body[data-theme="dark"] .metric-card--money {
   align-items: center;
   justify-content: center;
   min-width: 0;
+  position: relative;
+  z-index: 2;
 }
 
 .stage-select-cell .chip,
 .stage-select-cell .deal-status-select-table {
   margin: 0 auto;
+}
+
+.stage-select-cell .deal-status-select-table:disabled {
+  opacity: 0.72;
+  cursor: wait;
 }
 
 .rito-dashboard-table .owner-cell span:last-child {
@@ -8475,4 +8497,3 @@ body[data-theme="dark"] .skel-block {
 .entity-dialog {
   contain: layout;
 }
-
