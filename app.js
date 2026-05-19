@@ -1178,7 +1178,7 @@
     }
     return `
       <span class="workspace-logo-stack workspace-logo-rito workspace-logo-${variant}" aria-hidden="true">
-        <img src="${RITO_ROXA_LOGO_GITHUB_URL}" alt="" onerror="this.onerror=null;this.src='./IOGO_RITO_ROXA.png';">
+        <img class="workspace-logo-rito-image" src="./Logo-Rito-Dark.png" alt="" onerror="this.onerror=null;this.src='./Logo-Rito-Dark.png';">
       </span>
     `;
   }
@@ -3676,9 +3676,9 @@
 
   function referenceCardStatusSummary(card) {
     const matched = referenceDashboardRows().find((row) => row.company === card.name);
-    if (matched) return declinedReasonPreview(matched, 180);
+    if (matched) return matched.statusSummary || "";
     const linked = workspaceData().crmItems.find((item) => item.name === card.name);
-    return declinedReasonPreview(linked, 180);
+    return dealStatusSummaryPreview(linked, 180);
   }
 
   function createReferenceProjectRow(card, sourceView = "crm") {
@@ -4314,7 +4314,7 @@
         </section>
         <section class="workspace-launch-stage">
           <div class="workspace-launch-stage-glow"></div>
-          <div class="workspace-launch-stage-brand">${workspaceLogoMarkup("rito", "landing")}</div>
+          <div class="workspace-launch-stage-brand"><img src="${RITO_LOGO_DARK_GITHUB_URL}" alt="Rito" class="workspace-launch-stage-logo" onerror="this.onerror=null;this.src='./Logo-Rito-Dark.png';"></div>
           <div class="workspace-launch-stage-copy">
             <span>Rua 72, 325, salas 1201 a 1206, Jardim Goiás | Goiânia-GO</span>
             <span>www.ritoventures.com.br</span>
@@ -4982,13 +4982,12 @@
       const companyName = displayText(rowData.company || "Deal sem nome").trim() || "Deal sem nome";
       const linked = crmItems.find((item) => item?.id && rowData.id && item.id === rowData.id)
         || crmItems.find((item) => displayText(item?.name || item?.company || "").trim() === companyName);
-      const shouldShowDeclinedReason = normalizeReferenceDashboardStage(linked || rowData) === "Declinado";
       row.innerHTML = `
         <div class="company-cell">
           ${renderCompanyBadge(rowData)}
           <div><strong>${companyName}</strong><div class="subtle">${displayText(rowData.segment || "-")}</div></div>
         </div>
-        <div class="table-summary-cell">${shouldShowDeclinedReason ? escapeHTML(displayText(rowData.statusSummary || "-")) : ""}</div>
+        <div class="table-summary-cell">${escapeHTML(displayText(rowData.statusSummary || ""))}</div>
         <div class="stage-select-cell">${linked ? `<select class="deal-status-select deal-status-select-table" data-dashboard-status="${linked.id}">${ritoStatusOptionsMarkup(linked.status)}</select>` : `<span class="chip chip-${String(rowData.stage || "lead").toLowerCase().replace(/\s+/g, "-")}">${displayText(rowData.stage || "Lead")}</span>`}</div>
         <div><span class="chip chip-${String(rowData.temp || "frio").toLowerCase()}">${displayText(rowData.temp || "Frio")}</span></div>
         <div class="owner-cell">${renderOwnerAvatar(rowData.owner)}<span>${displayText(rowData.owner)}</span></div>
@@ -10152,4 +10151,3 @@
   });
 
   window.addEventListener("load", protectApp);
-
