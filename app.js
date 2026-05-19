@@ -1729,6 +1729,74 @@
     syncInvestmentTag(item);
   }
 
+  function bindDealStatusSelect(selectNode, item, rerender) {
+    if (!selectNode || !item) return;
+    const syncRowVisuals = () => {
+      const row = selectNode.closest(".rito-table-row");
+      const tempChip = row?.querySelector("[data-dashboard-temp-chip]");
+      if (tempChip) {
+        const nextTemp = temperatureFromRitoDealStatus(item.status);
+        tempChip.textContent = displayText(nextTemp);
+        tempChip.className = `chip chip-${String(nextTemp).toLowerCase()}`;
+      }
+    };
+    ["pointerdown", "mousedown", "click", "touchstart"].forEach((eventName) => {
+      selectNode.addEventListener(eventName, (event) => {
+        event.stopPropagation();
+      });
+    });
+    selectNode.addEventListener("change", (event) => {
+      const nextStatus = String(event?.target?.value || "").trim();
+      const currentStatus = normalizeRitoDealStatus(item.status, item.investmentStatus);
+      if (!nextStatus || nextStatus === currentStatus) return;
+      if (selectNode.dataset.statusSaving === "1") return;
+      const previousSnapshot = {
+        status: item.status,
+        progress: item.progress,
+        temperature: item.temperature,
+        investmentStatus: item.investmentStatus,
+        tags: Array.isArray(item.tags) ? [...item.tags] : [],
+        updatedAt: item.updatedAt
+      };
+      selectNode.dataset.statusSaving = "1";
+      applyDealStatus(item, nextStatus);
+      item.updatedAt = new Date().toISOString();
+      syncRowVisuals();
+      saveState();
+      void upsertCRMItem(item, {
+          skipRender: true,
+          renderOnSuccess: false
+        })
+        .then(() => {
+          if (typeof rerender === "function") {
+            window.setTimeout(() => rerender(), 0);
+          }
+        })
+        .catch((error) => {
+          item.status = previousSnapshot.status;
+          item.progress = previousSnapshot.progress;
+          item.temperature = previousSnapshot.temperature;
+          item.investmentStatus = previousSnapshot.investmentStatus;
+          item.tags = [...previousSnapshot.tags];
+          item.updatedAt = previousSnapshot.updatedAt;
+          syncInvestmentTag(item);
+          syncRowVisuals();
+          saveState();
+          if (typeof rerender === "function") rerender();
+          console.error("[crm-status] Falha ao persistir troca de estágio", {
+            dealId: item?.id || null,
+            dealName: item?.name || null,
+            previousStatus: previousSnapshot.status,
+            nextStatus,
+            message: error?.message || String(error)
+          });
+        })
+        .finally(() => {
+          selectNode.dataset.statusSaving = "0";
+        });
+    });
+  }
+
   function ritoStatusOptionsMarkup(selectedStatus) {
     const current = normalizeRitoDealStatus(selectedStatus);
     return RITO_DEAL_STATUS_OPTIONS
@@ -4846,6 +4914,8 @@
     const visibleItems = crmItems.filter((item) => visibleIds.has(item.id) || visibleCompanies.has(displayText(item.name || item.company || "").trim()));
     const allocatedValue = allocatedPortfolioValue(visibleItems);
     const projectedValue = projectedAllocationValue(visibleItems);
+    const exitItems = visibleItems.filter((item) => normalizeReferenceDashboardStage(item) === "Exit");
+    const exitAllocatedValue = exitItems.reduce((sum, item) => sum + Number(item?.investmentAmount || 0), 0);
     const side = document.createElement("section");
     side.className = "dashboard-side rito-dashboard-side";
 
@@ -4853,6 +4923,7 @@
       [String(filteredRows.length), "Deals", "visíveis no dashboard", "↗", "", undefined, "slate"],
       [String(filteredRows.filter((row) => ["Aporte", "Portfólio"].includes(row.stage)).length), "Investidos", "deals investidos", "✦", "", undefined, "success"],
       [String(filteredRows.filter((row) => row.stage === "Declinado").length), "Declinados", "deals recusados", "✕", "", undefined, "danger"],
+      [String(filteredRows.filter((row) => row.stage === "Exit").length), "Exit", exitAllocatedValue ? `${currency(exitAllocatedValue)} alocado` : "sem valor alocado", "↘", "", undefined, "success"],
       [String(filteredRows.filter((row) => row.temp === "Quente").length), "Quentes", "prioridade alta", "◉", "", undefined, "hot"],
       [String(filteredRows.filter((row) => row.temp === "Morno").length), "Mornos", "em acompanhamento", "◎", "", undefined, "warm"],
       [String(filteredRows.filter((row) => row.temp === "Frio").length), "Frios", "baixa tração", "○", "", undefined, "cold"],
@@ -4987,23 +5058,13 @@
         </div>
         <div class="table-summary-cell">${escapeHTML(displayText(rowData.statusSummary || ""))}</div>
         <div class="stage-select-cell">${linked ? `<select class="deal-status-select deal-status-select-table" data-dashboard-status="${linked.id}">${ritoStatusOptionsMarkup(linked.status)}</select>` : `<span class="chip chip-${String(rowData.stage || "lead").toLowerCase().replace(/\s+/g, "-")}">${displayText(rowData.stage || "Lead")}</span>`}</div>
-        <div><span class="chip chip-${String(rowData.temp || "frio").toLowerCase()}">${displayText(rowData.temp || "Frio")}</span></div>
+        <div><span class="chip chip-${String(rowData.temp || "frio").toLowerCase()}" data-dashboard-temp-chip>${displayText(rowData.temp || "Frio")}</span></div>
         <div class="owner-cell">${renderOwnerAvatar(rowData.owner)}<span>${displayText(rowData.owner)}</span></div>
       `;
       if (linked) {
         const statusSelect = row.querySelector(`[data-dashboard-status="${linked.id}"]`);
         if (statusSelect) {
-          statusSelect.addEventListener("mousedown", (event) => {
-            event.stopPropagation();
-          });
-          statusSelect.addEventListener("click", (event) => {
-            event.stopPropagation();
-          });
-          statusSelect.addEventListener("change", (event) => {
-            const nextStatus = String(event?.target?.value || "").trim();
-            if (!nextStatus) return;
-            applyDealStatus(linked, nextStatus);
-            linked.updatedAt = todayISO();
+          bindDealStatusSelect(statusSelect, linked, () => {
             saveState();
             updateRitoDashboardView();
           });
