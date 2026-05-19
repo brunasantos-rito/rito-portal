@@ -244,6 +244,7 @@
   const RITO_LOGO_DARK_GITHUB_URL = "https://raw.githubusercontent.com/brunasantos-rito/rito-portal/main/Logo-Rito-Dark.png";
   const RITO_MARK_LIGHT_GITHUB_URL = "https://raw.githubusercontent.com/brunasantos-rito/rito-portal/main/rito-mark-light.png";
   const RITO_MARK_DARK_GITHUB_URL = "https://raw.githubusercontent.com/brunasantos-rito/rito-portal/main/rito-mark-dark.png";
+  const RITO_ROXA_LOGO_GITHUB_URL = "https://raw.githubusercontent.com/brunasantos-rito/rito-portal/main/IOGO_RITO_ROXA.png";
   const LOGIN_COVER_GITHUB_URL = "https://raw.githubusercontent.com/brunasantos-rito/rito-portal/main/Backgroud-Capa-1.png";
   const LOGIN_COVER_PATH = "./Backgroud-Capa-1.png";
   const LOGIN_INTRO_VIDEO_GITHUB_URL = "https://raw.githubusercontent.com/brunasantos-rito/rito-portal/main/Rito_M_MOTION_20260417.mp4";
@@ -1175,18 +1176,9 @@
         </svg>
       `;
     }
-    if (variant === "landing") {
-      return `
-        <span class="workspace-logo-stack workspace-logo-rito workspace-logo-${variant}" aria-hidden="true">
-          <img class="workspace-logo-theme-light" src="${RITO_MARK_DARK_GITHUB_URL}" alt="" onerror="this.onerror=null;this.src='./rito-mark-dark.png';">
-          <img class="workspace-logo-theme-dark" src="${RITO_MARK_LIGHT_GITHUB_URL}" alt="" onerror="this.onerror=null;this.src='./rito-mark-light.png';">
-        </span>
-      `;
-    }
     return `
       <span class="workspace-logo-stack workspace-logo-rito workspace-logo-${variant}" aria-hidden="true">
-        <img class="workspace-logo-theme-light" src="${RITO_LOGO_LIGHT_GITHUB_URL}" alt="" onerror="this.onerror=null;this.src='./Logo-Rito-Light.png';">
-        <img class="workspace-logo-theme-dark" src="${RITO_LOGO_DARK_GITHUB_URL}" alt="" onerror="this.onerror=null;this.src='./Logo-Rito-Dark.png';">
+        <img src="${RITO_ROXA_LOGO_GITHUB_URL}" alt="" onerror="this.onerror=null;this.src='./IOGO_RITO_ROXA.png';">
       </span>
     `;
   }
