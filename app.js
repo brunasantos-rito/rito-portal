@@ -1727,9 +1727,13 @@
     item.status = normalized;
     item.progress = progressFromRitoDealStatus(normalized);
     item.temperature = temperatureFromRitoDealStatus(normalized);
-    if (["Aporte", "Portfólio", "Exit"].includes(normalized)) {
+    if (["Aporte", "Portfólio"].includes(normalized)) {
       item.investmentStatus = "Investido";
+    } else if (normalized === "Exit") {
+      item.investmentStatus = "Nao investido";
     } else if (normalized === "Declinado") {
+      item.investmentStatus = "Nao investido";
+    } else if (!["Aporte", "Portfólio"].includes(normalized)) {
       item.investmentStatus = "Nao investido";
     }
     syncInvestmentTag(item);
@@ -1749,7 +1753,8 @@
   function isInvestedProjectRecord(item) {
     if (!item || Array.isArray(item) || typeof item !== "object") return false;
     const normalizedStatus = normalizeRitoDealStatus(item.status, item.investmentStatus);
-    if (["Aporte", "Portfólio", "Exit"].includes(normalizedStatus)) return true;
+    if (normalizedStatus === "Exit") return false;
+    if (["Aporte", "Portfólio"].includes(normalizedStatus)) return true;
     return !String(item.status || "").trim() && String(item.investmentStatus || "").trim() === "Investido";
   }
 
@@ -1759,7 +1764,8 @@
 
   function referenceAccent(status, investmentStatus) {
     const normalized = normalizeRitoDealStatus(status, investmentStatus);
-    if (["Aporte", "Portfólio", "Exit"].includes(normalized) || investmentStatus === "Investido") return "#77d7ef";
+    if (["Aporte", "Portfólio"].includes(normalized) || (investmentStatus === "Investido" && normalized !== "Exit")) return "#77d7ef";
+    if (normalized === "Exit") return "#1f8f6a";
     return {
       Pipeline: "#c69a10",
       NDA: "#4c88c8",
@@ -3846,7 +3852,7 @@
     const investmentKey = normalizeProjectTagKey(item?.investmentStatus);
     const explicitNonInvested = investmentKey === normalizeProjectTagKey("Não investido");
     const normalizedStatus = normalizeRitoDealStatus(item?.status, item?.investmentStatus);
-    if (explicitNonInvested && ["Portfólio", "Aporte", "Exit"].includes(normalizedStatus)) {
+    if (explicitNonInvested && ["Portfólio", "Aporte"].includes(normalizedStatus)) {
       item.status = "Pipeline";
     }
   }
@@ -3880,7 +3886,7 @@
     reconcileProjectInvestmentState(item);
     item.tags = normalizeProjectTagList(item.tags || [], item);
     const normalizedStatus = normalizeRitoDealStatus(item.status, item.investmentStatus);
-    const investedByStatus = ["Portfólio", "Aporte", "Exit"].includes(normalizedStatus);
+    const investedByStatus = ["Portfólio", "Aporte"].includes(normalizedStatus);
     const normalizedInvestmentKey = normalizeProjectTagKey(item.investmentStatus);
     const hasExplicitInvestedState = normalizedInvestmentKey === normalizeProjectTagKey("Investido");
     const hasExplicitNotInvestedState = normalizedInvestmentKey === normalizeProjectTagKey("Não investido");
@@ -4855,7 +4861,7 @@
 
     const metrics = [
       [String(filteredRows.length), "Deals", "visíveis no dashboard", "↗", "", undefined, "slate"],
-      [String(filteredRows.filter((row) => ["Aporte", "Portfólio", "Exit"].includes(row.stage)).length), "Investidos", "deals investidos", "✦", "", undefined, "success"],
+      [String(filteredRows.filter((row) => ["Aporte", "Portfólio"].includes(row.stage)).length), "Investidos", "deals investidos", "✦", "", undefined, "success"],
       [String(filteredRows.filter((row) => row.stage === "Declinado").length), "Declinados", "deals recusados", "✕", "", undefined, "danger"],
       [String(filteredRows.filter((row) => row.temp === "Quente").length), "Quentes", "prioridade alta", "◉", "", undefined, "hot"],
       [String(filteredRows.filter((row) => row.temp === "Morno").length), "Mornos", "em acompanhamento", "◎", "", undefined, "warm"],
@@ -4997,50 +5003,28 @@
       `;
       if (linked) {
         const statusSelect = row.querySelector(`[data-dashboard-status="${linked.id}"]`);
-        ["click", "mousedown", "mouseup", "touchstart", "touchend"].forEach((eventName) => {
-          statusSelect?.addEventListener(eventName, (event) => event.stopPropagation());
-        });
-        statusSelect?.addEventListener("change", (event) => {
-          applyDealStatus(linked, event.target.value);
-          linked.updatedAt = todayISO();
-          saveState();
-          updateRitoDashboardView();
-        });
-        row.draggable = true;
+        if (statusSelect) {
+          statusSelect.addEventListener("mousedown", (event) => {
+            event.stopPropagation();
+          });
+          statusSelect.addEventListener("click", (event) => {
+            event.stopPropagation();
+          });
+          statusSelect.addEventListener("change", (event) => {
+            const nextStatus = String(event?.target?.value || "").trim();
+            if (!nextStatus) return;
+            applyDealStatus(linked, nextStatus);
+            linked.updatedAt = todayISO();
+            saveState();
+            updateRitoDashboardView();
+          });
+        }
+        row.draggable = false;
         row.dataset.crmId = linked.id;
         row.classList.add("is-clickable");
-        row.addEventListener("dragstart", (event) => {
-          event.dataTransfer.effectAllowed = "move";
-          event.dataTransfer.setData("text/plain", linked.id);
-          row.classList.add("is-dragging");
-          row.dataset.justDragged = "0";
-        });
-        row.addEventListener("dragend", () => {
-          row.classList.remove("is-dragging");
-          row.dataset.justDragged = "1";
-          document.querySelectorAll(".rito-table-row").forEach((rowNode) => rowNode.classList.remove("is-drop-target"));
-          setTimeout(() => {
-            row.dataset.justDragged = "0";
-          }, 60);
-        });
-        row.addEventListener("dragover", (event) => {
-          event.preventDefault();
-          event.dataTransfer.dropEffect = "move";
-          document.querySelectorAll(".rito-table-row").forEach((rowNode) => {
-            if (rowNode !== row) rowNode.classList.remove("is-drop-target");
-          });
-          row.classList.add("is-drop-target");
-        });
-        row.addEventListener("dragleave", () => {
-          row.classList.remove("is-drop-target");
-        });
-        row.addEventListener("drop", (event) => {
-          event.preventDefault();
-          row.classList.remove("is-drop-target");
-          void reorderCRMItems(event.dataTransfer.getData("text/plain"), linked.id);
-        });
-        row.onclick = () => {
-          if (row.dataset.justDragged === "1") return;
+        row.onclick = (event) => {
+          if (event.target instanceof Element && event.target.closest(".stage-select-cell, .deal-status-select-table")) return;
+          if (!(event.target instanceof Element) || !event.target.closest(".company-cell")) return;
           openProjectDetail(linked.id, "dashboard");
         };
       }
@@ -5505,6 +5489,7 @@
     const temperatureField = page.querySelector("[data-drawer-field='temperature']");
     statusField?.addEventListener("change", () => {
       if (temperatureField) temperatureField.value = temperatureFromRitoDealStatus(statusField.value);
+      persistProjectDraft(item, page);
     });
     const projectTagPicker = page.querySelector("#projectTagPicker");
     const toggleProjectTagPickerButton = page.querySelector("#toggleProjectTagPicker");
@@ -5662,12 +5647,22 @@
       }, 650);
     };
     page.querySelectorAll("[data-drawer-field], [data-framework-field]").forEach((field) => {
+      const isSelectField = field instanceof HTMLSelectElement;
+      const isStatusSelector = field.dataset.drawerField === "status" || field.dataset.drawerField === "investmentStatus";
       field.addEventListener("input", () => {
+        if (isSelectField) return;
         persistProjectDraft(item, page);
         queueDetailAutosave("debounced");
       });
-      field.addEventListener("change", () => queueDetailAutosave("immediate"));
-      field.addEventListener("blur", () => queueDetailAutosave("immediate"));
+      field.addEventListener("change", () => {
+        persistProjectDraft(item, page);
+        if (isStatusSelector) return;
+        queueDetailAutosave("immediate");
+      });
+      field.addEventListener("blur", () => {
+        if (isSelectField) return;
+        queueDetailAutosave("immediate");
+      });
     });
   }
 
@@ -8857,6 +8852,11 @@
     if (item && normalizedStatus === "Declinado") {
       const declinedKey = normalizeProjectTagKey("Declinado");
       if (!seen.has(declinedKey)) next.push("Declinado");
+    }
+
+    if (item && normalizedStatus === "Exit") {
+      const exitKey = normalizeProjectTagKey("Exit");
+      if (!seen.has(exitKey)) next.push("Exit");
     }
 
     if (item && normalizedTemperature && normalizedStatus !== "Declinado") {
