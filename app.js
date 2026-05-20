@@ -503,7 +503,7 @@
     const index = workspace.crmItems.findIndex((entry) => entry.id === nextItem.id);
     if (index >= 0) workspace.crmItems[index] = nextItem;
     else workspace.crmItems.unshift(nextItem);
-    normalizeCRMItemOrder(workspace.crmItems);
+    workspace.crmItems = dedupeCRMItemsById(workspace.crmItems);
     if (nextItem.tags.includes("Investido") && !workspace.projectBoards[nextItem.name]) {
       workspace.projectBoards[nextItem.name] = [];
     }
@@ -3516,6 +3516,24 @@
     });
   }
 
+  function findCRMItemForReferenceCard(card) {
+    if (!card || Array.isArray(card) || typeof card !== "object") return null;
+    const crmItems = Array.isArray(workspaceData().crmItems) ? workspaceData().crmItems : [];
+    const cardId = String(card.id || "").trim();
+    if (cardId) {
+      const byId = crmItems.find((item) => String(item?.id || "").trim() === cardId);
+      if (byId) return byId;
+    }
+    const cardReferenceKey = normalizeReferenceIdentity(card.referenceKey || "");
+    if (cardReferenceKey) {
+      const byReferenceKey = crmItems.find((item) => normalizeReferenceIdentity(item?.referenceKey || "") === cardReferenceKey);
+      if (byReferenceKey) return byReferenceKey;
+    }
+    const cardName = displayText(card.name || "").trim();
+    if (!cardName) return null;
+    return crmItems.find((item) => displayText(item?.name || "").trim() === cardName) || null;
+  }
+
   function investedProjects(items) {
     return (items || []).filter((item) =>
       item &&
@@ -3683,7 +3701,7 @@
 
   function getRitoInvestedCards() {
     return getRitoReferenceCards().filter((card) => {
-      const linked = workspaceData().crmItems.find((item) => item.name === card.name);
+      const linked = findCRMItemForReferenceCard(card);
       return isInvestedProjectRecord(linked || card);
     });
   }
@@ -3743,7 +3761,7 @@
   function referenceCardStatusSummary(card) {
     const matched = referenceDashboardRows().find((row) => row.company === card.name);
     if (matched) return matched.statusSummary || "";
-    const linked = workspaceData().crmItems.find((item) => item.name === card.name);
+    const linked = findCRMItemForReferenceCard(card);
     return dealStatusSummaryPreview(linked, 180);
   }
 
@@ -3762,7 +3780,7 @@
       <div class="owner-cell">${renderOwnerAvatar(card.owner)}<span>${displayText(card.owner)}</span></div>
       <div>-</div>
     `;
-    const linked = workspaceData().crmItems.find((item) => item.name === card.name);
+    const linked = findCRMItemForReferenceCard(card);
     if (linked) {
       row.classList.add("is-clickable");
       row.onclick = () => openProjectDetail(linked.id, sourceView);
@@ -6321,7 +6339,7 @@
   function createReferenceProjectCard(card, invested = false, sourceView = "crm") {
     const article = document.createElement("article");
     article.className = "reference-project-card";
-    const linked = workspaceData().crmItems.find((item) => item.name === card.name);
+    const linked = findCRMItemForReferenceCard(card);
     const isInvested = isInvestedProjectRecord(linked || card) || invested;
     const allocationLabel = isInvested ? "Valor alocado" : "Projeção";
     const displayCover = linked ? projectMediaValue(linked, "cover") : (card.cover || "");
@@ -8143,11 +8161,12 @@
     nextItem.updatedAt = new Date().toISOString();
     nextItem.createdAt = nextItem.createdAt || nextItem.updatedAt;
     ensureProjectShape(nextItem);
-    const items = workspaceData().crmItems;
-    const index = items.findIndex((entry) => entry.id === nextItem.id);
-    if (index >= 0) items[index] = nextItem;
-    else items.unshift(nextItem);
-    normalizeCRMItemOrder(items);
+    const currentItems = Array.isArray(workspaceData().crmItems) ? workspaceData().crmItems : [];
+    const index = currentItems.findIndex((entry) => entry.id === nextItem.id);
+    const nextItems = [...currentItems];
+    if (index >= 0) nextItems[index] = nextItem;
+    else nextItems.unshift(nextItem);
+    state.workspaces[workspaceId].crmItems = dedupeCRMItemsById(nextItems);
     if (nextItem.tags.includes("Investido") && !workspaceData().projectBoards[nextItem.name]) {
       workspaceData().projectBoards[nextItem.name] = [];
     }
@@ -8565,10 +8584,12 @@
     syncInvestmentTag(item);
     item.subtitle = item.subtitle || `${item.sector} - ${item.location} - ${item.year}`;
     item.updatedAt = todayISO();
-    const items = workspaceData().crmItems;
+    const items = Array.isArray(workspaceData().crmItems) ? workspaceData().crmItems : [];
     const index = items.findIndex((entry) => entry.id === item.id);
-    if (index >= 0) items[index] = item;
-    else items.unshift(item);
+    const nextItems = [...items];
+    if (index >= 0) nextItems[index] = item;
+    else nextItems.unshift(item);
+    state.workspaces[state.currentWorkspace].crmItems = dedupeCRMItemsById(nextItems);
     if (JSON.stringify(item) !== before) {
       item.__draftDirty = true;
       saveLocalPortalState(state);
