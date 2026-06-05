@@ -7048,6 +7048,7 @@
     const data = workspaceData();
     const themes = workspaceTaskThemes(state.currentWorkspace);
     const themeColors = workspaceTaskThemeColors(state.currentWorkspace);
+    const viewMode = referenceViewMode("tasks");
     const kanbanSubtitles = {
       rito: "Gestão da empresa organizada por tema",
       atica: "Gestao interna organizada por tema",
@@ -7063,6 +7064,10 @@
           <p>${kanbanSubtitles[state.currentWorkspace] || "Gestao organizada por tema"}</p>
         </div>
         <div class="inline-actions">
+          <div class="segmented">
+            <button class="${viewMode === "cards" ? "is-active" : ""}" data-ref-action="cards-view" data-ref-view="tasks" type="button">Board</button>
+            <button class="${viewMode === "list" ? "is-active" : ""}" data-ref-action="list-view" data-ref-view="tasks" type="button">Lista</button>
+          </div>
           <button class="ghost-button" data-ref-action="edit-columns" type="button">Alterar colunas</button>
           <button class="action-button" data-ref-action="new-task" type="button">+ Nova tarefa</button>
         </div>
@@ -7070,7 +7075,9 @@
     `;
 
     const board = document.createElement("section");
-    board.className = "board-grid reference-board kanban-reference-board";
+    board.className = viewMode === "list"
+      ? "kanban-list-view-shell"
+      : "board-grid reference-board kanban-reference-board";
     panel.appendChild(board);
 
     const draw = () => {
@@ -7089,6 +7096,16 @@
         const completedTasks = stageTasks.filter((task) => isCompletedTaskStatus(task.status));
         const completedVisibility = workspaceKanbanCompletedVisibility();
         const showCompleted = Boolean(completedVisibility[stage]);
+        if (viewMode === "list") {
+          board.appendChild(renderTaskListGroup({
+            stage,
+            accentColor,
+            visibleTasks,
+            completedTasks,
+            showCompleted
+          }));
+          return;
+        }
         const column = document.createElement("article");
         column.className = "board-column reference-column";
         column.innerHTML = `
@@ -7123,10 +7140,6 @@
         }
         board.appendChild(column);
       });
-      attachDnD("[data-dropzone]", updateTaskStage);
-      board.querySelectorAll("[data-add-theme-task]").forEach((button) => {
-        button.onclick = () => openTaskDialog("", button.dataset.addThemeTask);
-      });
       board.querySelectorAll("[data-toggle-completed-stage]").forEach((button) => {
         button.onclick = () => {
           const stage = button.dataset.toggleCompletedStage;
@@ -7136,10 +7149,123 @@
           draw();
         };
       });
+      if (viewMode === "list") return;
+      attachDnD("[data-dropzone]", updateTaskStage);
+      board.querySelectorAll("[data-add-theme-task]").forEach((button) => {
+        button.onclick = () => openTaskDialog("", button.dataset.addThemeTask);
+      });
     };
 
     setTimeout(draw, 0);
     return panel;
+  }
+
+  function formatTaskDateLabel(value) {
+    const normalized = normalizeDateInputValue(value);
+    if (!normalized) return "-";
+    const [year, month, day] = normalized.split("-").map(Number);
+    if (!year || !month || !day) return displayText(normalized);
+    return new Date(year, month - 1, day).toLocaleDateString("pt-BR");
+  }
+
+  function taskStatusDisplay(status = "") {
+    const canonical = canonicalTaskStatus(status);
+    if (canonical === "Revisao") return "Revisão";
+    if (canonical === "Concluido") return "Concluído";
+    return canonical;
+  }
+
+  function taskPriorityClass(priority = "") {
+    const value = String(priority || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toLowerCase();
+    if (value === "alta") return "high";
+    if (value === "baixa") return "low";
+    return "mid";
+  }
+
+  function createTaskListRow(task) {
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = `kanban-list-row${isCompletedTaskStatus(task.status) ? " is-completed" : ""}`;
+    row.dataset.taskId = task.id;
+    const dueDate = normalizeDateInputValue(task.dueDate || "");
+    const isLate = dueDate && !isCompletedTaskStatus(task.status) && dueDate < todayISO();
+    const descriptionPreview = displayText(task.description || "").trim();
+    const ownerMarkup = task.owner ? renderOwnerAvatar(task.owner, "kanban-list-avatar") : '<span class="kanban-list-avatar is-empty"></span>';
+    row.innerHTML = `
+      <div class="kanban-list-main">
+        <div class="kanban-list-task">
+          <span class="kanban-list-task-bullet priority-${taskPriorityClass(task.priority)}"></span>
+          <div class="kanban-list-copy">
+            <strong>${displayText(task.title)}</strong>
+            ${descriptionPreview ? `<p>${descriptionPreview}</p>` : ""}
+          </div>
+        </div>
+      </div>
+      <div class="kanban-list-assignee">
+        ${ownerMarkup}
+        <span>${displayText(task.owner || "Sem responsável")}</span>
+      </div>
+      <div class="kanban-list-date${isLate ? " is-late" : ""}">${formatTaskDateLabel(task.dueDate)}</div>
+      <div><span class="kanban-list-chip status-${canonicalTaskStatus(task.status).toLowerCase().replace(/\s+/g, "-")}">${taskStatusDisplay(task.status || "A Fazer")}</span></div>
+      <div><span class="kanban-list-chip priority-${taskPriorityClass(task.priority)}">${displayText(task.priority || "Media")}</span></div>
+    `;
+    row.addEventListener("click", () => openTaskEditor(task.id, false, ""));
+    return row;
+  }
+
+  function renderTaskListGroup({ stage, accentColor, visibleTasks, completedTasks, showCompleted }) {
+    const group = document.createElement("section");
+    group.className = "kanban-list-group panel";
+    const activeSummary = taskStatusSummary(visibleTasks);
+    const completedSummary = completedTasks.length ? ` • ${completedTasks.length} concluídas` : "";
+    group.innerHTML = `
+      <div class="kanban-list-group-head">
+        <div class="kanban-list-group-title">
+          <span class="reference-column-accent" style="background:${accentColor}"></span>
+          <div>
+            <strong>${displayText(stage)}</strong>
+            <p>${visibleTasks.length} ativas • ${activeSummary["Em andamento"]} em andamento • ${activeSummary["A fazer"]} a fazer${completedSummary}</p>
+          </div>
+        </div>
+        <button class="ghost-icon-button column-open" data-add-theme-task="${escapeAttr(stage)}" type="button">+</button>
+      </div>
+      <div class="kanban-list-table-head">
+        <div>Tarefa</div>
+        <div>Responsável</div>
+        <div>Prazo</div>
+        <div>Status</div>
+        <div>Prioridade</div>
+      </div>
+      <div class="kanban-list-table" data-list-stage="${escapeAttr(stage)}"></div>
+      ${completedTasks.length ? `
+        <div class="kanban-completed-section ${showCompleted ? "is-open" : ""}">
+          <button class="kanban-completed-toggle" data-toggle-completed-stage="${escapeAttr(stage)}" type="button">
+            <span>${showCompleted ? "Ocultar" : "Ver"} concluídas</span>
+            <strong>${completedTasks.length}</strong>
+          </button>
+          <div class="kanban-completed-list ${showCompleted ? "" : "hidden"}" data-completed-list="${escapeAttr(stage)}"></div>
+        </div>
+      ` : ""}
+    `;
+    const table = group.querySelector(`[data-list-stage="${escapeAttr(stage)}"]`);
+    if (!visibleTasks.length) {
+      const empty = document.createElement("div");
+      empty.className = "kanban-list-empty";
+      empty.textContent = completedTasks.length ? "Nenhuma tarefa ativa nesta frente." : "Sem tarefas nesta frente.";
+      table.appendChild(empty);
+    } else {
+      visibleTasks.forEach((task) => table.appendChild(createTaskListRow(task)));
+    }
+    const completedList = group.querySelector(`[data-completed-list="${escapeAttr(stage)}"]`);
+    if (completedList && showCompleted) {
+      completedTasks.forEach((task) => completedList.appendChild(createTaskListRow(task)));
+    }
+    group.querySelector("[data-add-theme-task]")?.addEventListener("click", () => openTaskDialog("", stage));
+    return group;
   }
 
   function createTaskCard(task, projectScoped, projectName = "") {
