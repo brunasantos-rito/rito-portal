@@ -737,7 +737,10 @@
     task.owner = String(formData.get("owner") || task.owner);
     task.dueDate = normalizeDateInputValue(formData.get("dueDate") || task.dueDate);
     task.completionDate = normalizeDateInputValue(formData.get("completionDate") || "");
+    task.recurrence = canonicalTaskRecurrence(formData.get("recurrence") || task.recurrence || "Nenhuma");
+    task.recurrenceAnchorDate = normalizeDateInputValue(formData.get("recurrenceAnchorDate") || task.recurrenceAnchorDate || task.dueDate || "");
     task.updatedAt = new Date().toISOString();
+    refreshRecurringTask(task);
   }
 
   function persistVisibleCardEdits(root = document) {
@@ -768,6 +771,9 @@
       found[field] = nextValue;
       if (field === "dueDate") {
         found.status = nextValue < todayISO() ? "Atrasado" : "Em andamento";
+      }
+      if (field === "recurrence") {
+        found.recurrence = canonicalTaskRecurrence(nextValue);
       }
     });
   }
@@ -2642,6 +2648,10 @@
         rito: { crm: "cards", invested: "cards" },
         fast: { crm: "cards", invested: "cards" }
       },
+      taskListGroupModes: {
+        rito: "theme",
+        fast: "theme"
+      },
       fastDashboardStatusFocus: "",
       calendarCursor: {
         rito: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`,
@@ -2688,7 +2698,7 @@
     if (rootState.currentWorkspace === "atica" || rootState.currentWorkspace === "diligence" || !workspaceConfig[rootState.currentWorkspace]) {
       rootState.currentWorkspace = "rito";
     }
-    ["currentView", "selectedProjectId", "projectReturnView", "dashboardFilters", "pipelineFilters", "referenceViewModes", "kanbanCompletedVisibility"].forEach((key) => {
+    ["currentView", "selectedProjectId", "projectReturnView", "dashboardFilters", "pipelineFilters", "referenceViewModes", "kanbanCompletedVisibility", "taskListGroupModes"].forEach((key) => {
       if (rootState[key] && typeof rootState[key] === "object") {
         delete rootState[key].atica;
         delete rootState[key].diligence;
@@ -2750,6 +2760,11 @@
     merged.referenceViewModes = {
       ...base.referenceViewModes,
       ...((rawSnapshot.referenceViewModes && typeof rawSnapshot.referenceViewModes === "object") ? rawSnapshot.referenceViewModes : {})
+    };
+
+    merged.taskListGroupModes = {
+      ...base.taskListGroupModes,
+      ...((rawSnapshot.taskListGroupModes && typeof rawSnapshot.taskListGroupModes === "object") ? rawSnapshot.taskListGroupModes : {})
     };
 
     Object.keys(base.referenceViewModes).forEach((workspace) => {
@@ -3203,8 +3218,12 @@
     if (!task.priority) task.priority = "Media";
     if (!task.tags) task.tags = [];
     if (!("completionDate" in task)) task.completionDate = "";
+    if (!("recurrence" in task)) task.recurrence = "Nenhuma";
+    if (!("recurrenceAnchorDate" in task)) task.recurrenceAnchorDate = normalizeDateInputValue(task.dueDate || "");
+    if (!("lastRecurrenceResetAt" in task)) task.lastRecurrenceResetAt = "";
     if (!task.createdAt) task.createdAt = "2026-04-20";
     if (!task.updatedAt) task.updatedAt = task.createdAt || "2026-04-20";
+    refreshRecurringTask(task);
   }
 
   function touchKanbanTask(task) {
@@ -3224,6 +3243,82 @@
     if (value === "a fazer" || value === "a-fazer" || value === "nao iniciado" || value === "não iniciado") return "A fazer";
     if (value === "em andamento" || value === "em execucao" || value === "em execução" || value === "atrasado") return "Em andamento";
     return "A fazer";
+  }
+
+  function canonicalTaskRecurrence(value = "") {
+    const normalized = String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toLowerCase();
+    if (!normalized || normalized === "nenhuma" || normalized === "nao recorrente") return "Nenhuma";
+    if (normalized === "diaria" || normalized === "diario" || normalized === "diariamente") return "Diária";
+    if (normalized === "semanal" || normalized === "semanalmente") return "Semanal";
+    if (normalized === "quinzenal" || normalized === "quinzenalmente") return "Quinzenal";
+    if (normalized === "mensal" || normalized === "mensalmente") return "Mensal";
+    return "Nenhuma";
+  }
+
+  function recurrenceDays(recurrence = "") {
+    const canonical = canonicalTaskRecurrence(recurrence);
+    if (canonical === "Diária") return 1;
+    if (canonical === "Semanal") return 7;
+    if (canonical === "Quinzenal") return 14;
+    return 0;
+  }
+
+  function addDaysISO(dateText, days) {
+    const normalized = normalizeDateInputValue(dateText);
+    if (!normalized || !Number.isFinite(days)) return normalized;
+    const [year, month, day] = normalized.split("-").map(Number);
+    const date = new Date(year, month - 1, day);
+    date.setDate(date.getDate() + days);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  }
+
+  function addMonthsISO(dateText, months = 1) {
+    const normalized = normalizeDateInputValue(dateText);
+    if (!normalized) return normalized;
+    const [year, month, day] = normalized.split("-").map(Number);
+    const targetMonthIndex = month - 1 + months;
+    const targetYear = year + Math.floor(targetMonthIndex / 12);
+    const normalizedMonthIndex = ((targetMonthIndex % 12) + 12) % 12;
+    const lastDay = new Date(targetYear, normalizedMonthIndex + 1, 0).getDate();
+    const safeDay = Math.min(day, lastDay);
+    return `${targetYear}-${String(normalizedMonthIndex + 1).padStart(2, "0")}-${String(safeDay).padStart(2, "0")}`;
+  }
+
+  function nextRecurringDueDate(fromDate, recurrence) {
+    const canonical = canonicalTaskRecurrence(recurrence);
+    if (canonical === "Mensal") return addMonthsISO(fromDate, 1);
+    const days = recurrenceDays(canonical);
+    return days ? addDaysISO(fromDate, days) : normalizeDateInputValue(fromDate);
+  }
+
+  function refreshRecurringTask(task) {
+    if (!task || typeof task !== "object") return;
+    const recurrence = canonicalTaskRecurrence(task.recurrence);
+    task.recurrence = recurrence;
+    if (recurrence === "Nenhuma") return;
+    const baseDate = normalizeDateInputValue(task.recurrenceAnchorDate || task.dueDate || task.createdAt || todayISO()) || todayISO();
+    if (!task.recurrenceAnchorDate) task.recurrenceAnchorDate = baseDate;
+    const isCompleted = canonicalTaskStatus(task.status) === "Concluido";
+    if (!isCompleted) return;
+    const pivotDate = normalizeDateInputValue(task.completionDate || task.dueDate || baseDate) || baseDate;
+    let nextDueDate = nextRecurringDueDate(baseDate, recurrence);
+    let guard = 0;
+    while (nextDueDate && nextDueDate <= pivotDate && guard < 48) {
+      nextDueDate = nextRecurringDueDate(nextDueDate, recurrence);
+      guard += 1;
+    }
+    if (!nextDueDate) return;
+    if (task.lastRecurrenceResetAt === nextDueDate) return;
+    task.dueDate = nextDueDate;
+    task.recurrenceAnchorDate = nextDueDate;
+    task.status = nextDueDate < todayISO() ? "Atrasado" : "A Fazer";
+    task.completionDate = "";
+    task.lastRecurrenceResetAt = nextDueDate;
+    touchKanbanTask(task);
   }
 
   function taskStatusSummary(tasks = []) {
@@ -3697,6 +3792,10 @@
 
   function referenceViewMode(view) {
     return state.referenceViewModes?.[state.currentWorkspace]?.[view] || "cards";
+  }
+
+  function taskListGroupMode(workspaceId = state.currentWorkspace) {
+    return state.taskListGroupModes?.[workspaceId] || "theme";
   }
 
   function getRitoInvestedCards() {
@@ -7049,6 +7148,7 @@
     const themes = workspaceTaskThemes(state.currentWorkspace);
     const themeColors = workspaceTaskThemeColors(state.currentWorkspace);
     const viewMode = referenceViewMode("tasks");
+    const groupMode = taskListGroupMode();
     const kanbanSubtitles = {
       rito: "Gestão da empresa organizada por tema",
       atica: "Gestao interna organizada por tema",
@@ -7068,6 +7168,12 @@
             <button class="${viewMode === "cards" ? "is-active" : ""}" data-ref-action="cards-view" data-ref-view="tasks" type="button">Board</button>
             <button class="${viewMode === "list" ? "is-active" : ""}" data-ref-action="list-view" data-ref-view="tasks" type="button">Lista</button>
           </div>
+          ${viewMode === "list" ? `
+            <div class="segmented">
+              <button class="${groupMode === "theme" ? "is-active" : ""}" data-ref-action="tasks-group-theme" type="button">Tema</button>
+              <button class="${groupMode === "owner" ? "is-active" : ""}" data-ref-action="tasks-group-owner" type="button">Responsável</button>
+            </div>
+          ` : ""}
           <button class="ghost-button" data-ref-action="edit-columns" type="button">Alterar colunas</button>
           <button class="action-button" data-ref-action="new-task" type="button">+ Nova tarefa</button>
         </div>
@@ -7084,14 +7190,31 @@
       const owner = "";
       const priority = "";
       const tag = "";
+      const filteredTasks = data.taskItems
+        .filter((task) => !owner || task.owner.toLowerCase().includes(owner))
+        .filter((task) => !priority || task.priority === priority)
+        .filter((task) => !tag || task.tags.join(" ").toLowerCase().includes(tag));
       board.innerHTML = "";
+      if (viewMode === "list" && groupMode === "owner") {
+        buildTaskOwnerGroups(filteredTasks).forEach((group) => {
+          const completedVisibility = workspaceKanbanCompletedVisibility();
+          const showCompleted = Boolean(completedVisibility[group.visibilityKey]);
+          board.appendChild(renderTaskListGroup({
+            stage: group.label,
+            accentColor: group.accentColor,
+            visibleTasks: group.visibleTasks,
+            completedTasks: group.completedTasks,
+            showCompleted,
+            visibilityKey: group.visibilityKey,
+            grouping: "owner",
+            addTaskStage: ""
+          }));
+        });
+      return bindTaskListControls(draw);
+      }
       themes.forEach((stage, index) => {
         const accentColor = themeColors[index] || DEFAULT_KANBAN_THEME_COLORS[index % DEFAULT_KANBAN_THEME_COLORS.length];
-        const stageTasks = data.taskItems
-          .filter((task) => task.stage === stage)
-          .filter((task) => !owner || task.owner.toLowerCase().includes(owner))
-          .filter((task) => !priority || task.priority === priority)
-          .filter((task) => !tag || task.tags.join(" ").toLowerCase().includes(tag));
+        const stageTasks = filteredTasks.filter((task) => task.stage === stage);
         const visibleTasks = stageTasks.filter((task) => !isCompletedTaskStatus(task.status));
         const completedTasks = stageTasks.filter((task) => isCompletedTaskStatus(task.status));
         const completedVisibility = workspaceKanbanCompletedVisibility();
@@ -7102,7 +7225,10 @@
             accentColor,
             visibleTasks,
             completedTasks,
-            showCompleted
+            showCompleted,
+            visibilityKey: stage,
+            grouping: "theme",
+            addTaskStage: stage
           }));
           return;
         }
@@ -7160,6 +7286,21 @@
     return panel;
   }
 
+  function bindTaskListControls(redraw) {
+    document.querySelectorAll("[data-add-theme-task]").forEach((button) => {
+      button.onclick = () => openTaskDialog("", button.dataset.addThemeTask);
+    });
+    document.querySelectorAll("[data-toggle-completed-stage]").forEach((button) => {
+      button.onclick = () => {
+        const stage = button.dataset.toggleCompletedStage;
+        const visibility = workspaceKanbanCompletedVisibility();
+        visibility[stage] = !visibility[stage];
+        saveState();
+        redraw();
+      };
+    });
+  }
+
   function formatTaskDateLabel(value) {
     const normalized = normalizeDateInputValue(value);
     if (!normalized) return "-";
@@ -7186,7 +7327,7 @@
     return "mid";
   }
 
-  function createTaskListRow(task) {
+  function createTaskListRow(task, grouping = "theme") {
     const row = document.createElement("button");
     row.type = "button";
     row.className = `kanban-list-row${isCompletedTaskStatus(task.status) ? " is-completed" : ""}`;
@@ -7194,21 +7335,26 @@
     const dueDate = normalizeDateInputValue(task.dueDate || "");
     const isLate = dueDate && !isCompletedTaskStatus(task.status) && dueDate < todayISO();
     const descriptionPreview = displayText(task.description || "").trim();
+    const recurrence = canonicalTaskRecurrence(task.recurrence);
     const ownerMarkup = task.owner ? renderOwnerAvatar(task.owner, "kanban-list-avatar") : '<span class="kanban-list-avatar is-empty"></span>';
+    const secondaryCell = grouping === "owner"
+      ? `<div class="kanban-list-meta-text">${displayText(task.stage || "Sem tema")}</div>`
+      : `<div class="kanban-list-assignee">
+          ${ownerMarkup}
+          <span>${displayText(task.owner || "Sem responsável")}</span>
+        </div>`;
     row.innerHTML = `
       <div class="kanban-list-main">
         <div class="kanban-list-task">
           <span class="kanban-list-task-bullet priority-${taskPriorityClass(task.priority)}"></span>
           <div class="kanban-list-copy">
             <strong>${displayText(task.title)}</strong>
+            ${recurrence !== "Nenhuma" ? `<span class="kanban-recurrence-label">${displayText(recurrence)}</span>` : ""}
             ${descriptionPreview ? `<p>${descriptionPreview}</p>` : ""}
           </div>
         </div>
       </div>
-      <div class="kanban-list-assignee">
-        ${ownerMarkup}
-        <span>${displayText(task.owner || "Sem responsável")}</span>
-      </div>
+      ${secondaryCell}
       <div class="kanban-list-date${isLate ? " is-late" : ""}">${formatTaskDateLabel(task.dueDate)}</div>
       <div><span class="kanban-list-chip status-${canonicalTaskStatus(task.status).toLowerCase().replace(/\s+/g, "-")}">${taskStatusDisplay(task.status || "A Fazer")}</span></div>
       <div><span class="kanban-list-chip priority-${taskPriorityClass(task.priority)}">${displayText(task.priority || "Media")}</span></div>
@@ -7217,11 +7363,12 @@
     return row;
   }
 
-  function renderTaskListGroup({ stage, accentColor, visibleTasks, completedTasks, showCompleted }) {
+  function renderTaskListGroup({ stage, accentColor, visibleTasks, completedTasks, showCompleted, visibilityKey = stage, grouping = "theme", addTaskStage = stage }) {
     const group = document.createElement("section");
     group.className = "kanban-list-group panel";
     const activeSummary = taskStatusSummary(visibleTasks);
     const completedSummary = completedTasks.length ? ` • ${completedTasks.length} concluídas` : "";
+    const secondColumnLabel = grouping === "owner" ? "Tema" : "Responsável";
     group.innerHTML = `
       <div class="kanban-list-group-head">
         <div class="kanban-list-group-title">
@@ -7231,41 +7378,75 @@
             <p>${visibleTasks.length} ativas • ${activeSummary["Em andamento"]} em andamento • ${activeSummary["A fazer"]} a fazer${completedSummary}</p>
           </div>
         </div>
-        <button class="ghost-icon-button column-open" data-add-theme-task="${escapeAttr(stage)}" type="button">+</button>
+        <button class="ghost-icon-button column-open" data-add-theme-task="${escapeAttr(addTaskStage)}" type="button">+</button>
       </div>
       <div class="kanban-list-table-head">
         <div>Tarefa</div>
-        <div>Responsável</div>
+        <div>${secondColumnLabel}</div>
         <div>Prazo</div>
         <div>Status</div>
         <div>Prioridade</div>
       </div>
-      <div class="kanban-list-table" data-list-stage="${escapeAttr(stage)}"></div>
+      <div class="kanban-list-table" data-list-stage="${escapeAttr(visibilityKey)}"></div>
       ${completedTasks.length ? `
         <div class="kanban-completed-section ${showCompleted ? "is-open" : ""}">
-          <button class="kanban-completed-toggle" data-toggle-completed-stage="${escapeAttr(stage)}" type="button">
+          <button class="kanban-completed-toggle" data-toggle-completed-stage="${escapeAttr(visibilityKey)}" type="button">
             <span>${showCompleted ? "Ocultar" : "Ver"} concluídas</span>
             <strong>${completedTasks.length}</strong>
           </button>
-          <div class="kanban-completed-list ${showCompleted ? "" : "hidden"}" data-completed-list="${escapeAttr(stage)}"></div>
+          <div class="kanban-completed-list ${showCompleted ? "" : "hidden"}" data-completed-list="${escapeAttr(visibilityKey)}"></div>
         </div>
       ` : ""}
     `;
-    const table = group.querySelector(`[data-list-stage="${escapeAttr(stage)}"]`);
+    const table = group.querySelector(`[data-list-stage="${escapeAttr(visibilityKey)}"]`);
     if (!visibleTasks.length) {
       const empty = document.createElement("div");
       empty.className = "kanban-list-empty";
       empty.textContent = completedTasks.length ? "Nenhuma tarefa ativa nesta frente." : "Sem tarefas nesta frente.";
       table.appendChild(empty);
     } else {
-      visibleTasks.forEach((task) => table.appendChild(createTaskListRow(task)));
+      visibleTasks.forEach((task) => table.appendChild(createTaskListRow(task, grouping)));
     }
-    const completedList = group.querySelector(`[data-completed-list="${escapeAttr(stage)}"]`);
+    const completedList = group.querySelector(`[data-completed-list="${escapeAttr(visibilityKey)}"]`);
     if (completedList && showCompleted) {
-      completedTasks.forEach((task) => completedList.appendChild(createTaskListRow(task)));
+      completedTasks.forEach((task) => completedList.appendChild(createTaskListRow(task, grouping)));
     }
-    group.querySelector("[data-add-theme-task]")?.addEventListener("click", () => openTaskDialog("", stage));
+    group.querySelector("[data-add-theme-task]")?.addEventListener("click", () => openTaskDialog("", addTaskStage));
     return group;
+  }
+
+  function buildTaskOwnerGroups(tasks = []) {
+    const owners = workspaceOwnerOptions(state.currentWorkspace);
+    const grouped = new Map();
+    owners.forEach((owner, index) => {
+      grouped.set(owner, {
+        label: owner,
+        visibilityKey: `owner:${owner}`,
+        accentColor: DEFAULT_KANBAN_THEME_COLORS[index % DEFAULT_KANBAN_THEME_COLORS.length],
+        visibleTasks: [],
+        completedTasks: [],
+        order: index
+      });
+    });
+    (tasks || []).forEach((task) => {
+      const owner = String(task.owner || "").trim() || "Sem responsável";
+      if (!grouped.has(owner)) {
+        grouped.set(owner, {
+          label: owner,
+          visibilityKey: `owner:${owner}`,
+          accentColor: DEFAULT_KANBAN_THEME_COLORS[grouped.size % DEFAULT_KANBAN_THEME_COLORS.length],
+          visibleTasks: [],
+          completedTasks: [],
+          order: grouped.size
+        });
+      }
+      const bucket = grouped.get(owner);
+      if (isCompletedTaskStatus(task.status)) bucket.completedTasks.push(task);
+      else bucket.visibleTasks.push(task);
+    });
+    return [...grouped.values()]
+      .filter((group) => group.visibleTasks.length || group.completedTasks.length)
+      .sort((a, b) => a.order - b.order || a.label.localeCompare(b.label, "pt-BR"));
   }
 
   function createTaskCard(task, projectScoped, projectName = "") {
@@ -7275,11 +7456,15 @@
     article.dataset.taskId = task.id;
     const isLate = task.dueDate < todayISO();
     const priorityClass = task.priority === "Alta" ? "high" : task.priority === "Baixa" ? "low" : "mid";
+    const recurrence = canonicalTaskRecurrence(task.recurrence);
     const ownerMarkup = task.owner ? renderOwnerAvatar(task.owner, "task-card-assignee") : '<span class="task-card-assignee is-empty"></span>';
     article.innerHTML = `
       <strong>${displayText(task.title)}</strong>
       ${task.description ? `<p class="kanban-card-description">${displayText(task.description)}</p>` : ""}
-      <div class="mini-chip-row"><span class="soft-pill kanban-status-pill">${displayText(task.status || "A Fazer")}</span></div>
+      <div class="mini-chip-row">
+        <span class="soft-pill kanban-status-pill">${displayText(task.status || "A Fazer")}</span>
+        ${recurrence !== "Nenhuma" ? `<span class="soft-pill kanban-recurrence-pill">${displayText(recurrence)}</span>` : ""}
+      </div>
       <div class="task-card-footer">
         <div class="task-meta"><span class="task-dot ${priorityClass}"></span>${displayText(task.priority || "Media")}</div>
         ${ownerMarkup}
@@ -7977,6 +8162,12 @@
           const targetView = button.dataset.refView || state.currentView[state.currentWorkspace];
           state.referenceViewModes[state.currentWorkspace] ||= {};
           state.referenceViewModes[state.currentWorkspace][targetView] = action === "cards-view" ? "cards" : "list";
+          saveState();
+          return renderApp();
+        }
+        if (action === "tasks-group-theme" || action === "tasks-group-owner") {
+          state.taskListGroupModes ||= {};
+          state.taskListGroupModes[state.currentWorkspace] = action === "tasks-group-owner" ? "owner" : "theme";
           saveState();
           return renderApp();
         }
@@ -9186,6 +9377,7 @@
     const dialog = document.getElementById("entityDialog");
     const stages = projectName ? workspaceProjectThemes(state.currentWorkspace) : workspaceTaskThemes(state.currentWorkspace);
     const selectedStage = presetStage && stages.includes(presetStage) ? presetStage : stages[0];
+    const recurrenceOptions = ["Nenhuma", "Diária", "Semanal", "Quinzenal", "Mensal"];
     dialog.dataset.dialogSize = "wide";
     dialog.classList.remove("hidden");
     dialog.innerHTML = `
@@ -9206,6 +9398,8 @@
           <label class="field"><span>Responsável</span><select name="owner"><option value="">Selecione</option>${workspaceConfig[state.currentWorkspace].memberOptions.map((owner) => `<option>${displayText(owner)}</option>`).join("")}</select></label>
           <label class="field"><span>Prazo</span><input name="dueDate" type="date" value="${normalizeDateInputValue(todayISO())}"></label>
           <label class="field"><span>Data de conclusão</span><input name="completionDate" type="date" value=""></label>
+          <label class="field"><span>Recorrência</span><select name="recurrence">${recurrenceOptions.map((option) => `<option>${option}</option>`).join("")}</select></label>
+          <label class="field"><span>Base da recorrência</span><input name="recurrenceAnchorDate" type="date" value="${normalizeDateInputValue(todayISO())}"></label>
           <label class="field full-span"><span>Tags</span><input name="tags" placeholder="Ex: Marketing, Growth"></label>
         </div>
         <div class="dialog-actions task-create-actions">
@@ -9232,6 +9426,9 @@
         owner: formData.get("owner"),
         dueDate: normalizeDateInputValue(formData.get("dueDate")),
         completionDate: normalizeDateInputValue(formData.get("completionDate")),
+        recurrence: canonicalTaskRecurrence(formData.get("recurrence") || "Nenhuma"),
+        recurrenceAnchorDate: normalizeDateInputValue(formData.get("recurrenceAnchorDate") || formData.get("dueDate") || todayISO()),
+        lastRecurrenceResetAt: "",
         priority: formData.get("priority"),
         stage: formData.get("stage"),
         status: formData.get("status") || "A Fazer",
@@ -9239,6 +9436,7 @@
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
+      refreshRecurringTask(task);
       if (projectName) {
         if (!workspaceData().projectBoards[projectName]) workspaceData().projectBoards[projectName] = [];
         workspaceData().projectBoards[projectName].push(task);
@@ -9370,6 +9568,7 @@
     if (!task) return;
     const themes = isProject ? workspaceProjectThemes(state.currentWorkspace) : workspaceTaskThemes(state.currentWorkspace);
     const memberOptions = workspaceConfig[state.currentWorkspace].memberOptions || [];
+    const recurrenceOptions = ["Nenhuma", "Diária", "Semanal", "Quinzenal", "Mensal"];
     dialog.dataset.dialogSize = "wide";
     dialog.classList.remove("hidden");
     dialog.innerHTML = `
@@ -9390,6 +9589,8 @@
           <label class="field"><span>Responsável</span><select name="owner">${memberOptions.map((owner) => `<option ${task.owner === owner ? "selected" : ""}>${displayText(owner)}</option>`).join("")}</select></label>
           <label class="field"><span>Prazo</span><input name="dueDate" type="date" value="${escapeAttr(normalizeDateInputValue(task.dueDate || todayISO()))}"></label>
           <label class="field"><span>Data de conclusão</span><input name="completionDate" type="date" value="${escapeAttr(normalizeDateInputValue(task.completionDate || ""))}"></label>
+          <label class="field"><span>Recorrência</span><select name="recurrence">${recurrenceOptions.map((option) => `<option ${canonicalTaskRecurrence(task.recurrence) === option ? "selected" : ""}>${option}</option>`).join("")}</select></label>
+          <label class="field"><span>Base da recorrência</span><input name="recurrenceAnchorDate" type="date" value="${escapeAttr(normalizeDateInputValue(task.recurrenceAnchorDate || task.dueDate || todayISO()))}"></label>
           <label class="field full-span"><span>Excluir</span><button class="ghost-button task-delete-button" type="button" id="taskDeleteButton">Excluir tarefa</button></label>
         </div>
         <div class="dialog-actions task-editor-actions">
