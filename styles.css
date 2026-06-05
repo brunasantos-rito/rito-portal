@@ -5705,6 +5705,227 @@ body[data-theme="dark"] .workspace-soft-page .kanban-card {
   gap: 8px;
 }
 
+.kanban-list-view-shell {
+  display: grid;
+  gap: 18px;
+}
+
+.kanban-list-group {
+  display: grid;
+  gap: 14px;
+  padding: 18px 18px 16px;
+}
+
+.kanban-list-group-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.kanban-list-group-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.kanban-list-group-title strong {
+  display: block;
+  font-size: 0.94rem;
+  font-weight: 600;
+}
+
+.kanban-list-group-title p {
+  margin: 4px 0 0;
+  color: var(--text-soft);
+  font-size: 0.73rem;
+}
+
+.kanban-list-table-head,
+.kanban-list-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2.6fr) minmax(160px, 1.1fr) minmax(110px, 0.8fr) minmax(120px, 0.9fr) minmax(110px, 0.8fr);
+  gap: 16px;
+  align-items: center;
+}
+
+.kanban-list-table-head {
+  padding: 0 14px 4px;
+  color: var(--text-soft);
+  font-size: 0.63rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.kanban-list-table {
+  display: grid;
+  gap: 10px;
+}
+
+.kanban-list-row {
+  width: 100%;
+  padding: 12px 13px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface-strong);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: var(--shadow-soft);
+}
+
+.kanban-list-row.is-completed {
+  opacity: 0.74;
+}
+
+.kanban-list-main {
+  min-width: 0;
+}
+
+.kanban-list-task {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.kanban-list-task-bullet {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.kanban-list-task-bullet.priority-high { background: #dc6f6f; }
+.kanban-list-task-bullet.priority-mid { background: #d2b35c; }
+.kanban-list-task-bullet.priority-low { background: #75a9dd; }
+
+.kanban-list-copy {
+  min-width: 0;
+}
+
+.kanban-list-copy strong {
+  display: block;
+  font-size: 0.88rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.kanban-list-copy p {
+  margin: 4px 0 0;
+  color: var(--text-soft);
+  font-size: 0.73rem;
+  line-height: 1.45;
+}
+
+.kanban-list-assignee {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.kanban-list-assignee span:last-child {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kanban-list-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #403c69;
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  font-size: 0.62rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.kanban-list-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.kanban-list-avatar.is-empty {
+  background: transparent;
+  border: 1px solid var(--border);
+}
+
+.kanban-list-date {
+  color: var(--text-soft);
+  font-size: 0.74rem;
+}
+
+.kanban-list-date.is-late {
+  color: #c77c7c;
+}
+
+.kanban-list-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 88px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.kanban-list-chip.status-a-fazer {
+  background: #f5f1e8;
+  color: #8f6a2b;
+}
+
+.kanban-list-chip.status-em-andamento {
+  background: #edf4ff;
+  color: #3566bb;
+}
+
+.kanban-list-chip.status-revisao {
+  background: #fff4df;
+  color: #b77b17;
+}
+
+.kanban-list-chip.status-concluido {
+  background: #ebf8ef;
+  color: #2c7a4a;
+}
+
+.kanban-list-chip.priority-high {
+  background: #fdecec;
+  color: #b95050;
+}
+
+.kanban-list-chip.priority-mid {
+  background: #fff6de;
+  color: #af7b14;
+}
+
+.kanban-list-chip.priority-low {
+  background: #ebf3ff;
+  color: #4477bb;
+}
+
+.kanban-list-empty {
+  min-height: 96px;
+  display: grid;
+  place-items: center;
+  padding: 18px 14px;
+  border: 1px dashed var(--border);
+  border-radius: 16px;
+  color: var(--text-soft);
+  font-size: 0.74rem;
+  text-align: center;
+}
+
 .project-column-list {
   align-content: start;
   gap: 8px;
@@ -6461,6 +6682,20 @@ label {
 
   .rito-dashboard-grid {
     grid-template-columns: 1fr;
+  }
+
+  .kanban-list-table-head {
+    display: none;
+  }
+
+  .kanban-list-row {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .kanban-list-assignee,
+  .kanban-list-date {
+    font-size: 0.78rem;
   }
 
   .rito-funnel-panel,
