@@ -5813,6 +5813,16 @@ body[data-theme="dark"] .workspace-soft-page .kanban-card {
   line-height: 1.35;
 }
 
+.kanban-recurrence-label {
+  display: inline-flex;
+  margin-top: 4px;
+  color: var(--text-soft);
+  font-size: 0.63rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .kanban-list-copy p {
   margin: 4px 0 0;
   color: var(--text-soft);
@@ -5828,6 +5838,14 @@ body[data-theme="dark"] .workspace-soft-page .kanban-card {
 }
 
 .kanban-list-assignee span:last-child {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kanban-list-meta-text {
+  color: var(--text-soft);
+  font-size: 0.74rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -5912,6 +5930,11 @@ body[data-theme="dark"] .workspace-soft-page .kanban-card {
 .kanban-list-chip.priority-low {
   background: #ebf3ff;
   color: #4477bb;
+}
+
+.kanban-recurrence-pill {
+  min-width: auto;
+  padding-inline: 10px;
 }
 
 .kanban-list-empty {
