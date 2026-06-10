@@ -1102,7 +1102,7 @@
     if (!diligenceProjects().some((project) => project.id === projectId)) return;
     state.selectedProjectId.diligence = projectId;
     saveState();
-    renderAppPreservingScroll();
+    renderAppPreservingScroll(id);
   }
 
   function formatCurrencyBRL(value) {
@@ -3239,6 +3239,7 @@
       .trim()
       .toLowerCase();
     if (value === "concluido" || value === "concluida") return "Concluido";
+    if (value === "pausado" || value === "pausada") return "Pausado";
     if (value === "revisao" || value === "aguardando") return "Revisao";
     if (value === "a fazer" || value === "a-fazer" || value === "nao iniciado" || value === "não iniciado") return "A fazer";
     if (value === "em andamento" || value === "em execucao" || value === "em execução" || value === "atrasado") return "Em andamento";
@@ -3329,6 +3330,7 @@
     }, {
       "A fazer": 0,
       "Em andamento": 0,
+      Pausado: 0,
       Revisao: 0,
       Concluido: 0
     });
@@ -4306,10 +4308,34 @@
     });
   }
 
-  function renderAppPreservingScroll() {
+  function findRenderedTaskNode(taskId) {
+    if (!taskId) return null;
+    return [...document.querySelectorAll("[data-task-id]")]
+      .find((node) => String(node.dataset.taskId || "").trim() === String(taskId || "").trim()) || null;
+  }
+
+  function restoreTaskViewport(taskId) {
+    if (!taskId) return;
+    const apply = () => {
+      const taskNode = findRenderedTaskNode(taskId);
+      if (!taskNode) return;
+      taskNode.scrollIntoView({
+        block: "center",
+        inline: "nearest",
+        behavior: "auto"
+      });
+    };
+    requestAnimationFrame(() => {
+      apply();
+      requestAnimationFrame(apply);
+    });
+  }
+
+  function renderAppPreservingScroll(taskId = "") {
     const snapshot = captureAppScrollSnapshot();
     renderApp();
     restoreAppScrollSnapshot(snapshot);
+    restoreTaskViewport(taskId);
   }
 
   function renderApp() {
@@ -6608,6 +6634,7 @@
     const statusGroups = [
       { label: "Não iniciadas", key: "A fazer", count: summary["A fazer"], color: "#9aa4b8" },
       { label: "Em andamento", key: "Em andamento", count: summary["Em andamento"], color: "#4f7cff" },
+      { label: "Pausadas", key: "Pausado", count: summary.Pausado, color: "#7a5cc9" },
       { label: "Aguardando", key: "Revisao", count: summary.Revisao, color: "#c6932d" },
       { label: "Concluídas", key: "Concluido", count: summary.Concluido, color: "#32a36a" }
     ];
@@ -7311,6 +7338,7 @@
 
   function taskStatusDisplay(status = "") {
     const canonical = canonicalTaskStatus(status);
+    if (canonical === "Pausado") return "Pausado";
     if (canonical === "Revisao") return "Revisão";
     if (canonical === "Concluido") return "Concluído";
     return canonical;
@@ -7375,7 +7403,7 @@
           <span class="reference-column-accent" style="background:${accentColor}"></span>
           <div>
             <strong>${displayText(stage)}</strong>
-            <p>${visibleTasks.length} ativas • ${activeSummary["Em andamento"]} em andamento • ${activeSummary["A fazer"]} a fazer${completedSummary}</p>
+            <p>${visibleTasks.length} ativas • ${activeSummary["Em andamento"]} em andamento • ${activeSummary["A fazer"]} a fazer • ${activeSummary.Pausado} pausadas${completedSummary}</p>
           </div>
         </div>
         <button class="ghost-icon-button column-open" data-add-theme-task="${escapeAttr(addTaskStage)}" type="button">+</button>
@@ -7594,7 +7622,7 @@
         task.stage = zone.dataset.stage;
         task.status = task.dueDate < todayISO() ? "Atrasado" : "Em andamento";
         touchKanbanTask(task);
-        renderAppPreservingScroll();
+        renderAppPreservingScroll(dragId);
         await persistKanbanStateOptimistically({
           rollbackState,
           rollbackMessage: "Nao foi possível mover a tarefa do projeto. O último estado salvo foi restaurado."
@@ -9393,7 +9421,7 @@
           <div class="field task-editor-spacer"></div>
           <label class="field full-span"><span>Título</span><input name="title" placeholder="Título da tarefa"></label>
           <label class="field full-span"><span>Descrição</span><textarea name="description"></textarea></label>
-          <label class="field"><span>Status</span><select name="status"><option>A Fazer</option><option>Em andamento</option><option>Revisão</option><option>Concluído</option></select></label>
+          <label class="field"><span>Status</span><select name="status"><option>A Fazer</option><option>Em andamento</option><option>Pausado</option><option>Revisão</option><option>Concluído</option></select></label>
           <label class="field"><span>Prioridade</span><select name="priority"><option>Alta</option><option>Média</option><option>Baixa</option></select></label>
           <label class="field"><span>Responsável</span><select name="owner"><option value="">Selecione</option>${workspaceConfig[state.currentWorkspace].memberOptions.map((owner) => `<option>${displayText(owner)}</option>`).join("")}</select></label>
           <label class="field"><span>Prazo</span><input name="dueDate" type="date" value="${normalizeDateInputValue(todayISO())}"></label>
@@ -9444,7 +9472,7 @@
       else workspaceData().taskItems.unshift(task);
       dialog.close();
       dialog.classList.add("hidden");
-      renderAppPreservingScroll();
+      renderAppPreservingScroll(task.id);
       await persistKanbanStateOptimistically({
         rollbackState,
         rollbackMessage: "Nao foi possível criar a tarefa. O Kanban voltou para o último estado salvo."
@@ -9584,7 +9612,7 @@
           <div class="field task-editor-spacer"></div>
           <label class="field full-span"><span>Título</span><input name="title" value="${escapeAttr(displayText(task.title))}"></label>
           <label class="field full-span"><span>Descrição</span><textarea name="description">${displayText(task.description || "")}</textarea></label>
-          <label class="field"><span>Status</span><select name="status"><option ${task.status === "A Fazer" || task.status === "A fazer" ? "selected" : ""}>A Fazer</option><option ${task.status === "Em Execucao" || task.status === "Em andamento" ? "selected" : ""}>Em andamento</option><option ${task.status === "Revisao" || task.status === "Revisão" ? "selected" : ""}>Revisão</option><option ${task.status === "Concluido" || task.status === "Concluído" ? "selected" : ""}>Concluído</option></select></label>
+          <label class="field"><span>Status</span><select name="status"><option ${task.status === "A Fazer" || task.status === "A fazer" ? "selected" : ""}>A Fazer</option><option ${task.status === "Em Execucao" || task.status === "Em andamento" ? "selected" : ""}>Em andamento</option><option ${task.status === "Pausado" || task.status === "Pausada" ? "selected" : ""}>Pausado</option><option ${task.status === "Revisao" || task.status === "Revisão" ? "selected" : ""}>Revisão</option><option ${task.status === "Concluido" || task.status === "Concluído" ? "selected" : ""}>Concluído</option></select></label>
           <label class="field"><span>Prioridade</span><select name="priority"><option ${task.priority === "Alta" ? "selected" : ""}>Alta</option><option ${task.priority === "Media" ? "selected" : ""}>Média</option><option ${task.priority === "Baixa" ? "selected" : ""}>Baixa</option></select></label>
           <label class="field"><span>Responsável</span><select name="owner">${memberOptions.map((owner) => `<option ${task.owner === owner ? "selected" : ""}>${displayText(owner)}</option>`).join("")}</select></label>
           <label class="field"><span>Prazo</span><input name="dueDate" type="date" value="${escapeAttr(normalizeDateInputValue(task.dueDate || todayISO()))}"></label>
@@ -9619,7 +9647,7 @@
     const persistTaskEditorRemotely = () => {
       const rollbackState = clonePortalState(state);
       persistTaskEditorDraft();
-      renderAppPreservingScroll();
+      renderAppPreservingScroll(task.id);
       return persistKanbanStateOptimistically({
         rollbackState,
         rollbackMessage: "Nao foi possível salvar a tarefa. O Kanban voltou para o último estado salvo."
@@ -9695,7 +9723,7 @@
       const rollbackState = clonePortalState(state);
       persistTaskEditorDraft();
       closeEditor();
-      renderAppPreservingScroll();
+      renderAppPreservingScroll(task.id);
       await persistKanbanStateOptimistically({
         rollbackState,
         rollbackMessage: "Nao foi possível salvar a tarefa. O Kanban voltou para o último estado salvo."
