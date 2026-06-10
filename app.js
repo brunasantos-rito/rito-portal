@@ -9644,25 +9644,27 @@
       }
       taskEditorAutosaveTimer = setTimeout(runAutosave, 700);
     };
-    const persistTaskEditorRemotely = () => {
+    const persistTaskEditorRemotely = ({ renderAfter = false } = {}) => {
       const rollbackState = clonePortalState(state);
       persistTaskEditorDraft();
-      renderAppPreservingScroll(task.id);
       return persistKanbanStateOptimistically({
         rollbackState,
         rollbackMessage: "Nao foi possível salvar a tarefa. O Kanban voltou para o último estado salvo."
+      }).then(() => {
+        if (renderAfter) renderAppPreservingScroll(task.id);
+        return null;
       }).catch(() => null);
     };
     dialog.querySelectorAll("[data-dialog-close]").forEach((button) => {
       button.onclick = () => {
-        persistTaskEditorRemotely();
         closeEditor();
+        persistTaskEditorRemotely({ renderAfter: true });
       };
     });
     dialog.addEventListener("cancel", async (event) => {
       event.preventDefault();
-      persistTaskEditorRemotely();
       closeEditor();
+      persistTaskEditorRemotely({ renderAfter: true });
     }, { once: true });
     document.getElementById("taskDeleteButton").onclick = async () => {
       const rollbackState = clonePortalState(state);
