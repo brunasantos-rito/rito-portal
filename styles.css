@@ -5907,6 +5907,11 @@ body[data-theme="dark"] .workspace-soft-page .kanban-card {
   color: #3566bb;
 }
 
+.kanban-list-chip.status-pausado {
+  background: #f2eefc;
+  color: #6d51b8;
+}
+
 .kanban-list-chip.status-revisao {
   background: #fff4df;
   color: #b77b17;
